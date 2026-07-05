@@ -866,11 +866,13 @@ function FactorPrestacionalTab({data,onChange,factorPrest,cargosCalc,cargoMap,es
 
 
 
+  var tblW=esHora?720:830;
+
   return(
 
     <div>
 
-      <div className="sec-hdr" style={{border:'1px solid var(--bdr)',borderRadius:4,padding:'2px 10px',marginBottom:5,flex:'0 0 auto',flexDirection:'row',alignItems:'center',gap:8,width:780}}>
+      <div className="sec-hdr" style={{border:'1px solid var(--bdr)',borderRadius:4,padding:'2px 10px',marginBottom:5,flex:'0 0 auto',flexDirection:'row',alignItems:'center',gap:8,width:tblW}}>
 
         <span className="title" style={{fontSize:15,lineHeight:'19px'}}>CATALOGO DE COLABORADORES</span>
 
@@ -878,11 +880,11 @@ function FactorPrestacionalTab({data,onChange,factorPrest,cargosCalc,cargoMap,es
 
       </div>
 
-      <div className="xl-wrap" style={{width:780}}>
+      <div className="xl-wrap" style={{width:tblW}}>
 
           <div className="xl-scroll">
 
-            <table style={{tableLayout:'fixed',width:'780px'}}>
+            <table style={{tableLayout:'fixed',width:tblW+'px'}}>
 
               <colgroup>
 
@@ -900,7 +902,7 @@ function FactorPrestacionalTab({data,onChange,factorPrest,cargosCalc,cargoMap,es
 
                 <col className="cw-110"/>
 
-                <col className="col-act" style={{width:'90px'}}/>
+                <col className="col-act" style={{width:'100px'}}/>
 
               </colgroup>
 
@@ -1646,7 +1648,7 @@ function EquiposTab({data,onChange,provMap,_unidades}){
 
       </div>
 
-      <div className="banner" style={{width:1137,display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical',overflow:'hidden',fontSize:11,padding:'6px 10px'}}><b className="c-warn">i</b> Las herramientas menores no se registran aqui. Se calculan automaticamente como <b>un porcentaje del total de la mano de obra</b> dentro de cada APU.</div>
+      <div className="banner" style={{width:1137,display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical',overflow:'hidden',fontSize:11,padding:'6px 10px'}}><b className="c-warn">Nota:</b> Las herramientas menores no se registran aqui. Se calculan automaticamente como <b>un porcentaje del total de la mano de obra</b> dentro de cada APU.</div>
 
       {equipoDelErr&&<div style={{padding:'8px 10px',fontSize:12,color:'#f87171',background:'rgba(248,113,113,0.08)',borderTop:'1px solid rgba(248,113,113,0.2)',borderRadius:'0 0 4px 4px',width:1137,display:'flex',alignItems:'center',justifyContent:'space-between'}}><span>{equipoDelErr}</span><button onClick={function(){setEquipoDelErr('')}} style={{background:'none',border:'none',color:'#f87171',cursor:'pointer',fontSize:16,lineHeight:1,padding:'0 4px'}} title="Cerrar">✕</button></div>}
 
@@ -1962,7 +1964,7 @@ function InsumosTab({data,onChange,provMap,cargosCalc,cargoMap,esHora,_unidades,
 
       {insDelErr&&<div style={{padding:'8px 10px',fontSize:12,color:'#f87171',background:'rgba(248,113,113,0.08)',borderTop:'1px solid rgba(248,113,113,0.2)',borderRadius:'0 0 4px 4px',width:1570,display:'flex',alignItems:'center',justifyContent:'space-between'}}><span>{insDelErr}</span><button onClick={function(){setInsDelErr('')}} style={{background:'none',border:'none',color:'#f87171',cursor:'pointer',fontSize:16,lineHeight:1,padding:'0 4px'}} title="Cerrar">✕</button></div>}
 
-      <div style={{padding:'6px 10px',fontSize:12,color:'var(--tx3)',lineHeight:'1.5'}}><b style={{color:'var(--warn)'}}>NOTA:</b> Todos los Costos/UN deben incluir todos los impuestos vigentes.</div>
+      <div className="banner" style={{width:1570,fontSize:12,padding:'6px 10px',boxSizing:'border-box'}}><b style={{color:'var(--warn)'}}>NOTA:</b> Todos los Costos/UN deben incluir todos los impuestos vigentes.</div>
 
       <ExcelPreviewModal excel={insExcel}/>
 
@@ -2825,7 +2827,7 @@ function APUTab({data,onChange,cargosCalc,cargoMap,esHora,eqMap,insMap,cuadrilla
 
           {view==='catalog'&&<React.Fragment>
 
-          <div style={{width:750,display:'flex',flexDirection:'column',overflow:'hidden'}}>
+          <div style={{width:935,display:'flex',flexDirection:'column',overflow:'hidden'}}>
 
             <div className="sec-hdr" style={{border:'1px solid var(--bdr)',borderRadius:4,padding:'2px 10px',height:25,marginBottom:8,flex:'0 0 auto'}}>
 
@@ -2833,29 +2835,29 @@ function APUTab({data,onChange,cargosCalc,cargoMap,esHora,eqMap,insMap,cuadrilla
 
         </div>
 
-        <div className="xl-wrap" style={{width:750,display:'flex',flexDirection:'column'}}>
+        <div className="xl-wrap" style={{width:935,display:'flex',flexDirection:'column'}}>
 
           <div className="xl-scroll" style={{flex:'0 1 auto',minHeight:0}}>
 
-            <table style={{tableLayout:'fixed',width:'750px'}}>
+            <table style={{tableLayout:'fixed',width:'935px'}}>
 
               <colgroup>
 
                 <col className="col-rn" style={{width:'40px'}}/>
 
-                <col className="cw-70"/>
-
-                <col className="cw-160"/>
+                <col style={{width:'100px'}}/>
 
                 <col className="cw-200"/>
 
+                <col style={{width:'265px'}}/>
+
                 <col className="cw-60"/>
 
-                <col className="cw-80"/>
+                <col className="cw-100"/>
 
                 <col className="cw-70"/>
 
-                <col className="col-act" style={{width:'70px'}}/>
+                <col className="col-act" style={{width:'100px'}}/>
 
               </colgroup>
 
@@ -2879,7 +2881,7 @@ function APUTab({data,onChange,cargosCalc,cargoMap,esHora,eqMap,insMap,cuadrilla
 
                       <td className="col-rn" style={{padding:'6px 2px'}}>{fi+1}</td>
 
-                      <td style={{padding:'6px 6px',fontSize:11,verticalAlign:'middle'}}>{a.es_basico===true?<span style={{color:'var(--ac)',fontWeight:700}}>{a.codigo||'—'} <span style={{fontSize:8,padding:'1px 4px',background:'rgba(77,143,247,.15)',border:'1px solid var(--ac)',borderRadius:3}}>BAS</span></span>:(a.codigo||'—')}</td>
+                      <td style={{padding:'6px 6px',fontSize:11,verticalAlign:'middle'}}>{a.es_basico===true?<span style={{color:'var(--ac)',fontWeight:700}}>{a.codigo||'—'}</span>:(a.codigo||'—')}</td>
 
                       <td style={{padding:'6px 6px',fontSize:11,verticalAlign:'middle',wordWrap:'break-word',whiteSpace:'normal'}}>{a.categoria||'—'}</td>
 

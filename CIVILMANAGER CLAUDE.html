@@ -401,40 +401,46 @@ function NumInput({value,onChange,decimals,format,placeholder,...rest}){
 
 const PREST_DEFAULTS=[
 
-  {id:uid(),nombre:'Subsidio de transporte',factor:14.23,tipo:'prestaciones'},
+  {id:uid(),codigo:'FP-001',nombre:'Subsidio de transporte',factor:14.23,tipo:'prestaciones'},
 
-  {id:uid(),nombre:'Cesant\u00edas / Indemnizaci\u00f3n anual',factor:8.33,tipo:'prestaciones'},
+  {id:uid(),codigo:'FP-002',nombre:'Cesant\u00edas / Indemnizaci\u00f3n anual',factor:8.33,tipo:'prestaciones'},
 
-  {id:uid(),nombre:'Intereses sobre cesant\u00edas',factor:1,tipo:'prestaciones'},
+  {id:uid(),codigo:'FP-003',nombre:'Intereses sobre cesant\u00edas',factor:1,tipo:'prestaciones'},
 
-  {id:uid(),nombre:'Prima / Aguinaldo',factor:8.33,tipo:'prestaciones'},
+  {id:uid(),codigo:'FP-004',nombre:'Prima / Aguinaldo',factor:8.33,tipo:'prestaciones'},
 
-  {id:uid(),nombre:'Vacaciones',factor:4.17,tipo:'prestaciones'},
+  {id:uid(),codigo:'FP-005',nombre:'Vacaciones',factor:4.17,tipo:'prestaciones'},
 
-  {id:uid(),nombre:'Dotaci\u00f3n / Implementos',factor:1,tipo:'prestaciones'},
+  {id:uid(),codigo:'FP-006',nombre:'Dotaci\u00f3n / Implementos',factor:1,tipo:'prestaciones'},
 
-  {id:uid(),nombre:'Salud (aporte empleador)',factor:8.5,tipo:'seguridad_social'},
+  {id:uid(),codigo:'FP-007',nombre:'Salud (aporte empleador)',factor:8.5,tipo:'seguridad_social'},
 
-  {id:uid(),nombre:'Pensi\u00f3n (aporte empleador)',factor:12,tipo:'seguridad_social'},
+  {id:uid(),codigo:'FP-008',nombre:'Pensi\u00f3n (aporte empleador)',factor:12,tipo:'seguridad_social'},
 
-  {id:uid(),nombre:'Riesgos laborales',factor:6.96,tipo:'seguridad_social'},
+  {id:uid(),codigo:'FP-009',nombre:'Riesgos laborales',factor:6.96,tipo:'seguridad_social'},
 
-  {id:uid(),nombre:'Caja / Bienestar',factor:4,tipo:'parafiscales'},
+  {id:uid(),codigo:'FP-010',nombre:'Caja / Bienestar',factor:4,tipo:'parafiscales'},
 
-  {id:uid(),nombre:'Formaci\u00f3n profesional',factor:2,tipo:'parafiscales'},
+  {id:uid(),codigo:'FP-011',nombre:'Formaci\u00f3n profesional',factor:2,tipo:'parafiscales'},
 
-  {id:uid(),nombre:'Protecci\u00f3n a la infancia',factor:3,tipo:'parafiscales'},
+  {id:uid(),codigo:'FP-012',nombre:'Protecci\u00f3n a la infancia',factor:3,tipo:'parafiscales'},
 
-  {id:uid(),nombre:'FIC (industria de la construcci\u00f3n)',factor:2.5,tipo:'parafiscales'},
+  {id:uid(),codigo:'FP-013',nombre:'FIC (industria de la construcci\u00f3n)',factor:2.5,tipo:'parafiscales'},
 
-  {id:uid(),nombre:'Horas extras (provisi\u00f3n)',factor:2,tipo:'otros'},
+  {id:uid(),codigo:'FP-014',nombre:'Horas extras (provisi\u00f3n)',factor:2,tipo:'otros'},
 
-  {id:uid(),nombre:'Permisos / Ausentismo (provisi\u00f3n)',factor:1,tipo:'otros'},
+  {id:uid(),codigo:'FP-015',nombre:'Permisos / Ausentismo (provisi\u00f3n)',factor:1,tipo:'otros'},
 
-  {id:uid(),nombre:'Otros auxilios',factor:0,tipo:'otros'}
+  {id:uid(),codigo:'FP-016',nombre:'Otros auxilios',factor:0,tipo:'otros'}
 
 ];
 
+const FP_CAT_DESC_DEFAULTS={
+  prestaciones:'Beneficios económicos obligatorios derivados del contrato laboral: cesantías, intereses, prima, vacaciones, dotación, subsidio de transporte.',
+  seguridad_social:'Aportes obligatorios al sistema de salud, pensión y riesgos laborales (ARL). Compartidos entre empleador y trabajador.',
+  parafiscales:'Aportes a fondos de bienestar social: Caja de Compensación Familiar, SENA, ICBF. Solo a cargo del empleador.',
+  otros:'Componentes adicionales específicos de cada empresa o sector: horas extras, recargos nocturnos, dominicales, beneficios extralegales.'
+};
 
 
 const CARGOS_DEFAULTS=[
@@ -3609,6 +3615,10 @@ function ConfigListasTab({data,onChange,factorPrest}){
 
   var fpGrouped=fpCatOrder.map(function(cat){return{cat:cat,label:fpCatLabels[cat],color:fpCatColors[cat],items:fps.filter(function(f){return(f.tipo||'otros')===cat})}});
 
+  var fpCatDesc=Object.assign({},FP_CAT_DESC_DEFAULTS,data.fp_categoria_desc||{});
+
+  var updFpCatDesc=function(cat,val){onChange(Object.assign({},data,{fp_categoria_desc:Object.assign({},fpCatDesc,{[cat]:val})}))};
+
   var fpTotal=r2(fps.reduce(function(s,f){return s+safeFloat(f.factor)},0));
 
   var fpExcel=useExcelImportExport({items:fps,data:data,onChange:onChange,dataKey:'factoresPrestaciones',prefix:'FP',title:'FACTOR PRESTACIONAL',sheetName:'FactorPrestacional',filename:'prestaciones.xlsx',headers:['Código','Factor','Valor(%)','Tipo'],colWidths:[{wch:10},{wch:30},{wch:12},{wch:14}],mapRow:function(f){return[f.codigo||'',f.nombre||'',f.factor||0,f.tipo||'otros']},parseRow:function(r){return[String(r[0]||'').trim(),String(r[1]||'').trim(),String(r[2]||0).trim(),String(r[3]||'otros').trim()]},buildItem:function(r,idx,existing,genCode){var nombre=(r[1]||'').trim();return{codigo:idx>=0?existing[idx].codigo:genCode(),nombre:nombre,factor:safeFloat(r[2])||0,tipo:r[3]||'otros'}},matchKey:'codigo'});
@@ -4711,15 +4721,17 @@ var SUBS=[
 
     return(
 
-      <div style={{width:560}}>
+      <div style={{width:640}}>
 
         <div style={{border:'1px solid var(--bdr)',borderRadius:4,overflow:'hidden'}}>
 
-          <table style={{tableLayout:'fixed',width:560}}>
+          <table style={{tableLayout:'fixed',width:640}}>
 
             <colgroup>
 
               <col className="cw-40"/>
+
+              <col className="cw-80"/>
 
               <col className="cw-140"/>
 
@@ -4733,6 +4745,8 @@ var SUBS=[
 
               <th style={{fontSize:10,background:'var(--bg2)',padding:'5px 6px',borderBottom:'1px solid var(--bdr)',textAlign:'center'}}>#</th>
 
+              <th style={{fontSize:10,background:'var(--bg2)',padding:'5px 6px',borderBottom:'1px solid var(--bdr)',textAlign:'center'}}>Código</th>
+
               <th style={{fontSize:10,background:'var(--bg2)',padding:'5px 6px',borderBottom:'1px solid var(--bdr)',textAlign:'center'}}>Unidad</th>
 
               <th style={{fontSize:10,background:'var(--bg2)',padding:'5px 6px',borderBottom:'1px solid var(--bdr)',textAlign:'center'}}>¿Qué mide?</th>
@@ -4743,7 +4757,7 @@ var SUBS=[
 
             <tbody>
 
-              {transpUnArr.length===0&&<tr className="empty-row"><td colSpan={4}>Sin unidades de transporte. Agregue una.</td></tr>}
+              {transpUnArr.length===0&&<tr className="empty-row"><td colSpan={5}>Sin unidades de transporte. Agregue una.</td></tr>}
 
               {transpUnArr.map(function(u,i){
 
@@ -4752,6 +4766,8 @@ var SUBS=[
                   <tr key={u.codigo} style={i%2===0?ALT_ROW:EMPTY_OBJ}>
 
                     <td style={{textAlign:'center',fontSize:10,padding:'4px 6px',borderBottom:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)'}}>{i+1}</td>
+
+                    <td style={{textAlign:'center',fontSize:10,padding:'4px 8px',borderBottom:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',fontWeight:700,verticalAlign:'middle',color:'var(--ok)'}}>{u.codigo}</td>
 
                     <td style={{fontSize:10,padding:'4px 8px',borderBottom:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',fontWeight:600,verticalAlign:'middle'}}>{u.nombre}</td>
 
@@ -5319,13 +5335,15 @@ var SUBS=[
 
     return(
 
-      <div style={{width:540,display:'flex',flexDirection:'column',height:'calc(100vh - 170px)'}}>
+      <div style={{display:'flex',gap:16,alignItems:'flex-start'}}>
+
+      <div style={{width:540,display:'flex',flexDirection:'column'}}>
 
         {factorActivo===0&&<div style={{padding:'6px 10px',marginBottom:5,border:'1px solid #f87171',borderRadius:4,background:'rgba(248,113,113,.1)',color:'#f87171',fontSize:11,fontWeight:700}}>El APU se Calculará sin Factor Prestacional</div>}
 
         {factorActivo>0&&factorActivo<50&&<div style={{padding:'6px 10px',marginBottom:5,border:'1px solid var(--warn)',borderRadius:4,background:'rgba(251,191,36,.1)',color:'var(--warn)',fontSize:11,fontWeight:700}}>F.P. inferior al 50%</div>}
 
-        <div style={{border:'1px solid var(--bdr)',borderRadius:4,background:'var(--bg2)',flex:'1 1 0',minHeight:0,display:'flex',flexDirection:'column'}}>
+        <div style={{border:'1px solid var(--bdr)',borderRadius:4,background:'var(--bg2)',display:'flex',flexDirection:'column'}}>
 
           <div style={{padding:'3px 10px',borderBottom:'1px solid var(--bd)',flex:'0 0 auto'}}>
 
@@ -5335,9 +5353,9 @@ var SUBS=[
 
           </div>
 
-          <div className="xl-scroll" style={{flex:'1 1 0',minHeight:0}}>
+          <div className="xl-scroll" style={{maxHeight:'calc(100vh - 260px)',overflowY:'auto'}}>
 
-            <table style={{tableLayout:'fixed',width:'456px'}}>
+            <table style={{tableLayout:'fixed',width:'540px'}}>
 
               <colgroup>
 
@@ -5361,7 +5379,7 @@ var SUBS=[
 
                 {fpGrouped.map(function(g){return g.items.length>0?[
 
-                  <tr key={'cat-'+g.cat}><td colSpan={4} style={{padding:'6px 10px 2px',fontSize:10,fontWeight:700,color:g.color,borderBottom:'1px solid var(--bd)'}}>{g.label}</td></tr>,
+                  <tr key={'cat-'+g.cat}><td colSpan={5} style={{padding:'6px 10px 2px',fontSize:10,fontWeight:700,color:g.color,borderBottom:'1px solid var(--bd)'}}>{g.label}</td></tr>,
 
                   ].concat(g.items.map(function(f){var origIdx=fps.indexOf(f);return(
 
@@ -5393,6 +5411,36 @@ var SUBS=[
 
       </div>
 
+      <div style={{width:320,border:'1px solid var(--bdr)',borderRadius:4,background:'var(--bg2)',display:'flex',flexDirection:'column'}}>
+
+        <div style={{padding:'3px 10px',borderBottom:'1px solid var(--bd)',flex:'0 0 auto'}}>
+
+          <span style={{fontSize:12,fontWeight:700,color:'var(--ac)'}}>CLASIFICACIÓN FACTOR PRESTACIONAL</span>
+
+        </div>
+
+        <div style={{padding:'8px 10px',display:'flex',flexDirection:'column',gap:10,maxHeight:'calc(100vh - 260px)',overflowY:'auto'}}>
+
+          {fpCatOrder.map(function(cat){return(
+
+            <div key={cat}>
+
+              <div style={{fontSize:10,fontWeight:700,color:fpCatColors[cat],marginBottom:4}}>{fpCatLabels[cat]}</div>
+
+              <textarea className="ni" value={fpCatDesc[cat]} onChange={function(e){updFpCatDesc(cat,e.target.value)}} style={{width:'100%',fontSize:10,minHeight:70,resize:'vertical',lineHeight:'1.4'}} placeholder={'Describe cuando aplica '+fpCatLabels[cat].toLowerCase()+' segun el pais...'}/>
+
+            </div>
+
+          )})}
+
+          <div style={{fontSize:9,color:'var(--tx3)',lineHeight:'1.4'}}>Estas descripciones son de referencia y se pueden ajustar por país o normativa vigente. Se guardan junto con la configuración de este proyecto.</div>
+
+        </div>
+
+      </div>
+
+      </div>
+
     );
 
   }
@@ -5415,7 +5463,7 @@ var SUBS=[
 
       <div style={{flex:1,minWidth:0}}>
 
-        <div className="sec-hdr" style={{border:'1px solid var(--bdr)',borderRadius:4,padding:'2px 10px',height:25,marginBottom:8,width:isFactPres?456:isPerfilPais?1192:isUnidades?560:isTriple?800:(isCatIns||isTipoEq)?750:(isOrigenes)?750:(isTranspUn)?560:sub==='parametros_apu'?695:'100%'}}>
+        <div className="sec-hdr" style={{border:'1px solid var(--bdr)',borderRadius:4,padding:'2px 10px',height:25,marginBottom:8,width:isFactPres?876:isPerfilPais?1192:isUnidades?560:isTriple?800:(isCatIns||isTipoEq)?750:(isOrigenes)?750:(isTranspUn)?640:sub==='parametros_apu'?695:'100%'}}>
 
           <span className="title" style={{fontSize:13,textDecoration:'none'}}>{isPerfilPais?'8.1 CONFIGURACION PERFIL DEL PAÍS':SUBS.find(function(s){return s.key===sub}).label.toUpperCase()}</span>
 
@@ -5423,7 +5471,7 @@ var SUBS=[
 
         {isFactPres?renderFactorPrestacional():(isPerfilPais?renderPerfilPais():(sub==='parametros_apu'?renderParamApu():(isTriple?renderCatAPU():(isCatIns?renderCatInsumo():(isTipoEq?renderTipoEquipo():(isOrigenes?renderOrigenes():(isTranspUn?renderTranspUn():renderSimple())))))))}
 
-        {clearConfirm&&<div style={{padding:'8px 10px',fontSize:12,color:'#f59e0b',background:'rgba(245,158,11,0.08)',borderTop:'1px solid rgba(245,158,11,0.2)',borderRadius:'0 0 4px 4px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,marginTop:4,width:isFactPres?456:isPerfilPais?1192:isUnidades?560:isTriple?800:(isCatIns||isTipoEq||isOrigenes)?750:(isTranspUn)?560:'100%'}}><span>{clearConfirm.msg}</span><span style={{display:'inline-flex',gap:4,flexShrink:0}}><button onClick={function(){clearConfirm.onConfirm();setClearConfirm(null)}} style={{fontSize:11,padding:'2px 8px',background:'rgba(245,158,11,0.15)',border:'1px solid #f59e0b',borderRadius:3,color:'#f59e0b',cursor:'pointer',fontWeight:600}}>Confirmar</button><button onClick={function(){setClearConfirm(null)}} style={{fontSize:11,padding:'2px 8px',background:'rgba(245,158,11,0.08)',border:'1px solid rgba(245,158,11,0.3)',borderRadius:3,color:'#f59e0b',cursor:'pointer'}}>Descartar</button></span></div>}
+        {clearConfirm&&<div style={{padding:'8px 10px',fontSize:12,color:'#f59e0b',background:'rgba(245,158,11,0.08)',borderTop:'1px solid rgba(245,158,11,0.2)',borderRadius:'0 0 4px 4px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,marginTop:4,width:isFactPres?876:isPerfilPais?1192:isUnidades?560:isTriple?800:(isCatIns||isTipoEq||isOrigenes)?750:(isTranspUn)?640:'100%'}}><span>{clearConfirm.msg}</span><span style={{display:'inline-flex',gap:4,flexShrink:0}}><button onClick={function(){clearConfirm.onConfirm();setClearConfirm(null)}} style={{fontSize:11,padding:'2px 8px',background:'rgba(245,158,11,0.15)',border:'1px solid #f59e0b',borderRadius:3,color:'#f59e0b',cursor:'pointer',fontWeight:600}}>Confirmar</button><button onClick={function(){setClearConfirm(null)}} style={{fontSize:11,padding:'2px 8px',background:'rgba(245,158,11,0.08)',border:'1px solid rgba(245,158,11,0.3)',borderRadius:3,color:'#f59e0b',cursor:'pointer'}}>Descartar</button></span></div>}
 
       </div>
 

@@ -332,6 +332,11 @@ const fmt=(v,d=2)=>{const n=Number(v);return isNaN(n)?'0.00':n.toLocaleString('e
 
 const r2=v=>Math.round(v*100)/100;
 
+/* Constantes compartidas de estilo para exportaciones XLSX (evita redefinir en cada Tab) */
+const XLS_NUM_FMT='#,##0.00';
+const XLS_HDR_FILL={fgColor:{rgb:'1A2438'}};
+const XLS_HDR_FONT={bold:true,color:{rgb:'FFFFFF'},sz:9};
+
 const MONTHS=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
 
 const fmtDate=function(v){if(!v||v==='')return'\u2014';var s=String(v).trim();var d;
@@ -658,7 +663,6 @@ const IconPlus=React.memo(function IconPlus(){return <svg viewBox="0 0 16 16" wi
 
 
 
-const IconTrash=React.memo(function IconTrash(){return <svg viewBox="0 0 16 16" width="14" height="14" style={{verticalAlign:'middle'}}><path d="M3,4 L13,4 L12,14 L4,14 Z M1,4 L15,4 M6,1 L10,1" fill="none" stroke="var(--err)" strokeWidth="1.5" strokeLinecap="round"/></svg>});
 
 const IconImport=React.memo(function IconImport(){return <svg viewBox="0 0 16 16" width="14" height="14" style={{verticalAlign:'middle'}}><path d="M8,2 L8,10 M5,7 L8,10 L11,7" fill="none" stroke="var(--ac)" strokeWidth="1.5" strokeLinecap="round"/><path d="M2,12 L2,14 L14,14 L14,12" fill="none" stroke="var(--ac)" strokeWidth="1.5" strokeLinecap="round"/></svg>});
 
@@ -756,7 +760,7 @@ function showToast(msg,opts){if(_showToast)_showToast(msg,opts)}
 
 
 
-const genCodeFor=function(items,prefix,codeOverride){if(codeOverride&&String(codeOverride).trim())return String(codeOverride).trim();var maxNum=items.reduce(function(m,item){var match=(item.codigo||'').match(new RegExp(prefix+'-(\\d+)'));return match?Math.max(m,parseInt(match[1])):m},0);return prefix+'-'+String(maxNum+1).padStart(3,'0')};
+const genCodeFor=function(items,prefix,codeOverride,padLen){if(codeOverride&&String(codeOverride).trim())return String(codeOverride).trim();padLen=padLen||3;var maxNum=items.reduce(function(m,item){var match=(item.codigo||'').match(new RegExp(prefix+'-(\\d+)'));return match?Math.max(m,parseInt(match[1])):m},0);return prefix+'-'+String(maxNum+1).padStart(padLen,'0')};
 
 const handleTabKeyDown=function(setEditIdx){return function(i,e){if(e.key==='Enter'){e.preventDefault();var tr=e.target.closest('tr');var inputs=[].slice.call(tr.querySelectorAll('input.ni,select.sel'));var idx=inputs.indexOf(e.target);if(idx<inputs.length-1)inputs[idx+1].focus();else setEditIdx(null)}else if(e.key==='Escape')setEditIdx(null)}};
 
@@ -1418,7 +1422,7 @@ const CrudFooter=React.memo(function CrudFooter({onAdd,addLabel,addDisabled,onCl
 
     {onAdd&&<button className="btn" onClick={onAdd} disabled={addDisabled} style={Object.assign({},BS,{border:'1px solid var(--ok)',opacity:addDisabled?0.4:1,cursor:addDisabled?'not-allowed':'pointer'})}><IconPlus/> {addLabel}</button>}
 
-    {onClearAll&&<button className="btn" onClick={onClearAll} style={Object.assign({},BS,{border:'1px solid var(--err)'})}><IconTrash/> {clearLabel}</button>}
+    {onClearAll&&<button className="btn" onClick={onClearAll} style={Object.assign({},BS,{border:'1px solid var(--err)'})}><IconDel/> {clearLabel}</button>}
 
     {excel&&<input ref={excel.fileRef} type="file" accept=".xlsx,.xls" style={{display:'none'}} onChange={excel.doImportSelect}/>}
 
@@ -2437,17 +2441,17 @@ function APUTab({data,onChange,cargosCalc,cargoMap,esHora,eqMap,insMap,cuadrilla
 
     var S_CELL=bs();
 
-    var S_CELL_R=bs({alignment:{horizontal:'right'},numFmt:'#,##0.00'});
+    var S_CELL_R=bs({alignment:{horizontal:'right'},numFmt:XLS_NUM_FMT});
 
     var S_CELL_RT=bs({alignment:{horizontal:'right'}});
 
     var S_CELL_C=bs({alignment:{horizontal:'center'}});
 
-    var S_CELL_C2=bs({alignment:{horizontal:'center'},numFmt:'#,##0.00'});
+    var S_CELL_C2=bs({alignment:{horizontal:'center'},numFmt:XLS_NUM_FMT});
 
     var S_CELL_4=bs({alignment:{horizontal:'center'},numFmt:'#,##0.0000'});
 
-    var S_HERR=bs({font:{name:FN,sz:9,italic:true,color:{rgb:'9CA3AF'}},numFmt:'#,##0.00'});
+    var S_HERR=bs({font:{name:FN,sz:9,italic:true,color:{rgb:'9CA3AF'}},numFmt:XLS_NUM_FMT});
 
     var S_HERR_C=bs({font:{name:FN,sz:9,italic:true,color:{rgb:'9CA3AF'}},alignment:{horizontal:'center'}});
 
@@ -2455,7 +2459,7 @@ function APUTab({data,onChange,cargosCalc,cargoMap,esHora,eqMap,insMap,cuadrilla
 
     var S_SUB_LBL=bs({font:{name:FN,sz:9,bold:true,color:{rgb:'333333'}},alignment:{horizontal:'right'},fill:{fgColor:{rgb:'F2F2F2'}},border:BH});
 
-    var S_SUB_VAL=bs({font:{name:FN,sz:9,bold:true,color:{rgb:'333333'}},alignment:{horizontal:'right'},fill:{fgColor:{rgb:'F2F2F2'}},numFmt:'#,##0.00',border:BH});
+    var S_SUB_VAL=bs({font:{name:FN,sz:9,bold:true,color:{rgb:'333333'}},alignment:{horizontal:'right'},fill:{fgColor:{rgb:'F2F2F2'}},numFmt:XLS_NUM_FMT,border:BH});
 
     var S_TOTAL_LBL=bs({font:{name:FN,sz:9,bold:true,color:{rgb:'333333'}},alignment:{horizontal:'right'},fill:{fgColor:{rgb:'C4BD97'}},border:BH});
 
@@ -3607,7 +3611,7 @@ function ConfigListasTab({data,onChange,factorPrest}){
 
   var fpTotal=r2(fps.reduce(function(s,f){return s+safeFloat(f.factor)},0));
 
-  var fpExcel=useExcelImportExport({items:fps,data:data,onChange:onChange,dataKey:'factoresPrestaciones',prefix:'FP',title:'FACTOR PRESTACIONAL',sheetName:'FactorPrestacional',filename:'prestaciones.xlsx',headers:['Factor','Valor(%)','Tipo'],colWidths:[{wch:30},{wch:12},{wch:14}],mapRow:function(f){return[f.nombre||'',f.factor||0,f.tipo||'otros']},parseRow:function(r){return[String(r[0]||'').trim(),String(r[1]||0).trim(),String(r[2]||'otros').trim()]},buildItem:function(r,idx){var nombre=(r[0]||'').trim();return{codigo:r[0]||next(),nombre:nombre,factor:safeFloat(r[1])||0,tipo:r[2]||'otros'}},matchKey:'codigo'});
+  var fpExcel=useExcelImportExport({items:fps,data:data,onChange:onChange,dataKey:'factoresPrestaciones',prefix:'FP',title:'FACTOR PRESTACIONAL',sheetName:'FactorPrestacional',filename:'prestaciones.xlsx',headers:['Código','Factor','Valor(%)','Tipo'],colWidths:[{wch:10},{wch:30},{wch:12},{wch:14}],mapRow:function(f){return[f.codigo||'',f.nombre||'',f.factor||0,f.tipo||'otros']},parseRow:function(r){return[String(r[0]||'').trim(),String(r[1]||'').trim(),String(r[2]||0).trim(),String(r[3]||'otros').trim()]},buildItem:function(r,idx,existing,genCode){var nombre=(r[1]||'').trim();return{codigo:idx>=0?existing[idx].codigo:genCode(),nombre:nombre,factor:safeFloat(r[2])||0,tipo:r[3]||'otros'}},matchKey:'codigo'});
 
   var tiposCustom=cl.tipos_unidad||[];
 
@@ -3662,33 +3666,38 @@ var SUBS=[
 
   var categorias_insumoArr=cl.categorias_insumo||[];
 
-  var catInsExcel=useExcelImportExport({items:categorias_insumoArr,data:{config_listas:categorias_insumoArr},onChange:function(nd){onChange(Object.assign({},data,{config_listas:Object.assign({},cl,{categorias_insumo:nd.config_listas})}))},dataKey:'config_listas',prefix:'CI',title:'CATEGORÍAS DE INSUMO',sheetName:'CategoríasInsumo',filename:'categorias_insumo.xlsx',headers:['Código','Nombre','Descripción / Alcance'],colWidths:[{wch:10},{wch:20},{wch:50}],mapRow:function(c){return[c.codigo||'',c.nombre||'',c.desc||'']},parseRow:function(r){return[String(r[0]||'').trim(),String(r[1]||'').trim(),String(r[2]||'').trim()]},buildItem:function(r,idx,existing,genCode){return{codigo:idx>=0?existing[idx].codigo:genCode(),nombre:r[1]||'',desc:r[2]||''}},matchKey:'nombre'});
+  /* Fabrica generica para las listas de catalogo con forma {codigo, <campo>, desc} */
+  var makeCatListExcel=function(arr,key,prefix,title,sheetName,filename,fieldName,fieldLabel,descLabel){
+    return useExcelImportExport({items:arr,data:{config_listas:arr},onChange:function(nd){onChange(Object.assign({},data,{config_listas:Object.assign({},cl,{[key]:nd.config_listas})}))},dataKey:'config_listas',prefix:prefix,title:title,sheetName:sheetName,filename:filename,headers:['Código',fieldLabel,descLabel],colWidths:[{wch:10},{wch:20},{wch:50}],mapRow:function(c){return[c.codigo||'',c[fieldName]||'',c.desc||'']},parseRow:function(r){return[String(r[0]||'').trim(),String(r[1]||'').trim(),String(r[2]||'').trim()]},buildItem:function(r,idx,existing,genCode){var obj={codigo:idx>=0?existing[idx].codigo:genCode(),desc:r[2]||''};obj[fieldName]=r[1]||'';return obj},matchKey:fieldName});
+  };
 
-  var catApuExcel=useExcelImportExport({items:categorias_apu,data:{config_listas:categorias_apu},onChange:function(nd){onChange(Object.assign({},data,{config_listas:Object.assign({},cl,{categorias_apu:nd.config_listas})}))},dataKey:'config_listas',prefix:'CAT',title:'CATEGORÍAS APU',sheetName:'CategoríasAPU',filename:'categorias_apu.xlsx',headers:['Código','Categoría','Descripción / Alcance'],colWidths:[{wch:10},{wch:20},{wch:50}],mapRow:function(c){return[c.codigo||'',c.categoria||'',c.desc||'']},parseRow:function(r){return[String(r[0]||'').trim(),String(r[1]||'').trim(),String(r[2]||'').trim()]},buildItem:function(r,idx,existing,genCode){return{codigo:idx>=0?existing[idx].codigo:genCode(),categoria:r[1]||'',desc:r[2]||''}},matchKey:'categoria'});
+  var catInsExcel=makeCatListExcel(categorias_insumoArr,'categorias_insumo','CI','CATEGORÍAS DE INSUMO','CategoríasInsumo','categorias_insumo.xlsx','nombre','Nombre','Descripción / Alcance');
+
+  var catApuExcel=makeCatListExcel(categorias_apu,'categorias_apu','CAT','CATEGORÍAS APU','CategoríasAPU','categorias_apu.xlsx','categoria','Categoría','Descripción / Alcance');
 
   var tiposEquipoArr=cl.tipos_equipo||[];
 
-  var tipoEqExcel=useExcelImportExport({items:tiposEquipoArr,data:{config_listas:tiposEquipoArr},onChange:function(nd){onChange(Object.assign({},data,{config_listas:Object.assign({},cl,{tipos_equipo:nd.config_listas})}))},dataKey:'config_listas',prefix:'TE',title:'TIPOS DE EQUIPO',sheetName:'TiposEquipo',filename:'tipos_equipo.xlsx',headers:['Código','Nombre del tipo','Descripción'],colWidths:[{wch:10},{wch:20},{wch:50}],mapRow:function(t){return[t.codigo||'',t.nombre||'',t.desc||'']},parseRow:function(r){return[String(r[0]||'').trim(),String(r[1]||'').trim(),String(r[2]||'').trim()]},buildItem:function(r,idx,existing,genCode){return{codigo:idx>=0?existing[idx].codigo:genCode(),nombre:r[1]||'',desc:r[2]||''}},matchKey:'nombre'});
+  var tipoEqExcel=makeCatListExcel(tiposEquipoArr,'tipos_equipo','TE','TIPOS DE EQUIPO','TiposEquipo','tipos_equipo.xlsx','nombre','Nombre del tipo','Descripción');
 
   var origenesArr=cl.origenes||[];
 
-  var origenExcel=useExcelImportExport({items:origenesArr,data:{config_listas:origenesArr},onChange:function(nd){onChange(Object.assign({},data,{config_listas:Object.assign({},cl,{origenes:nd.config_listas})}))},dataKey:'config_listas',prefix:'OR',title:'ORÍGENES DE INSUMO',sheetName:'Orígenes',filename:'origenes.xlsx',headers:['Código','Nombre','¿Qué significa?'],colWidths:[{wch:10},{wch:20},{wch:50}],mapRow:function(o){return[o.codigo||'',o.nombre||'',o.desc||'']},parseRow:function(r){return[String(r[0]||'').trim(),String(r[1]||'').trim(),String(r[2]||'').trim()]},buildItem:function(r,idx,existing,genCode){return{codigo:idx>=0?existing[idx].codigo:genCode(),nombre:r[1]||'',desc:r[2]||''}},matchKey:'nombre'});
+  var origenExcel=makeCatListExcel(origenesArr,'origenes','OR','ORÍGENES DE INSUMO','Orígenes','origenes.xlsx','nombre','Nombre','¿Qué significa?');
 
   var transpUnArr=cl.unidades_transporte||[];
 
-  var transpUnExcel=useExcelImportExport({items:transpUnArr,data:{config_listas:transpUnArr},onChange:function(nd){onChange(Object.assign({},data,{config_listas:Object.assign({},cl,{unidades_transporte:nd.config_listas})}))},dataKey:'config_listas',prefix:'UT',title:'UNIDADES DE TRANSPORTE',sheetName:'UnidadesTransporte',filename:'unidades_transporte.xlsx',headers:['Código','Unidad','¿Qué mide?'],colWidths:[{wch:10},{wch:20},{wch:50}],mapRow:function(u){return[u.codigo||'',u.nombre||'',u.desc||'']},parseRow:function(r){return[String(r[0]||'').trim(),String(r[1]||'').trim(),String(r[2]||'').trim()]},buildItem:function(r,idx,existing,genCode){return{codigo:idx>=0?existing[idx].codigo:genCode(),nombre:r[1]||'',desc:r[2]||''}},matchKey:'nombre'});
+  var transpUnExcel=makeCatListExcel(transpUnArr,'unidades_transporte','UT','UNIDADES DE TRANSPORTE','UnidadesTransporte','unidades_transporte.xlsx','nombre','Unidad','¿Qué mide?');
 
   var perfilesPaisArr=cl.perfiles_pais||[];
 
   var perfilPaisExcel=useExcelImportExport({items:perfilesPaisArr,data:{config_listas:perfilesPaisArr},onChange:function(nd){onChange(Object.assign({},data,{config_listas:Object.assign({},cl,{perfiles_pais:nd.config_listas})}))},dataKey:'config_listas',prefix:'PA',title:'PERFIL DEL PAÍS',sheetName:'PerfilPais',filename:'perfiles_pais.xlsx',headers:['Código','País','Moneda','SMMLV','Aux. Transporte','Días/mes','Horas/mes','Unidad MO'],colWidths:[{wch:8},{wch:16},{wch:10},{wch:16},{wch:16},{wch:10},{wch:10},{wch:12}],mapRow:function(p){return[p.codigo||'',p.nombre||'',p.moneda||'',p.smmlv||0,p.auxilio_transporte||0,p.dias_mes||30,p.horas_mes||240,p.unidad||'mes']},parseRow:function(r){return[String(r[0]||'').trim(),String(r[1]||'').trim(),String(r[2]||'').trim(),String(r[3]||0).trim(),String(r[4]||0).trim(),String(r[5]||30).trim(),String(r[6]||240).trim(),String(r[7]||'mes').trim()]},buildItem:function(r,idx,existing){return{codigo:idx>=0?existing[idx].codigo:String(r[0]||'').trim(),nombre:String(r[1]||'').trim(),moneda:String(r[2]||'').trim(),smmlv:parseFloat(String(r[3]||0).replace(/,/g,''))||0,tope_ibc_mult:idx>=0?(existing[idx].tope_ibc_mult||0):0,auxilio_transporte:parseFloat(String(r[4]||0).replace(/,/g,''))||0,dias_mes:parseInt(String(r[5]||30))||30,horas_mes:parseInt(String(r[6]||240))||240,unidad:String(r[7]||'mes').trim()}},matchKey:'codigo'});
 
-  function genCatCode(){var maxN=0;categorias_apu.forEach(function(c){var m=(c.codigo||'').match(/CAT-(\d+)/);if(m)maxN=Math.max(maxN,parseInt(m[1]))});return'CAT-'+String(maxN+1).padStart(2,'0')}
+  function genCatCode(){return genCodeFor(categorias_apu,'CAT',null,2)}
 
-  function genTECode(){var maxN=0;tiposEquipoArr.forEach(function(t){var m=(t.codigo||'').match(/TE-(\d+)/);if(m)maxN=Math.max(maxN,parseInt(m[1]))});return'TE-'+String(maxN+1).padStart(2,'0')}
+  function genTECode(){return genCodeFor(tiposEquipoArr,'TE',null,2)}
 
-  function genOrigenCode(){var maxN=0;origenesArr.forEach(function(o){var m=(o.codigo||'').match(/OR-(\d+)/);if(m)maxN=Math.max(maxN,parseInt(m[1]))});return'OR-'+String(maxN+1).padStart(2,'0')}
+  function genOrigenCode(){return genCodeFor(origenesArr,'OR',null,2)}
 
-  function genUTCode(){var maxN=0;transpUnArr.forEach(function(u){var m=(u.codigo||'').match(/UT-(\d+)/);if(m)maxN=Math.max(maxN,parseInt(m[1]))});return'UT-'+String(maxN+1).padStart(2,'0')}
+  function genUTCode(){return genCodeFor(transpUnArr,'UT',null,2)}
 
   function checkRef(key,val){
 
@@ -5429,6 +5438,507 @@ var SUBS=[
 /* MODULO PRESUPUESTOS */
 
 /* MODULO PRESUPUESTOS */
+/* ══════════════════ 1. PROYECTOS (sub-componente de PresupuestosTab) ══════════════════ */
+function PresProyectosPanel({presupuestos,selPresIdx,setSelPresIdx,pres,estadoColor,estadoLabel,addPresupuesto,editPresForm,setEditPresForm,toggleEstado,delPresupuesto,setTab,saveEditForm}){
+  return(
+    <div style={{display:'flex',gap:16,alignItems:'flex-start',height:'100%'}}>
+      <div style={{width:280,display:'flex',flexDirection:'column',gap:4}}>
+        <div className="sec-hdr" style={{border:'1px solid var(--bdr)',borderRadius:4,padding:'2px 10px',height:25,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+          <span className="title" style={{fontSize:13}}>PRESUPUESTOS</span>
+          <button className="btn" onClick={addPresupuesto} style={{fontSize:10,padding:'2px 8px',border:'1px solid var(--ok)',borderRadius:4,background:'rgba(74,222,128,.08)',color:'var(--ok)',cursor:'pointer'}}>+ Nuevo</button>
+        </div>
+        <div style={{maxHeight:'calc(100vh - 160px)',overflowY:'auto',display:'flex',flexDirection:'column',gap:4}}>
+          {presupuestos.length===0&&<div style={{padding:'14px',fontSize:11,color:'var(--tx3)',textAlign:'center',border:'1px dashed var(--bdr)',borderRadius:4}}>Sin presupuestos. Crea uno con "+ Nuevo".</div>}
+          {presupuestos.map(function(p,i){
+            var isSel=selPresIdx===i;
+            var ic=p.items?p.items.length:0;
+            return(
+              <div key={p.id} onClick={function(){setSelPresIdx(i)}} style={{cursor:'pointer',padding:'8px 10px',border:'1px solid '+(isSel?'var(--ok)':'var(--bdr)'),borderRadius:4,background:isSel?'rgba(74,222,128,.06)':'var(--bg2)',display:'flex',flexDirection:'column',gap:3}}>
+                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                  <span style={{fontSize:11,fontWeight:700,color:isSel?'var(--ok)':'var(--tx)'}}>{p.codigo}</span>
+                  <span style={{fontSize:9,padding:'1px 6px',borderRadius:3,border:'1px solid '+estadoColor(p.estado),color:estadoColor(p.estado),fontWeight:600}}>{estadoLabel(p.estado)}</span>
+                </div>
+                <div style={{fontSize:11,color:'var(--tx2)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{p.nombre||'(sin nombre)'}</div>
+                <div style={{display:'flex',justifyContent:'space-between',fontSize:9,color:'var(--tx3)'}}><span>{ic+' items'}</span><span>{p.fecha_creacion||'-'}</span></div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      <div style={{flex:1,minWidth:0}}>
+        {!pres&&<div style={{padding:'40px',textAlign:'center',color:'var(--tx3)',fontSize:13,border:'1px dashed var(--bdr)',borderRadius:4}}>Selecciona un presupuesto o crea uno nuevo.</div>}
+        {pres&&(
+          <div style={{display:'flex',flexDirection:'column',gap:8}}>
+            <div className="sec-hdr" style={{border:'1px solid var(--bdr)',borderRadius:4,padding:'6px 10px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:8}}>
+              <div style={{display:'flex',alignItems:'center',gap:10}}>
+                <span className="title" style={{fontSize:16}}>{pres.nombre||'(sin nombre)'}</span>
+                <span style={{fontSize:10,padding:'2px 8px',borderRadius:3,border:'1px solid '+estadoColor(pres.estado),color:estadoColor(pres.estado),fontWeight:600}}>{estadoLabel(pres.estado)}</span>
+              </div>
+              <span style={{fontSize:10,color:'var(--tx3)'}}>{pres.codigo}</span>
+            </div>
+            <div style={{border:'1px solid var(--bdr)',borderRadius:4,padding:10,display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px 16px',fontSize:11}}>
+              <div><div style={{color:'var(--tx3)',fontSize:9,textTransform:'uppercase'}}>Entidad</div><div style={{fontWeight:600}}>{pres.entidad||'-'}</div></div>
+              <div><div style={{color:'var(--tx3)',fontSize:9,textTransform:'uppercase'}}>No. contrato</div><div style={{fontWeight:600}}>{pres.contrato||'-'}</div></div>
+              <div style={{gridColumn:'1 / 3'}}><div style={{color:'var(--tx3)',fontSize:9,textTransform:'uppercase'}}>Objeto</div><div style={{fontWeight:600,lineHeight:'1.4'}}>{pres.objeto||'-'}</div></div>
+              <div><div style={{color:'var(--tx3)',fontSize:9,textTransform:'uppercase'}}>Plazo (dias)</div><div style={{fontWeight:600}}>{pres.plazo>0?pres.plazo:'-'}</div></div>
+              <div><div style={{color:'var(--tx3)',fontSize:9,textTransform:'uppercase'}}>Fecha elaboracion</div><div style={{fontWeight:600}}>{pres.fecha_creacion||'-'}</div></div>
+              <div><div style={{color:'var(--tx3)',fontSize:9,textTransform:'uppercase'}}>Ciudad</div><div style={{fontWeight:600}}>{pres.ciudad||'-'}</div></div>
+              <div><div style={{color:'var(--tx3)',fontSize:9,textTransform:'uppercase'}}>Departamento</div><div style={{fontWeight:600}}>{pres.departamento||'-'}</div></div>
+              <div><div style={{color:'var(--tx3)',fontSize:9,textTransform:'uppercase'}}>Elaborado por</div><div style={{fontWeight:600}}>{pres.elaborado_por||'-'}</div></div>
+            </div>
+            <div style={{display:'flex',gap:6,alignItems:'center'}}>
+              <button className="btn" onClick={function(){setEditPresForm({idx:selPresIdx,nombre:pres.nombre,entidad:pres.entidad,contrato:pres.contrato,objeto:pres.objeto,plazo:pres.plazo,ciudad:pres.ciudad,departamento:pres.departamento,elaborado_por:pres.elaborado_por})}} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--ac)',borderRadius:4,background:'rgba(77,143,247,.06)',color:'var(--ac)',cursor:'pointer'}}>Editar info</button>
+              <button className="btn" onClick={function(){toggleEstado(selPresIdx)}} style={{fontSize:10,padding:'4px 10px',border:'1px solid '+estadoColor(pres.estado),borderRadius:4,color:estadoColor(pres.estado),cursor:'pointer'}}>{pres.estado==='cerrado'?'Reabrir':'Cambiar estado'}</button>
+              <button className="btn-del" onClick={function(){delPresupuesto(selPresIdx)}} style={{fontSize:10,padding:'4px 10px',border:'1px solid #f87171',borderRadius:4,color:'#f87171',background:'none',cursor:'pointer'}}>Eliminar</button>
+              <button className="btn" onClick={function(){setTab(10)}} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--ok)',borderRadius:4,background:'rgba(74,222,128,.06)',color:'var(--ok)',cursor:'pointer'}}>{'Ir a Items >'}</button>
+              <span style={{flex:1}}/>
+              <span style={{fontSize:10,color:'var(--tx3)'}}>Snap: {pres.factores_snap?pres.factores_snap.length+' FP':0} &middot; {pres.cargos_snap?pres.cargos_snap.length+' cargos':0}</span>
+            </div>
+          </div>
+        )}
+      </div>
+      {editPresForm&&editPresForm.idx!==null&&(
+        <div className="modal-overlay" onClick={function(){setEditPresForm(null)}}>
+          <div className="modal-box" style={{width:620}} onClick={function(e){e.stopPropagation()}}>
+            <div className="modal-hdr"><span className="title">Editar informacion del presupuesto</span><button onClick={function(){setEditPresForm(null)}} style={{background:'none',border:'none',cursor:'pointer',padding:2,color:'var(--ok)'}}><IconX/></button></div>
+            <div className="modal-body" style={{display:'flex',flexDirection:'column',gap:8}}>
+              <div><label style={{fontSize:10,color:'var(--tx2)',display:'block',marginBottom:2}}>Nombre *</label><input className="ni" value={editPresForm.nombre} onChange={function(e){setEditPresForm(Object.assign({},editPresForm,{nombre:e.target.value}))}} style={{width:'100%',fontSize:11}} autoFocus/></div>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+                <div><label style={{fontSize:10,color:'var(--tx2)',display:'block',marginBottom:2}}>Entidad contratante</label><input className="ni" value={editPresForm.entidad} onChange={function(e){setEditPresForm(Object.assign({},editPresForm,{entidad:e.target.value}))}} style={{width:'100%',fontSize:11}}/></div>
+                <div><label style={{fontSize:10,color:'var(--tx2)',display:'block',marginBottom:2}}>No. contrato</label><input className="ni" value={editPresForm.contrato} onChange={function(e){setEditPresForm(Object.assign({},editPresForm,{contrato:e.target.value}))}} style={{width:'100%',fontSize:11}}/></div>
+              </div>
+              <div><label style={{fontSize:10,color:'var(--tx2)',display:'block',marginBottom:2}}>Objeto</label><textarea className="ni" value={editPresForm.objeto} onChange={function(e){setEditPresForm(Object.assign({},editPresForm,{objeto:e.target.value}))}} style={{width:'100%',fontSize:11,minHeight:60,resize:'vertical'}}/></div>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8}}>
+                <div><label style={{fontSize:10,color:'var(--tx2)',display:'block',marginBottom:2}}>Plazo (dias)</label><NumInput step="1" inputMode="decimal" value={editPresForm.plazo} onChange={function(v){setEditPresForm(Object.assign({},editPresForm,{plazo:v}))}} style={{width:'100%',fontSize:11}}/></div>
+                <div><label style={{fontSize:10,color:'var(--tx2)',display:'block',marginBottom:2}}>Ciudad</label><input className="ni" value={editPresForm.ciudad} onChange={function(e){setEditPresForm(Object.assign({},editPresForm,{ciudad:e.target.value}))}} style={{width:'100%',fontSize:11}}/></div>
+                <div><label style={{fontSize:10,color:'var(--tx2)',display:'block',marginBottom:2}}>Departamento</label><input className="ni" value={editPresForm.departamento} onChange={function(e){setEditPresForm(Object.assign({},editPresForm,{departamento:e.target.value}))}} style={{width:'100%',fontSize:11}}/></div>
+              </div>
+              <div><label style={{fontSize:10,color:'var(--tx2)',display:'block',marginBottom:2}}>Elaborado por</label><input className="ni" value={editPresForm.elaborado_por} onChange={function(e){setEditPresForm(Object.assign({},editPresForm,{elaborado_por:e.target.value}))}} style={{width:'100%',fontSize:11}}/></div>
+            </div>
+            <div className="modal-foot"><button className="btn" onClick={function(){setEditPresForm(null)}} style={{fontSize:10}}>Cancelar</button><button className="btn" onClick={saveEditForm} style={{fontSize:10,border:'1px solid var(--ok)'}}>Guardar</button></div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ══════════════════ 2. ITEMS Y CAPITULOS (sub-componente de PresupuestosTab) ══════════════════ */
+function PresItemsPanel({pres,presupuestos,selPresIdx,data,onChange,apuModal,setApuModal,apus,categorias_apu,calcItemVal,setTab,estadoLabel}){
+  if(!pres)return <div style={{padding:'40px',textAlign:'center',color:'var(--tx3)',fontSize:13,border:'1px dashed var(--bdr)',borderRadius:4}}>Selecciona un presupuesto en "Proyectos".</div>;
+  var readOnly=pres.estado!=='borrador';
+
+  var addItem=function(){
+    if(readOnly)return;
+    var arr=pres.items.slice();
+    arr.push({id:uid(),num_item:String(arr.length+1),capitulo:'',descripcion:'',unidad:'un',cantidad:1,apu_id:null,vr_unitario:0,vr_total:0,tiene_apu:false,alerta_sin_apu:false});
+    var n=presupuestos.slice();n[selPresIdx]=Object.assign({},n[selPresIdx],{items:arr});
+    onChange(Object.assign({},data,{presupuestos:n}));
+  };
+  var delItem=function(i){
+    if(readOnly)return;if(!confirm('Eliminar item?'))return;
+    var arr=pres.items.filter(function(_,j){return j!==i});
+    var n=presupuestos.slice();n[selPresIdx]=Object.assign({},n[selPresIdx],{items:arr});
+    onChange(Object.assign({},data,{presupuestos:n}));
+  };
+  var updItem=function(i,k,v){
+    if(readOnly)return;
+    var arr=pres.items.slice();arr[i]=Object.assign({},arr[i]);arr[i][k]=v;
+    var n=presupuestos.slice();n[selPresIdx]=Object.assign({},n[selPresIdx],{items:arr});
+    onChange(Object.assign({},data,{presupuestos:n}));
+  };
+  var openApuModal=function(i){if(!readOnly)setApuModal({open:true,itemIdx:i,search:'',catFilter:''})};
+  var closeApuModal=function(){setApuModal({open:false,itemIdx:null,search:'',catFilter:''})};
+  var filteredApus=function(){
+    if(!apuModal.open)return[];
+    var sn=apuModal.search?norm(apuModal.search):'';
+    var cf=apuModal.catFilter;
+    var result=[];
+    for(var i=0;i<apus.length;i++){
+      var a=apus[i];
+      if(cf&&((a.categoria||'')!==cf))continue;
+      if(sn){
+        var aCod=norm(a.codigo||''),aNom=norm(a.nombre||''),aCat=norm(a.categoria||'');
+        if(aCod.indexOf(sn)<0&&aNom.indexOf(sn)<0&&aCat.indexOf(sn)<0)continue;
+      }
+      result.push(a);
+    }
+    return result;
+  };
+  var assignApu=function(aid){
+    if(apuModal.itemIdx===null||aid===undefined)return;
+    var i=apuModal.itemIdx;
+    var arr=pres.items.slice();
+    arr[i]=Object.assign({},arr[i],{apu_id:aid,tiene_apu:true,alerta_sin_apu:false});
+    var n=presupuestos.slice();n[selPresIdx]=Object.assign({},n[selPresIdx],{items:arr});
+    onChange(Object.assign({},data,{presupuestos:n}));
+    closeApuModal();
+    showToast('APU asignado',{type:'ok',dur:2000});
+  };
+  var unassignApu=function(i){
+    if(readOnly)return;if(!confirm('Quitar APU?'))return;
+    var arr=pres.items.slice();arr[i]=Object.assign({},arr[i],{apu_id:null,tiene_apu:false});
+    var n=presupuestos.slice();n[selPresIdx]=Object.assign({},n[selPresIdx],{items:arr});
+    onChange(Object.assign({},data,{presupuestos:n}));
+    showToast('APU removido',{type:'ok',dur:2000});
+  };
+  var itemsArr=pres.items||[];
+  var cdTotal=0;
+  for(var i=0;i<itemsArr.length;i++){cdTotal+=calcItemVal(itemsArr[i]).vr_total}
+
+  return(
+    <div style={{display:'flex',flexDirection:'column',gap:8}}>
+      <div className="sec-hdr" style={{border:'1px solid var(--bdr)',borderRadius:4,padding:'6px 10px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+        <span className="title" style={{fontSize:15}}>Items: {pres.codigo}</span>
+        <span style={{fontSize:10,color:'var(--tx3)'}}>{itemsArr.length} items &middot; CD: {fmt(cdTotal)}</span>
+      </div>
+      <div style={{display:'flex',gap:6,alignItems:'center'}}>
+        {!readOnly&&<button className="btn" onClick={addItem} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--ok)',borderRadius:4,background:'rgba(74,222,128,.06)',color:'var(--ok)',cursor:'pointer'}}>+ Item</button>}
+        <button className="btn" onClick={function(){setTab(9)}} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--bdr)',borderRadius:4,background:'none',color:'var(--tx2)',cursor:'pointer'}}>{'< Proyectos'}</button>
+        <button className="btn" onClick={function(){setTab(11)}} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--ac)',borderRadius:4,background:'rgba(77,143,247,.06)',color:'var(--ac)',cursor:'pointer'}}>{'Resumen >'}</button>
+        {readOnly&&<span style={{fontSize:10,color:'var(--warn)',marginLeft:8,padding:'2px 8px',border:'1px solid var(--warn)',borderRadius:3}}>Solo lectura (presupuesto {estadoLabel(pres.estado).toLowerCase()})</span>}
+      </div>
+      <div className="xl-wrap">
+        <div className="xl-scroll">
+          <table style={{tableLayout:'fixed',width:'100%',fontSize:10}}>
+            <colgroup>
+              <col className="cw-40"/><col className="cw-50"/><col className="cw-110"/><col className="cw-200"/><col className="cw-50"/><col className="cw-70"/><col className="cw-150"/><col className="cw-90"/><col className="cw-90"/><col className="cw-50"/>
+            </colgroup>
+            <thead><tr><th>#</th><th>Item</th><th>Capitulo</th><th>Descripcion</th><th>UN</th><th>Cant.</th><th>APU</th><th>Vr. Unit</th><th>Vr. Total</th><th className="col-act">Acc</th></tr></thead>
+            <tbody>
+              {itemsArr.length===0&&<tr className="empty-row"><td colSpan={10}>Sin items.{!readOnly&&' Agrega con "+ Item"'}</td></tr>}
+              {itemsArr.map(function(it,i){
+                var c=calcItemVal(it);
+                var apu=c.apu;
+                return(
+                  <tr key={it.id}>
+                    <td style={{textAlign:'center',color:'var(--tx3)'}}>{i+1}</td>
+                    <td>{readOnly?it.num_item:<input className="ni" value={it.num_item} onChange={function(e){updItem(i,'num_item',e.target.value)}} style={{width:'100%',fontSize:10}}/>}</td>
+                    <td>{readOnly?it.capitulo:<input className="ni" value={it.capitulo} onChange={function(e){updItem(i,'capitulo',e.target.value)}} style={{width:'100%',fontSize:10}} placeholder="1.1"/>}</td>
+                    <td>{readOnly?it.descripcion:<input className="ni" value={it.descripcion} onChange={function(e){updItem(i,'descripcion',e.target.value)}} style={{width:'100%',fontSize:10}} placeholder="Descripcion"/>}</td>
+                    <td>{readOnly?it.unidad:<input className="ni" value={it.unidad} onChange={function(e){updItem(i,'unidad',e.target.value)}} style={{width:'100%',fontSize:10}}/>}</td>
+                    <td>{readOnly?it.cantidad:<NumInput step=".01" inputMode="decimal" value={it.cantidad} onChange={function(v){updItem(i,'cantidad',v)}} style={{width:'100%',fontSize:10,textAlign:'right'}} decimals={4}/>}</td>
+                    <td style={{textAlign:'center'}}>
+                      {apu?(
+                        <span style={{display:'inline-flex',alignItems:'center',gap:4}}>
+                          <span style={{fontSize:9,color:'var(--ok)',fontWeight:600}}>{apu.codigo}</span>
+                          {!readOnly&&<button onClick={function(){unassignApu(i)}} title="Quitar APU" style={{background:'none',border:'none',color:'#f87171',cursor:'pointer',padding:0,fontSize:11}}>x</button>}
+                        </span>
+                      ):(
+                        !readOnly?<button onClick={function(){openApuModal(i)}} style={{fontSize:9,padding:'2px 6px',border:'1px dashed var(--ac)',borderRadius:3,background:'rgba(77,143,247,.06)',color:'var(--ac)',cursor:'pointer'}}>asignar</button>:<span style={{color:'var(--tx3)'}}>-</span>
+                      )}
+                    </td>
+                    <td style={{textAlign:'right'}}>{apu?fmt(c.vr_unit):'-'}</td>
+                    <td style={{textAlign:'right',fontWeight:600}}>{apu?fmt(c.vr_total):'-'}</td>
+                    <td className="col-act" style={{textAlign:'center'}}>{!readOnly&&<button className="btn-del" onClick={function(){delItem(i)}} title="Eliminar" style={{background:'none',border:'none',cursor:'pointer',padding:0}}><IconDel/></button>}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {apuModal.open&&(
+        <div className="modal-overlay" onClick={closeApuModal}>
+          <div className="modal-box" style={{width:760}} onClick={function(e){e.stopPropagation()}}>
+            <div className="modal-hdr"><span className="title">Asignar APU al item</span><button onClick={closeApuModal} style={{background:'none',border:'none',cursor:'pointer',padding:2,color:'var(--ok)'}}><IconX/></button></div>
+            <div className="modal-body" style={{display:'flex',flexDirection:'column',gap:8}}>
+              <div style={{display:'flex',gap:6,alignItems:'center'}}>
+                <select className="ni" value={apuModal.catFilter} onChange={function(e){setApuModal(Object.assign({},apuModal,{catFilter:e.target.value}))}} style={{width:200,height:22,fontSize:11,border:'1px solid var(--ac)',borderRadius:4}}>
+                  <option value=''>Todas las categorias</option>
+                  {(categorias_apu||[]).map(function(c){return <option key={c.codigo} value={c.categoria}>{c.categoria}</option>})}
+                </select>
+                <input className="ni" placeholder="Buscar APU..." value={apuModal.search} onChange={function(e){setApuModal(Object.assign({},apuModal,{search:e.target.value}))}} style={{flex:1,height:22,fontSize:11,border:'1px solid var(--ok)',borderRadius:4}} autoFocus/>
+              </div>
+              <div className="xl-scroll" style={{maxHeight:380,overflowY:'auto',border:'1px solid var(--bdr)',borderRadius:4}}>
+                <table style={{tableLayout:'fixed',width:'100%',fontSize:10}}>
+                  <colgroup><col className="cw-90"/><col className="cw-260"/><col className="cw-190"/><col className="cw-60"/><col className="cw-80"/></colgroup>
+                  <thead style={{position:'sticky',top:0,background:'var(--bg3)'}}><tr><th>Codigo</th><th>Nombre</th><th>Categoria</th><th>UN</th><th>Accion</th></tr></thead>
+                  <tbody>
+                    {filteredApus().length===0&&<tr><td colSpan={5} style={{textAlign:'center',padding:'20px',color:'var(--tx3)'}}>Sin resultados</td></tr>}
+                    {filteredApus().map(function(a){return(
+                      <tr key={a.id}>
+                        <td style={{fontWeight:600,color:'var(--ac)'}}>{a.codigo||'-'}</td>
+                        <td>{a.nombre||'-'}</td>
+                        <td style={{color:'var(--tx2)'}}>{a.categoria||'-'}</td>
+                        <td style={{textAlign:'center'}}>{a.unidad||'-'}</td>
+                        <td style={{textAlign:'center'}}><button onClick={function(){assignApu(a.id)}} style={{fontSize:10,padding:'2px 8px',border:'1px solid var(--ok)',borderRadius:3,background:'rgba(74,222,128,.08)',color:'var(--ok)',cursor:'pointer',fontWeight:600}}>Seleccionar</button></td>
+                      </tr>
+                    )})}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ══════════════════ 3. RESUMEN FINANCIERO (sub-componente de PresupuestosTab) ══════════════════ */
+function PresResumenPanel({pres,presupuestos,selPresIdx,data,onChange,calcResumenPres,setTab}){
+  if(!pres)return <div style={{padding:'40px',textAlign:'center',color:'var(--tx3)',fontSize:13,border:'1px dashed var(--bdr)',borderRadius:4}}>Selecciona un presupuesto en "Proyectos".</div>;
+  var readOnly=pres.estado!=='borrador';
+  var r=calcResumenPres();
+  var useOv=pres.aiu_override&&pres.aiu_override.activo;
+
+  var updOv=function(k,v){
+    if(readOnly)return;
+    var n=presupuestos.slice();
+    n[selPresIdx]=Object.assign({},n[selPresIdx]);
+    n[selPresIdx].aiu_override=Object.assign({},n[selPresIdx].aiu_override);
+    n[selPresIdx].aiu_override[k]=v;
+    onChange(Object.assign({},data,{presupuestos:n}));
+  };
+
+  return(
+    <div style={{display:'flex',flexDirection:'column',gap:8}}>
+      <div className="sec-hdr" style={{border:'1px solid var(--bdr)',borderRadius:4,padding:'6px 10px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+        <span className="title" style={{fontSize:15}}>Resumen: {pres.codigo}</span>
+        <span style={{fontSize:10,color:'var(--tx3)'}}>{r.itemsArr.length} items &middot; CD: {fmt(r.cdTotal)}</span>
+      </div>
+      <div style={{display:'flex',gap:6,alignItems:'center'}}>
+        <button className="btn" onClick={function(){setTab(10)}} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--bdr)',borderRadius:4,background:'none',color:'var(--tx2)',cursor:'pointer'}}>{'< Items'}</button>
+        <button className="btn" onClick={function(){setTab(12)}} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--ac)',borderRadius:4,background:'rgba(77,143,247,.06)',color:'var(--ac)',cursor:'pointer'}}>{'Entregables >'}</button>
+      </div>
+      <div style={{display:'flex',gap:16,alignItems:'flex-start'}}>
+        <div style={{width:480,border:'1px solid var(--bdr)',borderRadius:4}}>
+          <div style={{padding:'6px 10px',background:'var(--bg3)',borderBottom:'1px solid var(--bdr)',fontSize:12,fontWeight:700,color:'var(--ac)'}}>RESUMEN ECONOMICO</div>
+          <table style={{width:'100%',fontSize:11,tableLayout:'fixed'}}>
+            <colgroup><col className="cw-280"/><col className="cw-100"/><col className="cw-100"/></colgroup>
+            <tbody>
+              <tr><td style={{padding:'6px 10px',borderBottom:'1px solid var(--bdr)'}}>Costo Directo Total</td><td style={{textAlign:'right',padding:'6px 10px',borderBottom:'1px solid var(--bdr)',fontWeight:600}}>{fmt(r.cdTotal)}</td><td style={{padding:'6px 10px',borderBottom:'1px solid var(--bdr)'}}/></tr>
+              <tr><td style={{padding:'6px 10px',borderBottom:'1px solid var(--bdr)'}}>Administracion ({r.pctA.toFixed(2)}%)</td><td style={{textAlign:'right',padding:'6px 10px',borderBottom:'1px solid var(--bdr)'}}>{fmt(r.adm)}</td><td style={{padding:'6px 10px',borderBottom:'1px solid var(--bdr)'}}/></tr>
+              <tr><td style={{padding:'6px 10px',borderBottom:'1px solid var(--bdr)'}}>Imprevistos ({r.pctI.toFixed(2)}%)</td><td style={{textAlign:'right',padding:'6px 10px',borderBottom:'1px solid var(--bdr)'}}>{fmt(r.imp)}</td><td style={{padding:'6px 10px',borderBottom:'1px solid var(--bdr)'}}/></tr>
+              <tr><td style={{padding:'6px 10px',borderBottom:'1px solid var(--bdr)'}}>Utilidad ({r.pctU.toFixed(2)}%)</td><td style={{textAlign:'right',padding:'6px 10px',borderBottom:'1px solid var(--bdr)'}}>{fmt(r.uti)}</td><td style={{padding:'6px 10px',borderBottom:'1px solid var(--bdr)'}}/></tr>
+              <tr style={{background:'var(--bg2)'}}><td style={{padding:'6px 10px',borderBottom:'1px solid var(--bdr)',fontWeight:700}}>AIU Total ({r.aiuPct.toFixed(2)}%)</td><td style={{textAlign:'right',padding:'6px 10px',borderBottom:'1px solid var(--bdr)',fontWeight:700,color:r.aiuWarn?'var(--warn)':'var(--ok)'}}>{fmt(r.aiuTotal)}</td><td style={{padding:'6px 10px',borderBottom:'1px solid var(--bdr)'}}/></tr>
+              <tr><td style={{padding:'6px 10px',borderBottom:'1px solid var(--bdr)'}}>IVA sobre Utilidad ({r.ivaPct}%)</td><td style={{textAlign:'right',padding:'6px 10px',borderBottom:'1px solid var(--bdr)'}}>{fmt(r.ivaUtilidad)}</td><td style={{padding:'6px 10px',borderBottom:'1px solid var(--bdr)'}}/></tr>
+              <tr style={{background:'var(--bg3)'}}><td style={{padding:'8px 10px',fontWeight:700,fontSize:13,color:'var(--ac)'}}>VALOR TOTAL CONTRATO</td><td style={{textAlign:'right',padding:'8px 10px',fontWeight:700,fontSize:13,color:'var(--ok)'}}>{fmt(r.valorTotal)}</td><td style={{padding:'8px 10px'}}/></tr>
+            </tbody>
+          </table>
+        </div>
+        <div style={{flex:1,display:'flex',flexDirection:'column',gap:10}}>
+          <div style={{border:'1px solid var(--bdr)',borderRadius:4}}>
+            <div style={{padding:'6px 10px',background:'var(--bg3)',borderBottom:'1px solid var(--bdr)',fontSize:12,fontWeight:700,color:'var(--ac)',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+              <span>AIU Override</span>
+              {!readOnly&&<label style={{display:'inline-flex',alignItems:'center',gap:4,fontSize:10,cursor:'pointer'}}><input type="checkbox" checked={useOv||false} onChange={function(e){updOv('activo',e.target.checked)}}/> Usar AIU especifico</label>}
+            </div>
+            {useOv?(
+              <div style={{padding:'8px 10px',display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6,fontSize:10}}>
+                <div><label style={{color:'var(--tx2)',display:'block',marginBottom:2}}>Admin %</label><NumInput step=".5" inputMode="decimal" value={r.pctA} onChange={function(v){updOv('pct_a',v)}} disabled={readOnly} style={{width:'100%',fontSize:10,textAlign:'right'}} decimals={2}/></div>
+                <div><label style={{color:'var(--tx2)',display:'block',marginBottom:2}}>Impr %</label><NumInput step=".5" inputMode="decimal" value={r.pctI} onChange={function(v){updOv('pct_i',v)}} disabled={readOnly} style={{width:'100%',fontSize:10,textAlign:'right'}} decimals={2}/></div>
+                <div><label style={{color:'var(--tx2)',display:'block',marginBottom:2}}>Util %</label><NumInput step=".5" inputMode="decimal" value={r.pctU} onChange={function(v){updOv('pct_u',v)}} disabled={readOnly} style={{width:'100%',fontSize:10,textAlign:'right'}} decimals={2}/></div>
+                <div style={{gridColumn:'1 / 4',marginTop:6,padding:'4px 6px',borderRadius:3,background:r.aiuWarn?'rgba(248,113,113,.1)':(r.cdTotal>0?'rgba(74,222,128,.06)':'var(--bg3)')}}>
+                  {r.aiuPct>=5&&r.aiuPct<=50&&<span style={{fontSize:10,color:'var(--ok)',fontWeight:600}}>AIU {r.aiuPct.toFixed(2)}% OK</span>}
+                  {r.aiuPct<5&&r.aiuWarn&&<span style={{fontSize:10,color:'var(--warn)',fontWeight:600}}>AIU {r.aiuPct.toFixed(2)}% - bajo 5%</span>}
+                  {r.aiuPct>50&&<span style={{fontSize:10,color:'#f87171',fontWeight:600}}>AIU {r.aiuPct.toFixed(2)}% - sobre 50%</span>}
+                </div>
+              </div>
+            ):(
+              <div style={{padding:'8px 10px',fontSize:10,color:'var(--tx3)'}}>Usando AIU global ({r.pctA.toFixed(1)}%+{r.pctI.toFixed(1)}%+{r.pctU.toFixed(1)}%). Activa "Usar AIU especifico" para cambiar.</div>
+            )}
+          </div>
+          <div style={{border:'1px solid var(--bdr)',borderRadius:4}}>
+            <div style={{padding:'6px 10px',background:'var(--bg3)',borderBottom:'1px solid var(--bdr)',fontSize:12,fontWeight:700,color:'var(--ac)'}}>DISTRIBUCION POR CATEGORIA</div>
+            <div style={{padding:'4px 10px',maxHeight:240,overflowY:'auto'}}>
+              {r.catRows.length===0&&<div style={{textAlign:'center',padding:'20px',color:'var(--tx3)'}}>Sin items con APU.</div>}
+              {r.catRows.map(function(row,i){return(
+                <div key={i} style={{display:'flex',alignItems:'center',gap:8,padding:'4px 0',borderBottom:'1px dotted var(--bd)'}}>
+                  <span style={{fontSize:10,flex:1,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{row.cat}</span>
+                  <div style={{width:120,height:6,background:'var(--bg)',borderRadius:3,overflow:'hidden',border:'1px solid var(--bd)'}}><div style={{width:Math.min(100,row.pct)+'%',height:'100%',background:'var(--ac)',borderRadius:3}}/></div>
+                  <span style={{fontSize:9,color:'var(--tx2)',width:50,textAlign:'right'}}>{row.pct.toFixed(1)}%</span>
+                  <span style={{fontSize:9,color:'var(--tx2)',width:80,textAlign:'right',fontWeight:600}}>{fmt(row.val)}</span>
+                </div>
+              )})}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════ 4. EXPORTAR / ENTREGABLES (sub-componente de PresupuestosTab) ══════════════════ */
+function PresEntregablesPanel({pres,calcResumenPres,calcItemVal,setTab}){
+  if(!pres)return <div style={{padding:'40px',textAlign:'center',color:'var(--tx3)',fontSize:13,border:'1px dashed var(--bdr)',borderRadius:4}}>Selecciona un presupuesto en "Proyectos".</div>;
+  var r=calcResumenPres();
+  var itemsArr=r.itemsArr;
+
+  var exportExcel=function(){
+    if(itemsArr.length===0){showToast('El presupuesto no tiene items',{type:'err',dur:2500});return}
+    var wb=XLSX.utils.book_new();
+    var rows=[];
+    rows.push(['PRESUPUESTO: '+(pres.nombre||pres.codigo)]);
+    rows.push(['Codigo',pres.codigo,'','Entidad contratante',pres.entidad||'-']);
+    rows.push(['No. Contrato',pres.contrato||'-','','Ciudad',(pres.ciudad||'-')+(pres.departamento?(' / '+pres.departamento):'')]);
+    rows.push(['Objeto',pres.objeto||'-']);
+    rows.push(['Elaborado por',pres.elaborado_por||'-','','Fecha',pres.fecha_creacion||'-']);
+    rows.push([]);
+    var hdrRowIdx=rows.length;
+    rows.push(['#','Item','Capitulo','Descripcion','UN','Cantidad','APU','Vr.Unitario','Vr.Total']);
+    itemsArr.forEach(function(it,i){
+      var cv=calcItemVal(it);
+      rows.push([i+1,it.num_item,it.capitulo,it.descripcion,it.unidad,safeFloat(it.cantidad),cv.apu?cv.apu.codigo:'-',cv.vr_unit,cv.vr_total]);
+    });
+    var sumStartIdx=rows.length+1;
+    rows.push([]);
+    rows.push(['','','','','','','','Costo Directo Total',r.cdTotal]);
+    rows.push(['','','','','','','','Administracion ('+r.pctA.toFixed(2)+'%)',r.adm]);
+    rows.push(['','','','','','','','Imprevistos ('+r.pctI.toFixed(2)+'%)',r.imp]);
+    rows.push(['','','','','','','','Utilidad ('+r.pctU.toFixed(2)+'%)',r.uti]);
+    rows.push(['','','','','','','','IVA sobre Utilidad ('+r.ivaPct+'%)',r.ivaUtilidad]);
+    rows.push(['','','','','','','','VALOR TOTAL CONTRATO',r.valorTotal]);
+    var ws=XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols']=[{wch:4},{wch:10},{wch:12},{wch:38},{wch:6},{wch:11},{wch:10},{wch:15},{wch:15}];
+    ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:8}},{s:{r:3,c:1},e:{r:3,c:8}}];
+    if(ws['A1'])ws['A1'].s={font:{bold:true,sz:14,color:{rgb:'1A2438'}}};
+    for(var rr=1;rr<=4;rr++){
+      ['A','D'].forEach(function(col){var k=col+(rr+1);if(ws[k])ws[k].s={font:{bold:true,sz:9,color:{rgb:'4D8FF7'}}}});
+    }
+    ['A','B','C','D','E','F','G','H','I'].forEach(function(col){var k=col+(hdrRowIdx+1);if(ws[k])ws[k].s={font:XLS_HDR_FONT,fill:XLS_HDR_FILL,alignment:{horizontal:'center'}}});
+    for(var ri2=hdrRowIdx+1;ri2<hdrRowIdx+1+itemsArr.length;ri2++){
+      ['H','I'].forEach(function(col){var k=col+(ri2+1);if(ws[k]){ws[k].t='n';ws[k].z=XLS_NUM_FMT;ws[k].s={alignment:{horizontal:'right'}}}});
+    }
+    for(var rs=sumStartIdx;rs<sumStartIdx+6;rs++){
+      var kh=String.fromCharCode(72)+(rs+1),ki=String.fromCharCode(73)+(rs+1);
+      if(ws[kh])ws[kh].s={font:{bold:true,sz:9}};
+      if(ws[ki]){ws[ki].t='n';ws[ki].z=XLS_NUM_FMT;ws[ki].s={font:{bold:true,sz:9},alignment:{horizontal:'right'}}}
+    }
+    var lastRow=sumStartIdx+5;
+    ['H','I'].forEach(function(col){var k=col+(lastRow+1);if(ws[k])ws[k].s={font:{bold:true,sz:10,color:{rgb:'FFFFFF'}},fill:{fgColor:{rgb:'1A7A34'}},alignment:{horizontal:col==='I'?'right':'left'}}});
+    XLSX.utils.book_append_sheet(wb,ws,'Presupuesto');
+
+    var rows2=[['Item','APU','Nombre','Categoria','Mano de Obra','Equipos','Insumos','Transporte','Costo Directo Unit.','Cantidad','Vr.Total']];
+    itemsArr.forEach(function(it){
+      var cv=calcItemVal(it);
+      if(!cv.apu)return;
+      var c=cv.calc||{};
+      rows2.push([it.num_item,cv.apu.codigo,cv.apu.nombre,cv.apu.categoria,c.subPers||0,c.subEq||0,c.subIns||0,c.subTrans||0,c.totalDirecto||0,safeFloat(it.cantidad),cv.vr_total]);
+    });
+    var ws2=XLSX.utils.aoa_to_sheet(rows2);
+    ws2['!cols']=[{wch:8},{wch:10},{wch:32},{wch:18},{wch:13},{wch:12},{wch:12},{wch:12},{wch:15},{wch:10},{wch:15}];
+    rows2[0].forEach(function(_,ci){var k=XLSX.utils.encode_cell({r:0,c:ci});if(ws2[k])ws2[k].s={font:XLS_HDR_FONT,fill:XLS_HDR_FILL,alignment:{horizontal:'center'}}});
+    for(var ri3=1;ri3<rows2.length;ri3++){
+      [4,5,6,7,8,10].forEach(function(ci){var k=XLSX.utils.encode_cell({r:ri3,c:ci});if(ws2[k]){ws2[k].t='n';ws2[k].z=XLS_NUM_FMT;ws2[k].s={alignment:{horizontal:'right'}}}});
+    }
+    XLSX.utils.book_append_sheet(wb,ws2,'Detalle APU');
+
+    XLSX.writeFile(wb,'Presupuesto_'+(pres.codigo||'PPT')+'_'+new Date().toISOString().slice(0,10)+'.xlsx');
+    showToast('Presupuesto exportado a Excel',{type:'ok'});
+  };
+
+  var exportPDF=function(){
+    if(itemsArr.length===0){showToast('El presupuesto no tiene items',{type:'err',dur:2500});return}
+    var jsPDFCtor=(window.jspdf&&window.jspdf.jsPDF)||window.jsPDF;
+    if(!jsPDFCtor){showToast('Libreria PDF no disponible',{type:'err',dur:2500});return}
+    var doc=new jsPDFCtor({unit:'pt',format:'letter'});
+    var pageW=doc.internal.pageSize.getWidth();
+    var pageH=doc.internal.pageSize.getHeight();
+
+    doc.setFillColor(26,36,56);doc.rect(0,0,pageW,64,'F');
+    doc.setTextColor(255,255,255);doc.setFontSize(15);doc.setFont(undefined,'bold');
+    doc.text('PRESUPUESTO DE OBRA',40,28);
+    doc.setFontSize(10);doc.setFont(undefined,'normal');
+    doc.text((pres.nombre||pres.codigo)+'  |  '+pres.codigo,40,46);
+
+    doc.setTextColor(0,0,0);
+    var y=88;
+    doc.setFontSize(9);
+    function line(label,val){doc.setFont(undefined,'bold');doc.text(label+':',40,y);doc.setFont(undefined,'normal');doc.text(String(val||'-'),150,y);y+=14}
+    line('Entidad contratante',pres.entidad);
+    line('No. Contrato',pres.contrato);
+    line('Ciudad / Depto.',(pres.ciudad||'-')+(pres.departamento?(' / '+pres.departamento):''));
+    line('Plazo',pres.plazo?(pres.plazo+' dias'):'-');
+    line('Elaborado por',pres.elaborado_por);
+    doc.setFont(undefined,'bold');doc.text('Objeto:',40,y);doc.setFont(undefined,'normal');
+    var objLines=doc.splitTextToSize(pres.objeto||'-',pageW-190);
+    doc.text(objLines,150,y);
+    y+=Math.max(14,objLines.length*11)+10;
+
+    var body=itemsArr.map(function(it,i){var cv=calcItemVal(it);return[i+1,it.num_item,it.descripcion,it.unidad,Number(it.cantidad).toLocaleString('en-US',{maximumFractionDigits:2}),cv.apu?cv.apu.codigo:'-','$ '+fmt(cv.vr_unit),'$ '+fmt(cv.vr_total)]});
+    doc.autoTable({
+      startY:y,
+      head:[['#','Item','Descripcion','UN','Cant.','APU','Vr.Unit','Vr.Total']],
+      body:body,theme:'grid',
+      headStyles:{fillColor:[26,36,56],textColor:255,fontSize:8},
+      bodyStyles:{fontSize:8},
+      columnStyles:{0:{cellWidth:22},1:{cellWidth:45},2:{cellWidth:175},3:{cellWidth:35},6:{halign:'right'},7:{halign:'right'}},
+      margin:{left:40,right:40}
+    });
+
+    var y2=doc.lastAutoTable.finalY+18;
+    if(y2>pageH-160){doc.addPage();y2=50}
+    var sumBody=[
+      ['Costo Directo Total','$ '+fmt(r.cdTotal)],
+      ['Administracion ('+r.pctA.toFixed(2)+'%)','$ '+fmt(r.adm)],
+      ['Imprevistos ('+r.pctI.toFixed(2)+'%)','$ '+fmt(r.imp)],
+      ['Utilidad ('+r.pctU.toFixed(2)+'%)','$ '+fmt(r.uti)],
+      ['IVA sobre Utilidad ('+r.ivaPct+'%)','$ '+fmt(r.ivaUtilidad)],
+      ['VALOR TOTAL CONTRATO','$ '+fmt(r.valorTotal)]
+    ];
+    doc.autoTable({
+      startY:y2,body:sumBody,theme:'plain',styles:{fontSize:9},
+      columnStyles:{0:{cellWidth:220,fontStyle:'bold'},1:{cellWidth:110,halign:'right'}},
+      margin:{left:pageW-40-330},
+      didParseCell:function(hd){if(hd.row.index===5){hd.cell.styles.fontStyle='bold';hd.cell.styles.fontSize=10;hd.cell.styles.fillColor=[26,122,52];hd.cell.styles.textColor=255}}
+    });
+
+    var y3=doc.lastAutoTable.finalY+60;
+    if(y3>pageH-60){doc.addPage();y3=80}
+    doc.setDrawColor(150);doc.setTextColor(0,0,0);doc.setFontSize(8);
+    doc.line(40,y3,240,y3);doc.text('Firma - Elaborado por',40,y3+12);
+    doc.line(pageW-240,y3,pageW-40,y3);doc.text('Firma - Aprobado',pageW-240,y3+12);
+
+    doc.save('Presupuesto_'+(pres.codigo||'PPT')+'_'+new Date().toISOString().slice(0,10)+'.pdf');
+    showToast('Presupuesto exportado a PDF',{type:'ok'});
+  };
+
+  return(
+    <div style={{display:'flex',flexDirection:'column',gap:8}}>
+      <div className="sec-hdr" style={{border:'1px solid var(--bdr)',borderRadius:4,padding:'6px 10px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+        <span className="title" style={{fontSize:15}}>Entregables: {pres.codigo}</span>
+        <span style={{fontSize:10,color:'var(--tx3)'}}>{itemsArr.length} items &middot; Valor total: {fmt(r.valorTotal)}</span>
+      </div>
+      <div style={{display:'flex',gap:6,alignItems:'center'}}>
+        <button className="btn" onClick={function(){setTab(11)}} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--bdr)',borderRadius:4,background:'none',color:'var(--tx2)',cursor:'pointer'}}>{'< Resumen'}</button>
+      </div>
+      <div style={{display:'flex',gap:16,alignItems:'flex-start'}}>
+        <div style={{width:340,display:'flex',flexDirection:'column',gap:10}}>
+          <div style={{border:'1px solid var(--bdr)',borderRadius:4,padding:14,display:'flex',flexDirection:'column',gap:8}}>
+            <div style={{fontSize:12,fontWeight:700,color:'var(--ac)'}}>EXCEL</div>
+            <div style={{fontSize:10,color:'var(--tx2)',lineHeight:1.4}}>Hoja "Presupuesto" con datos del proyecto, items y resumen financiero. Hoja "Detalle APU" con el desglose de costos por item.</div>
+            <button className="btn" onClick={exportExcel} style={{fontSize:11,padding:'6px 12px',border:'1px solid var(--ok)',borderRadius:4,background:'rgba(74,222,128,.08)',color:'var(--ok)',cursor:'pointer',display:'inline-flex',alignItems:'center',gap:6,justifyContent:'center'}}><IconExport/> Exportar Excel</button>
+          </div>
+          <div style={{border:'1px solid var(--bdr)',borderRadius:4,padding:14,display:'flex',flexDirection:'column',gap:8}}>
+            <div style={{fontSize:12,fontWeight:700,color:'var(--ac)'}}>PDF</div>
+            <div style={{fontSize:10,color:'var(--tx2)',lineHeight:1.4}}>Documento con datos del proyecto, tabla de items, resumen financiero y espacio de firma, listo para entregar a la entidad contratante.</div>
+            <button className="btn" onClick={exportPDF} style={{fontSize:11,padding:'6px 12px',border:'1px solid var(--ac)',borderRadius:4,background:'rgba(77,143,247,.08)',color:'var(--ac)',cursor:'pointer',display:'inline-flex',alignItems:'center',gap:6,justifyContent:'center'}}><IconExport/> Exportar PDF</button>
+          </div>
+          {itemsArr.length===0&&<div style={{fontSize:10,color:'var(--warn)',padding:'8px 10px',border:'1px solid var(--warn)',borderRadius:4}}>Este presupuesto no tiene items. Ve a "Items" para agregarlos antes de exportar.</div>}
+        </div>
+        <div style={{flex:1,border:'1px solid var(--bdr)',borderRadius:4}}>
+          <div style={{padding:'6px 10px',background:'var(--bg3)',borderBottom:'1px solid var(--bdr)',fontSize:12,fontWeight:700,color:'var(--ac)'}}>VISTA PREVIA</div>
+          <div style={{padding:12,fontSize:11}}>
+            <div style={{fontWeight:700,fontSize:13,marginBottom:6}}>{pres.nombre||'(sin nombre)'}</div>
+            <div style={{color:'var(--tx2)',marginBottom:2}}>Entidad: {pres.entidad||'-'}</div>
+            <div style={{color:'var(--tx2)',marginBottom:2}}>Contrato: {pres.contrato||'-'}</div>
+            <div style={{color:'var(--tx2)',marginBottom:10}}>Ciudad: {pres.ciudad||'-'}{pres.departamento?(' / '+pres.departamento):''}</div>
+            <table style={{width:'100%',fontSize:10}}>
+              <tbody>
+                <tr><td style={{padding:'3px 0',color:'var(--tx2)'}}>Costo Directo</td><td style={{padding:'3px 0',textAlign:'right'}}>{fmt(r.cdTotal)}</td></tr>
+                <tr><td style={{padding:'3px 0',color:'var(--tx2)'}}>AIU ({r.aiuPct.toFixed(2)}%)</td><td style={{padding:'3px 0',textAlign:'right'}}>{fmt(r.aiuTotal)}</td></tr>
+                <tr><td style={{padding:'3px 0',color:'var(--tx2)'}}>IVA sobre Utilidad</td><td style={{padding:'3px 0',textAlign:'right'}}>{fmt(r.ivaUtilidad)}</td></tr>
+                <tr style={{borderTop:'1px solid var(--bdr)'}}><td style={{padding:'6px 0',fontWeight:700,color:'var(--ac)'}}>VALOR TOTAL</td><td style={{padding:'6px 0',textAlign:'right',fontWeight:700,color:'var(--ok)'}}>{fmt(r.valorTotal)}</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function PresupuestosTab({data,onChange,cargosCalc,esHora,eqMap,insMap,factorPrest,usarFpEnApu,equipos,insumos,apusBasico,categorias_apu,tab,setTab}){
   data=data||{};
   equipos=equipos||[];
@@ -5512,21 +6022,32 @@ function PresupuestosTab({data,onChange,cargosCalc,esHora,eqMap,insMap,factorPre
   }
 
   /* ── Calculo compartido de un item (usado por Items, Resumen y Entregables) ── */
-  function calcItemVal(item){
-    if(!item.apu_id)return{vr_unit:0,vr_total:0,apu:null,calc:null};
-    var apu=null;
-    for(var i=0;i<apus.length;i++){if(apus[i].id===item.apu_id){apu=apus[i];break}}
-    if(!apu)return{vr_unit:0,vr_total:0,apu:null,calc:null};
-    var c=calcAPU(apu,cargosCalc,equipos,insumos,abCalcList,herrPct,factorPrest,usarFpEnApu,esHora,personMap,eqMap,insMap);
+  /* Memoizado por presupuesto seleccionado: solo se recalcula cuando cambian los items,
+     el override de AIU del presupuesto, o los catalogos/config de los que depende calcAPU. */
+  var itemValMap=useMemo(function(){
+    var map=new Map();
+    var itemsArr=(pres&&pres.items)||[];
     var aiuPct=(pres&&pres.aiu_override&&pres.aiu_override.activo)?
       (safeFloat(pres.aiu_override.pct_a)||0)+(safeFloat(pres.aiu_override.pct_i)||0)+(safeFloat(pres.aiu_override.pct_u)||0):
       (safeFloat(config.pct_administracion)||0)+(safeFloat(config.pct_imprevistos)||0)+(safeFloat(config.pct_utilidad)||0);
-    var vrUnit=r2(c.totalDirecto*(1+aiuPct/100));
-    return{vr_unit:vrUnit,vr_total:r2(vrUnit*safeFloat(item.cantidad)),apu:apu,calc:c};
+    itemsArr.forEach(function(item){
+      if(!item.apu_id){map.set(item.id,{vr_unit:0,vr_total:0,apu:null,calc:null});return}
+      var apu=null;
+      for(var i=0;i<apus.length;i++){if(apus[i].id===item.apu_id){apu=apus[i];break}}
+      if(!apu){map.set(item.id,{vr_unit:0,vr_total:0,apu:null,calc:null});return}
+      var c=calcAPU(apu,cargosCalc,equipos,insumos,abCalcList,herrPct,factorPrest,usarFpEnApu,esHora,personMap,eqMap,insMap);
+      var vrUnit=r2(c.totalDirecto*(1+aiuPct/100));
+      map.set(item.id,{vr_unit:vrUnit,vr_total:r2(vrUnit*safeFloat(item.cantidad)),apu:apu,calc:c});
+    });
+    return map;
+  },[pres&&pres.items,pres&&pres.aiu_override,apus,cargosCalc,equipos,insumos,abCalcList,herrPct,factorPrest,usarFpEnApu,esHora,personMap,eqMap,insMap,config.pct_administracion,config.pct_imprevistos,config.pct_utilidad]);
+
+  function calcItemVal(item){
+    return itemValMap.get(item.id)||{vr_unit:0,vr_total:0,apu:null,calc:null};
   }
 
   /* ── Resumen financiero completo del presupuesto seleccionado ── */
-  function calcResumenPres(){
+  var resumenPres=useMemo(function(){
     var itemsArr=(pres&&pres.items)||[];
     var cdTotal=0;var catDistrib={};
     for(var i=0;i<itemsArr.length;i++){
@@ -5548,516 +6069,15 @@ function PresupuestosTab({data,onChange,cargosCalc,esHora,eqMap,insMap,factorPre
     var catRows=catKeys.map(function(k){return{cat:k,val:r2(catDistrib[k]),pct:cdTotal>0?catDistrib[k]/cdTotal*100:0}});
     catRows.sort(function(a,b){return b.val-a.val});
     return{cdTotal:cdTotal,pctA:pctA,pctI:pctI,pctU:pctU,aiuPct:aiuPct,ivaPct:ivaPct,adm:adm,imp:imp,uti:uti,aiuTotal:aiuTotal,ivaUtilidad:ivaUtilidad,valorTotal:valorTotal,catRows:catRows,aiuWarn:aiuPct>0&&(aiuPct<5||aiuPct>50),itemsArr:itemsArr};
-  }
+  },[pres&&pres.items,pres&&pres.aiu_override,itemValMap,config.pct_administracion,config.pct_imprevistos,config.pct_utilidad]);
 
-  /* ══════════════════ 1. PROYECTOS ══════════════════ */
-  var renderProyectos=function(){
-    return(
-      <div style={{display:'flex',gap:16,alignItems:'flex-start',height:'100%'}}>
-        <div style={{width:280,display:'flex',flexDirection:'column',gap:4}}>
-          <div className="sec-hdr" style={{border:'1px solid var(--bdr)',borderRadius:4,padding:'2px 10px',height:25,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-            <span className="title" style={{fontSize:13}}>PRESUPUESTOS</span>
-            <button className="btn" onClick={addPresupuesto} style={{fontSize:10,padding:'2px 8px',border:'1px solid var(--ok)',borderRadius:4,background:'rgba(74,222,128,.08)',color:'var(--ok)',cursor:'pointer'}}>+ Nuevo</button>
-          </div>
-          <div style={{maxHeight:'calc(100vh - 160px)',overflowY:'auto',display:'flex',flexDirection:'column',gap:4}}>
-            {presupuestos.length===0&&<div style={{padding:'14px',fontSize:11,color:'var(--tx3)',textAlign:'center',border:'1px dashed var(--bdr)',borderRadius:4}}>Sin presupuestos. Crea uno con "+ Nuevo".</div>}
-            {presupuestos.map(function(p,i){
-              var isSel=selPresIdx===i;
-              var ic=p.items?p.items.length:0;
-              return(
-                <div key={p.id} onClick={function(){setSelPresIdx(i)}} style={{cursor:'pointer',padding:'8px 10px',border:'1px solid '+(isSel?'var(--ok)':'var(--bdr)'),borderRadius:4,background:isSel?'rgba(74,222,128,.06)':'var(--bg2)',display:'flex',flexDirection:'column',gap:3}}>
-                  <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-                    <span style={{fontSize:11,fontWeight:700,color:isSel?'var(--ok)':'var(--tx)'}}>{p.codigo}</span>
-                    <span style={{fontSize:9,padding:'1px 6px',borderRadius:3,border:'1px solid '+estadoColor(p.estado),color:estadoColor(p.estado),fontWeight:600}}>{estadoLabel(p.estado)}</span>
-                  </div>
-                  <div style={{fontSize:11,color:'var(--tx2)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{p.nombre||'(sin nombre)'}</div>
-                  <div style={{display:'flex',justifyContent:'space-between',fontSize:9,color:'var(--tx3)'}}><span>{ic+' items'}</span><span>{p.fecha_creacion||'-'}</span></div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-        <div style={{flex:1,minWidth:0}}>
-          {!pres&&<div style={{padding:'40px',textAlign:'center',color:'var(--tx3)',fontSize:13,border:'1px dashed var(--bdr)',borderRadius:4}}>Selecciona un presupuesto o crea uno nuevo.</div>}
-          {pres&&(
-            <div style={{display:'flex',flexDirection:'column',gap:8}}>
-              <div className="sec-hdr" style={{border:'1px solid var(--bdr)',borderRadius:4,padding:'6px 10px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:8}}>
-                <div style={{display:'flex',alignItems:'center',gap:10}}>
-                  <span className="title" style={{fontSize:16}}>{pres.nombre||'(sin nombre)'}</span>
-                  <span style={{fontSize:10,padding:'2px 8px',borderRadius:3,border:'1px solid '+estadoColor(pres.estado),color:estadoColor(pres.estado),fontWeight:600}}>{estadoLabel(pres.estado)}</span>
-                </div>
-                <span style={{fontSize:10,color:'var(--tx3)'}}>{pres.codigo}</span>
-              </div>
-              <div style={{border:'1px solid var(--bdr)',borderRadius:4,padding:10,display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px 16px',fontSize:11}}>
-                <div><div style={{color:'var(--tx3)',fontSize:9,textTransform:'uppercase'}}>Entidad</div><div style={{fontWeight:600}}>{pres.entidad||'-'}</div></div>
-                <div><div style={{color:'var(--tx3)',fontSize:9,textTransform:'uppercase'}}>No. contrato</div><div style={{fontWeight:600}}>{pres.contrato||'-'}</div></div>
-                <div style={{gridColumn:'1 / 3'}}><div style={{color:'var(--tx3)',fontSize:9,textTransform:'uppercase'}}>Objeto</div><div style={{fontWeight:600,lineHeight:'1.4'}}>{pres.objeto||'-'}</div></div>
-                <div><div style={{color:'var(--tx3)',fontSize:9,textTransform:'uppercase'}}>Plazo (dias)</div><div style={{fontWeight:600}}>{pres.plazo>0?pres.plazo:'-'}</div></div>
-                <div><div style={{color:'var(--tx3)',fontSize:9,textTransform:'uppercase'}}>Fecha elaboracion</div><div style={{fontWeight:600}}>{pres.fecha_creacion||'-'}</div></div>
-                <div><div style={{color:'var(--tx3)',fontSize:9,textTransform:'uppercase'}}>Ciudad</div><div style={{fontWeight:600}}>{pres.ciudad||'-'}</div></div>
-                <div><div style={{color:'var(--tx3)',fontSize:9,textTransform:'uppercase'}}>Departamento</div><div style={{fontWeight:600}}>{pres.departamento||'-'}</div></div>
-                <div><div style={{color:'var(--tx3)',fontSize:9,textTransform:'uppercase'}}>Elaborado por</div><div style={{fontWeight:600}}>{pres.elaborado_por||'-'}</div></div>
-              </div>
-              <div style={{display:'flex',gap:6,alignItems:'center'}}>
-                <button className="btn" onClick={function(){setEditPresForm({idx:selPresIdx,nombre:pres.nombre,entidad:pres.entidad,contrato:pres.contrato,objeto:pres.objeto,plazo:pres.plazo,ciudad:pres.ciudad,departamento:pres.departamento,elaborado_por:pres.elaborado_por})}} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--ac)',borderRadius:4,background:'rgba(77,143,247,.06)',color:'var(--ac)',cursor:'pointer'}}>Editar info</button>
-                <button className="btn" onClick={function(){toggleEstado(selPresIdx)}} style={{fontSize:10,padding:'4px 10px',border:'1px solid '+estadoColor(pres.estado),borderRadius:4,color:estadoColor(pres.estado),cursor:'pointer'}}>{pres.estado==='cerrado'?'Reabrir':'Cambiar estado'}</button>
-                <button className="btn-del" onClick={function(){delPresupuesto(selPresIdx)}} style={{fontSize:10,padding:'4px 10px',border:'1px solid #f87171',borderRadius:4,color:'#f87171',background:'none',cursor:'pointer'}}>Eliminar</button>
-                <button className="btn" onClick={function(){setTab(10)}} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--ok)',borderRadius:4,background:'rgba(74,222,128,.06)',color:'var(--ok)',cursor:'pointer'}}>{'Ir a Items >'}</button>
-                <span style={{flex:1}}/>
-                <span style={{fontSize:10,color:'var(--tx3)'}}>Snap: {pres.factores_snap?pres.factores_snap.length+' FP':0} &middot; {pres.cargos_snap?pres.cargos_snap.length+' cargos':0}</span>
-              </div>
-            </div>
-          )}
-        </div>
-        {editPresForm&&editPresForm.idx!==null&&(
-          <div className="modal-overlay" onClick={function(){setEditPresForm(null)}}>
-            <div className="modal-box" style={{width:620}} onClick={function(e){e.stopPropagation()}}>
-              <div className="modal-hdr"><span className="title">Editar informacion del presupuesto</span><button onClick={function(){setEditPresForm(null)}} style={{background:'none',border:'none',cursor:'pointer',padding:2,color:'var(--ok)'}}><IconX/></button></div>
-              <div className="modal-body" style={{display:'flex',flexDirection:'column',gap:8}}>
-                <div><label style={{fontSize:10,color:'var(--tx2)',display:'block',marginBottom:2}}>Nombre *</label><input className="ni" value={editPresForm.nombre} onChange={function(e){setEditPresForm(Object.assign({},editPresForm,{nombre:e.target.value}))}} style={{width:'100%',fontSize:11}} autoFocus/></div>
-                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
-                  <div><label style={{fontSize:10,color:'var(--tx2)',display:'block',marginBottom:2}}>Entidad contratante</label><input className="ni" value={editPresForm.entidad} onChange={function(e){setEditPresForm(Object.assign({},editPresForm,{entidad:e.target.value}))}} style={{width:'100%',fontSize:11}}/></div>
-                  <div><label style={{fontSize:10,color:'var(--tx2)',display:'block',marginBottom:2}}>No. contrato</label><input className="ni" value={editPresForm.contrato} onChange={function(e){setEditPresForm(Object.assign({},editPresForm,{contrato:e.target.value}))}} style={{width:'100%',fontSize:11}}/></div>
-                </div>
-                <div><label style={{fontSize:10,color:'var(--tx2)',display:'block',marginBottom:2}}>Objeto</label><textarea className="ni" value={editPresForm.objeto} onChange={function(e){setEditPresForm(Object.assign({},editPresForm,{objeto:e.target.value}))}} style={{width:'100%',fontSize:11,minHeight:60,resize:'vertical'}}/></div>
-                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8}}>
-                  <div><label style={{fontSize:10,color:'var(--tx2)',display:'block',marginBottom:2}}>Plazo (dias)</label><NumInput step="1" inputMode="decimal" value={editPresForm.plazo} onChange={function(v){setEditPresForm(Object.assign({},editPresForm,{plazo:v}))}} style={{width:'100%',fontSize:11}}/></div>
-                  <div><label style={{fontSize:10,color:'var(--tx2)',display:'block',marginBottom:2}}>Ciudad</label><input className="ni" value={editPresForm.ciudad} onChange={function(e){setEditPresForm(Object.assign({},editPresForm,{ciudad:e.target.value}))}} style={{width:'100%',fontSize:11}}/></div>
-                  <div><label style={{fontSize:10,color:'var(--tx2)',display:'block',marginBottom:2}}>Departamento</label><input className="ni" value={editPresForm.departamento} onChange={function(e){setEditPresForm(Object.assign({},editPresForm,{departamento:e.target.value}))}} style={{width:'100%',fontSize:11}}/></div>
-                </div>
-                <div><label style={{fontSize:10,color:'var(--tx2)',display:'block',marginBottom:2}}>Elaborado por</label><input className="ni" value={editPresForm.elaborado_por} onChange={function(e){setEditPresForm(Object.assign({},editPresForm,{elaborado_por:e.target.value}))}} style={{width:'100%',fontSize:11}}/></div>
-              </div>
-              <div className="modal-foot"><button className="btn" onClick={function(){setEditPresForm(null)}} style={{fontSize:10}}>Cancelar</button><button className="btn" onClick={saveEditForm} style={{fontSize:10,border:'1px solid var(--ok)'}}>Guardar</button></div>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  };
+  function calcResumenPres(){return resumenPres}
 
-  /* ══════════════════ 2. ITEMS Y CAPITULOS ══════════════════ */
-  var renderItems=function(){
-    if(!pres)return <div style={{padding:'40px',textAlign:'center',color:'var(--tx3)',fontSize:13,border:'1px dashed var(--bdr)',borderRadius:4}}>Selecciona un presupuesto en "Proyectos".</div>;
-    var readOnly=pres.estado!=='borrador';
-
-    var addItem=function(){
-      if(readOnly)return;
-      var arr=pres.items.slice();
-      arr.push({id:uid(),num_item:String(arr.length+1),capitulo:'',descripcion:'',unidad:'un',cantidad:1,apu_id:null,vr_unitario:0,vr_total:0,tiene_apu:false,alerta_sin_apu:false,observaciones:[]});
-      var n=presupuestos.slice();n[selPresIdx]=Object.assign({},n[selPresIdx],{items:arr});
-      onChange(Object.assign({},data,{presupuestos:n}));
-    };
-    var delItem=function(i){
-      if(readOnly)return;if(!confirm('Eliminar item?'))return;
-      var arr=pres.items.filter(function(_,j){return j!==i});
-      var n=presupuestos.slice();n[selPresIdx]=Object.assign({},n[selPresIdx],{items:arr});
-      onChange(Object.assign({},data,{presupuestos:n}));
-    };
-    var updItem=function(i,k,v){
-      if(readOnly)return;
-      var arr=pres.items.slice();arr[i]=Object.assign({},arr[i]);arr[i][k]=v;
-      var n=presupuestos.slice();n[selPresIdx]=Object.assign({},n[selPresIdx],{items:arr});
-      onChange(Object.assign({},data,{presupuestos:n}));
-    };
-    var openApuModal=function(i){if(!readOnly)setApuModal({open:true,itemIdx:i,search:'',catFilter:''})};
-    var closeApuModal=function(){setApuModal({open:false,itemIdx:null,search:'',catFilter:''})};
-    var filteredApus=function(){
-      if(!apuModal.open)return[];
-      var sn=apuModal.search?norm(apuModal.search):'';
-      var cf=apuModal.catFilter;
-      var result=[];
-      for(var i=0;i<apus.length;i++){
-        var a=apus[i];
-        if(cf&&((a.categoria||'')!==cf))continue;
-        if(sn){
-          var aCod=norm(a.codigo||''),aNom=norm(a.nombre||''),aCat=norm(a.categoria||'');
-          if(aCod.indexOf(sn)<0&&aNom.indexOf(sn)<0&&aCat.indexOf(sn)<0)continue;
-        }
-        result.push(a);
-      }
-      return result;
-    };
-    var assignApu=function(aid){
-      if(apuModal.itemIdx===null||aid===undefined)return;
-      var i=apuModal.itemIdx;
-      var arr=pres.items.slice();
-      arr[i]=Object.assign({},arr[i],{apu_id:aid,tiene_apu:true,alerta_sin_apu:false});
-      var n=presupuestos.slice();n[selPresIdx]=Object.assign({},n[selPresIdx],{items:arr});
-      onChange(Object.assign({},data,{presupuestos:n}));
-      closeApuModal();
-      showToast('APU asignado',{type:'ok',dur:2000});
-    };
-    var unassignApu=function(i){
-      if(readOnly)return;if(!confirm('Quitar APU?'))return;
-      var arr=pres.items.slice();arr[i]=Object.assign({},arr[i],{apu_id:null,tiene_apu:false});
-      var n=presupuestos.slice();n[selPresIdx]=Object.assign({},n[selPresIdx],{items:arr});
-      onChange(Object.assign({},data,{presupuestos:n}));
-      showToast('APU removido',{type:'ok',dur:2000});
-    };
-    var itemsArr=pres.items||[];
-    var cdTotal=0;
-    for(var i=0;i<itemsArr.length;i++){cdTotal+=calcItemVal(itemsArr[i]).vr_total}
-
-    return(
-      <div style={{display:'flex',flexDirection:'column',gap:8}}>
-        <div className="sec-hdr" style={{border:'1px solid var(--bdr)',borderRadius:4,padding:'6px 10px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-          <span className="title" style={{fontSize:15}}>Items: {pres.codigo}</span>
-          <span style={{fontSize:10,color:'var(--tx3)'}}>{itemsArr.length} items &middot; CD: {fmt(cdTotal)}</span>
-        </div>
-        <div style={{display:'flex',gap:6,alignItems:'center'}}>
-          {!readOnly&&<button className="btn" onClick={addItem} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--ok)',borderRadius:4,background:'rgba(74,222,128,.06)',color:'var(--ok)',cursor:'pointer'}}>+ Item</button>}
-          <button className="btn" onClick={function(){setTab(9)}} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--bdr)',borderRadius:4,background:'none',color:'var(--tx2)',cursor:'pointer'}}>{'< Proyectos'}</button>
-          <button className="btn" onClick={function(){setTab(11)}} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--ac)',borderRadius:4,background:'rgba(77,143,247,.06)',color:'var(--ac)',cursor:'pointer'}}>{'Resumen >'}</button>
-          {readOnly&&<span style={{fontSize:10,color:'var(--warn)',marginLeft:8,padding:'2px 8px',border:'1px solid var(--warn)',borderRadius:3}}>Solo lectura (presupuesto {estadoLabel(pres.estado).toLowerCase()})</span>}
-        </div>
-        <div className="xl-wrap">
-          <div className="xl-scroll">
-            <table style={{tableLayout:'fixed',width:'100%',fontSize:10}}>
-              <colgroup>
-                <col className="cw-40"/><col className="cw-50"/><col className="cw-110"/><col className="cw-200"/><col className="cw-50"/><col className="cw-70"/><col className="cw-150"/><col className="cw-90"/><col className="cw-90"/><col className="cw-50"/>
-              </colgroup>
-              <thead><tr><th>#</th><th>Item</th><th>Capitulo</th><th>Descripcion</th><th>UN</th><th>Cant.</th><th>APU</th><th>Vr. Unit</th><th>Vr. Total</th><th className="col-act">Acc</th></tr></thead>
-              <tbody>
-                {itemsArr.length===0&&<tr className="empty-row"><td colSpan={10}>Sin items.{!readOnly&&' Agrega con "+ Item"'}</td></tr>}
-                {itemsArr.map(function(it,i){
-                  var c=calcItemVal(it);
-                  var apu=c.apu;
-                  return(
-                    <tr key={it.id}>
-                      <td style={{textAlign:'center',color:'var(--tx3)'}}>{i+1}</td>
-                      <td>{readOnly?it.num_item:<input className="ni" value={it.num_item} onChange={function(e){updItem(i,'num_item',e.target.value)}} style={{width:'100%',fontSize:10}}/>}</td>
-                      <td>{readOnly?it.capitulo:<input className="ni" value={it.capitulo} onChange={function(e){updItem(i,'capitulo',e.target.value)}} style={{width:'100%',fontSize:10}} placeholder="1.1"/>}</td>
-                      <td>{readOnly?it.descripcion:<input className="ni" value={it.descripcion} onChange={function(e){updItem(i,'descripcion',e.target.value)}} style={{width:'100%',fontSize:10}} placeholder="Descripcion"/>}</td>
-                      <td>{readOnly?it.unidad:<input className="ni" value={it.unidad} onChange={function(e){updItem(i,'unidad',e.target.value)}} style={{width:'100%',fontSize:10}}/>}</td>
-                      <td>{readOnly?it.cantidad:<NumInput step=".01" inputMode="decimal" value={it.cantidad} onChange={function(v){updItem(i,'cantidad',v)}} style={{width:'100%',fontSize:10,textAlign:'right'}} decimals={4}/>}</td>
-                      <td style={{textAlign:'center'}}>
-                        {apu?(
-                          <span style={{display:'inline-flex',alignItems:'center',gap:4}}>
-                            <span style={{fontSize:9,color:'var(--ok)',fontWeight:600}}>{apu.codigo}</span>
-                            {!readOnly&&<button onClick={function(){unassignApu(i)}} title="Quitar APU" style={{background:'none',border:'none',color:'#f87171',cursor:'pointer',padding:0,fontSize:11}}>x</button>}
-                          </span>
-                        ):(
-                          !readOnly?<button onClick={function(){openApuModal(i)}} style={{fontSize:9,padding:'2px 6px',border:'1px dashed var(--ac)',borderRadius:3,background:'rgba(77,143,247,.06)',color:'var(--ac)',cursor:'pointer'}}>asignar</button>:<span style={{color:'var(--tx3)'}}>-</span>
-                        )}
-                      </td>
-                      <td style={{textAlign:'right'}}>{apu?fmt(c.vr_unit):'-'}</td>
-                      <td style={{textAlign:'right',fontWeight:600}}>{apu?fmt(c.vr_total):'-'}</td>
-                      <td className="col-act" style={{textAlign:'center'}}>{!readOnly&&<button className="btn-del" onClick={function(){delItem(i)}} title="Eliminar" style={{background:'none',border:'none',cursor:'pointer',padding:0}}><IconDel/></button>}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-        {apuModal.open&&(
-          <div className="modal-overlay" onClick={closeApuModal}>
-            <div className="modal-box" style={{width:760}} onClick={function(e){e.stopPropagation()}}>
-              <div className="modal-hdr"><span className="title">Asignar APU al item</span><button onClick={closeApuModal} style={{background:'none',border:'none',cursor:'pointer',padding:2,color:'var(--ok)'}}><IconX/></button></div>
-              <div className="modal-body" style={{display:'flex',flexDirection:'column',gap:8}}>
-                <div style={{display:'flex',gap:6,alignItems:'center'}}>
-                  <select className="ni" value={apuModal.catFilter} onChange={function(e){setApuModal(Object.assign({},apuModal,{catFilter:e.target.value}))}} style={{width:200,height:22,fontSize:11,border:'1px solid var(--ac)',borderRadius:4}}>
-                    <option value=''>Todas las categorias</option>
-                    {(categorias_apu||[]).map(function(c){return <option key={c.codigo} value={c.categoria}>{c.categoria}</option>})}
-                  </select>
-                  <input className="ni" placeholder="Buscar APU..." value={apuModal.search} onChange={function(e){setApuModal(Object.assign({},apuModal,{search:e.target.value}))}} style={{flex:1,height:22,fontSize:11,border:'1px solid var(--ok)',borderRadius:4}} autoFocus/>
-                </div>
-                <div className="xl-scroll" style={{maxHeight:380,overflowY:'auto',border:'1px solid var(--bdr)',borderRadius:4}}>
-                  <table style={{tableLayout:'fixed',width:'100%',fontSize:10}}>
-                    <colgroup><col className="cw-90"/><col className="cw-260"/><col className="cw-190"/><col className="cw-60"/><col className="cw-80"/></colgroup>
-                    <thead style={{position:'sticky',top:0,background:'var(--bg3)'}}><tr><th>Codigo</th><th>Nombre</th><th>Categoria</th><th>UN</th><th>Accion</th></tr></thead>
-                    <tbody>
-                      {filteredApus().length===0&&<tr><td colSpan={5} style={{textAlign:'center',padding:'20px',color:'var(--tx3)'}}>Sin resultados</td></tr>}
-                      {filteredApus().map(function(a){return(
-                        <tr key={a.id}>
-                          <td style={{fontWeight:600,color:'var(--ac)'}}>{a.codigo||'-'}</td>
-                          <td>{a.nombre||'-'}</td>
-                          <td style={{color:'var(--tx2)'}}>{a.categoria||'-'}</td>
-                          <td style={{textAlign:'center'}}>{a.unidad||'-'}</td>
-                          <td style={{textAlign:'center'}}><button onClick={function(){assignApu(a.id)}} style={{fontSize:10,padding:'2px 8px',border:'1px solid var(--ok)',borderRadius:3,background:'rgba(74,222,128,.08)',color:'var(--ok)',cursor:'pointer',fontWeight:600}}>Seleccionar</button></td>
-                        </tr>
-                      )})}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  /* ══════════════════ 3. RESUMEN FINANCIERO ══════════════════ */
-  var renderResumen=function(){
-    if(!pres)return <div style={{padding:'40px',textAlign:'center',color:'var(--tx3)',fontSize:13,border:'1px dashed var(--bdr)',borderRadius:4}}>Selecciona un presupuesto en "Proyectos".</div>;
-    var readOnly=pres.estado!=='borrador';
-    var r=calcResumenPres();
-    var useOv=pres.aiu_override&&pres.aiu_override.activo;
-
-    var updOv=function(k,v){
-      if(readOnly)return;
-      var n=presupuestos.slice();
-      n[selPresIdx]=Object.assign({},n[selPresIdx]);
-      n[selPresIdx].aiu_override=Object.assign({},n[selPresIdx].aiu_override);
-      n[selPresIdx].aiu_override[k]=v;
-      onChange(Object.assign({},data,{presupuestos:n}));
-    };
-
-    return(
-      <div style={{display:'flex',flexDirection:'column',gap:8}}>
-        <div className="sec-hdr" style={{border:'1px solid var(--bdr)',borderRadius:4,padding:'6px 10px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-          <span className="title" style={{fontSize:15}}>Resumen: {pres.codigo}</span>
-          <span style={{fontSize:10,color:'var(--tx3)'}}>{r.itemsArr.length} items &middot; CD: {fmt(r.cdTotal)}</span>
-        </div>
-        <div style={{display:'flex',gap:6,alignItems:'center'}}>
-          <button className="btn" onClick={function(){setTab(10)}} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--bdr)',borderRadius:4,background:'none',color:'var(--tx2)',cursor:'pointer'}}>{'< Items'}</button>
-          <button className="btn" onClick={function(){setTab(12)}} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--ac)',borderRadius:4,background:'rgba(77,143,247,.06)',color:'var(--ac)',cursor:'pointer'}}>{'Entregables >'}</button>
-        </div>
-        <div style={{display:'flex',gap:16,alignItems:'flex-start'}}>
-          <div style={{width:480,border:'1px solid var(--bdr)',borderRadius:4}}>
-            <div style={{padding:'6px 10px',background:'var(--bg3)',borderBottom:'1px solid var(--bdr)',fontSize:12,fontWeight:700,color:'var(--ac)'}}>RESUMEN ECONOMICO</div>
-            <table style={{width:'100%',fontSize:11,tableLayout:'fixed'}}>
-              <colgroup><col className="cw-280"/><col className="cw-100"/><col className="cw-100"/></colgroup>
-              <tbody>
-                <tr><td style={{padding:'6px 10px',borderBottom:'1px solid var(--bdr)'}}>Costo Directo Total</td><td style={{textAlign:'right',padding:'6px 10px',borderBottom:'1px solid var(--bdr)',fontWeight:600}}>{fmt(r.cdTotal)}</td><td style={{padding:'6px 10px',borderBottom:'1px solid var(--bdr)'}}/></tr>
-                <tr><td style={{padding:'6px 10px',borderBottom:'1px solid var(--bdr)'}}>Administracion ({r.pctA.toFixed(2)}%)</td><td style={{textAlign:'right',padding:'6px 10px',borderBottom:'1px solid var(--bdr)'}}>{fmt(r.adm)}</td><td style={{padding:'6px 10px',borderBottom:'1px solid var(--bdr)'}}/></tr>
-                <tr><td style={{padding:'6px 10px',borderBottom:'1px solid var(--bdr)'}}>Imprevistos ({r.pctI.toFixed(2)}%)</td><td style={{textAlign:'right',padding:'6px 10px',borderBottom:'1px solid var(--bdr)'}}>{fmt(r.imp)}</td><td style={{padding:'6px 10px',borderBottom:'1px solid var(--bdr)'}}/></tr>
-                <tr><td style={{padding:'6px 10px',borderBottom:'1px solid var(--bdr)'}}>Utilidad ({r.pctU.toFixed(2)}%)</td><td style={{textAlign:'right',padding:'6px 10px',borderBottom:'1px solid var(--bdr)'}}>{fmt(r.uti)}</td><td style={{padding:'6px 10px',borderBottom:'1px solid var(--bdr)'}}/></tr>
-                <tr style={{background:'var(--bg2)'}}><td style={{padding:'6px 10px',borderBottom:'1px solid var(--bdr)',fontWeight:700}}>AIU Total ({r.aiuPct.toFixed(2)}%)</td><td style={{textAlign:'right',padding:'6px 10px',borderBottom:'1px solid var(--bdr)',fontWeight:700,color:r.aiuWarn?'var(--warn)':'var(--ok)'}}>{fmt(r.aiuTotal)}</td><td style={{padding:'6px 10px',borderBottom:'1px solid var(--bdr)'}}/></tr>
-                <tr><td style={{padding:'6px 10px',borderBottom:'1px solid var(--bdr)'}}>IVA sobre Utilidad ({r.ivaPct}%)</td><td style={{textAlign:'right',padding:'6px 10px',borderBottom:'1px solid var(--bdr)'}}>{fmt(r.ivaUtilidad)}</td><td style={{padding:'6px 10px',borderBottom:'1px solid var(--bdr)'}}/></tr>
-                <tr style={{background:'var(--bg3)'}}><td style={{padding:'8px 10px',fontWeight:700,fontSize:13,color:'var(--ac)'}}>VALOR TOTAL CONTRATO</td><td style={{textAlign:'right',padding:'8px 10px',fontWeight:700,fontSize:13,color:'var(--ok)'}}>{fmt(r.valorTotal)}</td><td style={{padding:'8px 10px'}}/></tr>
-              </tbody>
-            </table>
-          </div>
-          <div style={{flex:1,display:'flex',flexDirection:'column',gap:10}}>
-            <div style={{border:'1px solid var(--bdr)',borderRadius:4}}>
-              <div style={{padding:'6px 10px',background:'var(--bg3)',borderBottom:'1px solid var(--bdr)',fontSize:12,fontWeight:700,color:'var(--ac)',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-                <span>AIU Override</span>
-                {!readOnly&&<label style={{display:'inline-flex',alignItems:'center',gap:4,fontSize:10,cursor:'pointer'}}><input type="checkbox" checked={useOv||false} onChange={function(e){updOv('activo',e.target.checked)}}/> Usar AIU especifico</label>}
-              </div>
-              {useOv?(
-                <div style={{padding:'8px 10px',display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6,fontSize:10}}>
-                  <div><label style={{color:'var(--tx2)',display:'block',marginBottom:2}}>Admin %</label><NumInput step=".5" inputMode="decimal" value={r.pctA} onChange={function(v){updOv('pct_a',v)}} disabled={readOnly} style={{width:'100%',fontSize:10,textAlign:'right'}} decimals={2}/></div>
-                  <div><label style={{color:'var(--tx2)',display:'block',marginBottom:2}}>Impr %</label><NumInput step=".5" inputMode="decimal" value={r.pctI} onChange={function(v){updOv('pct_i',v)}} disabled={readOnly} style={{width:'100%',fontSize:10,textAlign:'right'}} decimals={2}/></div>
-                  <div><label style={{color:'var(--tx2)',display:'block',marginBottom:2}}>Util %</label><NumInput step=".5" inputMode="decimal" value={r.pctU} onChange={function(v){updOv('pct_u',v)}} disabled={readOnly} style={{width:'100%',fontSize:10,textAlign:'right'}} decimals={2}/></div>
-                  <div style={{gridColumn:'1 / 4',marginTop:6,padding:'4px 6px',borderRadius:3,background:r.aiuWarn?'rgba(248,113,113,.1)':(r.cdTotal>0?'rgba(74,222,128,.06)':'var(--bg3)')}}>
-                    {r.aiuPct>=5&&r.aiuPct<=50&&<span style={{fontSize:10,color:'var(--ok)',fontWeight:600}}>AIU {r.aiuPct.toFixed(2)}% OK</span>}
-                    {r.aiuPct<5&&r.aiuWarn&&<span style={{fontSize:10,color:'var(--warn)',fontWeight:600}}>AIU {r.aiuPct.toFixed(2)}% - bajo 5%</span>}
-                    {r.aiuPct>50&&<span style={{fontSize:10,color:'#f87171',fontWeight:600}}>AIU {r.aiuPct.toFixed(2)}% - sobre 50%</span>}
-                  </div>
-                </div>
-              ):(
-                <div style={{padding:'8px 10px',fontSize:10,color:'var(--tx3)'}}>Usando AIU global ({r.pctA.toFixed(1)}%+{r.pctI.toFixed(1)}%+{r.pctU.toFixed(1)}%). Activa "Usar AIU especifico" para cambiar.</div>
-              )}
-            </div>
-            <div style={{border:'1px solid var(--bdr)',borderRadius:4}}>
-              <div style={{padding:'6px 10px',background:'var(--bg3)',borderBottom:'1px solid var(--bdr)',fontSize:12,fontWeight:700,color:'var(--ac)'}}>DISTRIBUCION POR CATEGORIA</div>
-              <div style={{padding:'4px 10px',maxHeight:240,overflowY:'auto'}}>
-                {r.catRows.length===0&&<div style={{textAlign:'center',padding:'20px',color:'var(--tx3)'}}>Sin items con APU.</div>}
-                {r.catRows.map(function(row,i){return(
-                  <div key={i} style={{display:'flex',alignItems:'center',gap:8,padding:'4px 0',borderBottom:'1px dotted var(--bd)'}}>
-                    <span style={{fontSize:10,flex:1,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{row.cat}</span>
-                    <div style={{width:120,height:6,background:'var(--bg)',borderRadius:3,overflow:'hidden',border:'1px solid var(--bd)'}}><div style={{width:Math.min(100,row.pct)+'%',height:'100%',background:'var(--ac)',borderRadius:3}}/></div>
-                    <span style={{fontSize:9,color:'var(--tx2)',width:50,textAlign:'right'}}>{row.pct.toFixed(1)}%</span>
-                    <span style={{fontSize:9,color:'var(--tx2)',width:80,textAlign:'right',fontWeight:600}}>{fmt(row.val)}</span>
-                  </div>
-                )})}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  /* ══════════════════ 4. EXPORTAR / ENTREGABLES ══════════════════ */
-  var renderEntregables=function(){
-    if(!pres)return <div style={{padding:'40px',textAlign:'center',color:'var(--tx3)',fontSize:13,border:'1px dashed var(--bdr)',borderRadius:4}}>Selecciona un presupuesto en "Proyectos".</div>;
-    var r=calcResumenPres();
-    var itemsArr=r.itemsArr;
-
-    var exportExcel=function(){
-      if(itemsArr.length===0){showToast('El presupuesto no tiene items',{type:'err',dur:2500});return}
-      var wb=XLSX.utils.book_new();
-      var HDR_FILL={fgColor:{rgb:'1A2438'}};
-      var HDR_FONT={bold:true,color:{rgb:'FFFFFF'},sz:9};
-      var rows=[];
-      rows.push(['PRESUPUESTO: '+(pres.nombre||pres.codigo)]);
-      rows.push(['Codigo',pres.codigo,'','Entidad contratante',pres.entidad||'-']);
-      rows.push(['No. Contrato',pres.contrato||'-','','Ciudad',(pres.ciudad||'-')+(pres.departamento?(' / '+pres.departamento):'')]);
-      rows.push(['Objeto',pres.objeto||'-']);
-      rows.push(['Elaborado por',pres.elaborado_por||'-','','Fecha',pres.fecha_creacion||'-']);
-      rows.push([]);
-      var hdrRowIdx=rows.length;
-      rows.push(['#','Item','Capitulo','Descripcion','UN','Cantidad','APU','Vr.Unitario','Vr.Total']);
-      itemsArr.forEach(function(it,i){
-        var cv=calcItemVal(it);
-        rows.push([i+1,it.num_item,it.capitulo,it.descripcion,it.unidad,safeFloat(it.cantidad),cv.apu?cv.apu.codigo:'-',cv.vr_unit,cv.vr_total]);
-      });
-      var sumStartIdx=rows.length+1;
-      rows.push([]);
-      rows.push(['','','','','','','','Costo Directo Total',r.cdTotal]);
-      rows.push(['','','','','','','','Administracion ('+r.pctA.toFixed(2)+'%)',r.adm]);
-      rows.push(['','','','','','','','Imprevistos ('+r.pctI.toFixed(2)+'%)',r.imp]);
-      rows.push(['','','','','','','','Utilidad ('+r.pctU.toFixed(2)+'%)',r.uti]);
-      rows.push(['','','','','','','','IVA sobre Utilidad ('+r.ivaPct+'%)',r.ivaUtilidad]);
-      rows.push(['','','','','','','','VALOR TOTAL CONTRATO',r.valorTotal]);
-      var ws=XLSX.utils.aoa_to_sheet(rows);
-      ws['!cols']=[{wch:4},{wch:10},{wch:12},{wch:38},{wch:6},{wch:11},{wch:10},{wch:15},{wch:15}];
-      ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:8}},{s:{r:3,c:1},e:{r:3,c:8}}];
-      if(ws['A1'])ws['A1'].s={font:{bold:true,sz:14,color:{rgb:'1A2438'}}};
-      for(var rr=1;rr<=4;rr++){
-        ['A','D'].forEach(function(col){var k=col+(rr+1);if(ws[k])ws[k].s={font:{bold:true,sz:9,color:{rgb:'4D8FF7'}}}});
-      }
-      ['A','B','C','D','E','F','G','H','I'].forEach(function(col){var k=col+(hdrRowIdx+1);if(ws[k])ws[k].s={font:HDR_FONT,fill:HDR_FILL,alignment:{horizontal:'center'}}});
-      for(var ri2=hdrRowIdx+1;ri2<hdrRowIdx+1+itemsArr.length;ri2++){
-        ['H','I'].forEach(function(col){var k=col+(ri2+1);if(ws[k]){ws[k].t='n';ws[k].z='#,##0.00';ws[k].s={alignment:{horizontal:'right'}}}});
-      }
-      for(var rs=sumStartIdx;rs<sumStartIdx+6;rs++){
-        var kh=String.fromCharCode(72)+(rs+1),ki=String.fromCharCode(73)+(rs+1);
-        if(ws[kh])ws[kh].s={font:{bold:true,sz:9}};
-        if(ws[ki]){ws[ki].t='n';ws[ki].z='#,##0.00';ws[ki].s={font:{bold:true,sz:9},alignment:{horizontal:'right'}}}
-      }
-      var lastRow=sumStartIdx+5;
-      ['H','I'].forEach(function(col){var k=col+(lastRow+1);if(ws[k])ws[k].s={font:{bold:true,sz:10,color:{rgb:'FFFFFF'}},fill:{fgColor:{rgb:'1A7A34'}},alignment:{horizontal:col==='I'?'right':'left'}}});
-      XLSX.utils.book_append_sheet(wb,ws,'Presupuesto');
-
-      var rows2=[['Item','APU','Nombre','Categoria','Mano de Obra','Equipos','Insumos','Transporte','Costo Directo Unit.','Cantidad','Vr.Total']];
-      itemsArr.forEach(function(it){
-        var cv=calcItemVal(it);
-        if(!cv.apu)return;
-        var c=cv.calc||{};
-        rows2.push([it.num_item,cv.apu.codigo,cv.apu.nombre,cv.apu.categoria,c.subPers||0,c.subEq||0,c.subIns||0,c.subTrans||0,c.totalDirecto||0,safeFloat(it.cantidad),cv.vr_total]);
-      });
-      var ws2=XLSX.utils.aoa_to_sheet(rows2);
-      ws2['!cols']=[{wch:8},{wch:10},{wch:32},{wch:18},{wch:13},{wch:12},{wch:12},{wch:12},{wch:15},{wch:10},{wch:15}];
-      rows2[0].forEach(function(_,ci){var k=XLSX.utils.encode_cell({r:0,c:ci});if(ws2[k])ws2[k].s={font:HDR_FONT,fill:HDR_FILL,alignment:{horizontal:'center'}}});
-      for(var ri3=1;ri3<rows2.length;ri3++){
-        [4,5,6,7,8,10].forEach(function(ci){var k=XLSX.utils.encode_cell({r:ri3,c:ci});if(ws2[k]){ws2[k].t='n';ws2[k].z='#,##0.00';ws2[k].s={alignment:{horizontal:'right'}}}});
-      }
-      XLSX.utils.book_append_sheet(wb,ws2,'Detalle APU');
-
-      XLSX.writeFile(wb,'Presupuesto_'+(pres.codigo||'PPT')+'_'+new Date().toISOString().slice(0,10)+'.xlsx');
-      showToast('Presupuesto exportado a Excel',{type:'ok'});
-    };
-
-    var exportPDF=function(){
-      if(itemsArr.length===0){showToast('El presupuesto no tiene items',{type:'err',dur:2500});return}
-      var jsPDFCtor=(window.jspdf&&window.jspdf.jsPDF)||window.jsPDF;
-      if(!jsPDFCtor){showToast('Libreria PDF no disponible',{type:'err',dur:2500});return}
-      var doc=new jsPDFCtor({unit:'pt',format:'letter'});
-      var pageW=doc.internal.pageSize.getWidth();
-      var pageH=doc.internal.pageSize.getHeight();
-
-      doc.setFillColor(26,36,56);doc.rect(0,0,pageW,64,'F');
-      doc.setTextColor(255,255,255);doc.setFontSize(15);doc.setFont(undefined,'bold');
-      doc.text('PRESUPUESTO DE OBRA',40,28);
-      doc.setFontSize(10);doc.setFont(undefined,'normal');
-      doc.text((pres.nombre||pres.codigo)+'  |  '+pres.codigo,40,46);
-
-      doc.setTextColor(0,0,0);
-      var y=88;
-      doc.setFontSize(9);
-      function line(label,val){doc.setFont(undefined,'bold');doc.text(label+':',40,y);doc.setFont(undefined,'normal');doc.text(String(val||'-'),150,y);y+=14}
-      line('Entidad contratante',pres.entidad);
-      line('No. Contrato',pres.contrato);
-      line('Ciudad / Depto.',(pres.ciudad||'-')+(pres.departamento?(' / '+pres.departamento):''));
-      line('Plazo',pres.plazo?(pres.plazo+' dias'):'-');
-      line('Elaborado por',pres.elaborado_por);
-      doc.setFont(undefined,'bold');doc.text('Objeto:',40,y);doc.setFont(undefined,'normal');
-      var objLines=doc.splitTextToSize(pres.objeto||'-',pageW-190);
-      doc.text(objLines,150,y);
-      y+=Math.max(14,objLines.length*11)+10;
-
-      var body=itemsArr.map(function(it,i){var cv=calcItemVal(it);return[i+1,it.num_item,it.descripcion,it.unidad,Number(it.cantidad).toLocaleString('en-US',{maximumFractionDigits:2}),cv.apu?cv.apu.codigo:'-','$ '+fmt(cv.vr_unit),'$ '+fmt(cv.vr_total)]});
-      doc.autoTable({
-        startY:y,
-        head:[['#','Item','Descripcion','UN','Cant.','APU','Vr.Unit','Vr.Total']],
-        body:body,theme:'grid',
-        headStyles:{fillColor:[26,36,56],textColor:255,fontSize:8},
-        bodyStyles:{fontSize:8},
-        columnStyles:{0:{cellWidth:22},1:{cellWidth:45},2:{cellWidth:175},3:{cellWidth:35},6:{halign:'right'},7:{halign:'right'}},
-        margin:{left:40,right:40}
-      });
-
-      var y2=doc.lastAutoTable.finalY+18;
-      if(y2>pageH-160){doc.addPage();y2=50}
-      var sumBody=[
-        ['Costo Directo Total','$ '+fmt(r.cdTotal)],
-        ['Administracion ('+r.pctA.toFixed(2)+'%)','$ '+fmt(r.adm)],
-        ['Imprevistos ('+r.pctI.toFixed(2)+'%)','$ '+fmt(r.imp)],
-        ['Utilidad ('+r.pctU.toFixed(2)+'%)','$ '+fmt(r.uti)],
-        ['IVA sobre Utilidad ('+r.ivaPct+'%)','$ '+fmt(r.ivaUtilidad)],
-        ['VALOR TOTAL CONTRATO','$ '+fmt(r.valorTotal)]
-      ];
-      doc.autoTable({
-        startY:y2,body:sumBody,theme:'plain',styles:{fontSize:9},
-        columnStyles:{0:{cellWidth:220,fontStyle:'bold'},1:{cellWidth:110,halign:'right'}},
-        margin:{left:pageW-40-330},
-        didParseCell:function(hd){if(hd.row.index===5){hd.cell.styles.fontStyle='bold';hd.cell.styles.fontSize=10;hd.cell.styles.fillColor=[26,122,52];hd.cell.styles.textColor=255}}
-      });
-
-      var y3=doc.lastAutoTable.finalY+60;
-      if(y3>pageH-60){doc.addPage();y3=80}
-      doc.setDrawColor(150);doc.setTextColor(0,0,0);doc.setFontSize(8);
-      doc.line(40,y3,240,y3);doc.text('Firma - Elaborado por',40,y3+12);
-      doc.line(pageW-240,y3,pageW-40,y3);doc.text('Firma - Aprobado',pageW-240,y3+12);
-
-      doc.save('Presupuesto_'+(pres.codigo||'PPT')+'_'+new Date().toISOString().slice(0,10)+'.pdf');
-      showToast('Presupuesto exportado a PDF',{type:'ok'});
-    };
-
-    return(
-      <div style={{display:'flex',flexDirection:'column',gap:8}}>
-        <div className="sec-hdr" style={{border:'1px solid var(--bdr)',borderRadius:4,padding:'6px 10px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-          <span className="title" style={{fontSize:15}}>Entregables: {pres.codigo}</span>
-          <span style={{fontSize:10,color:'var(--tx3)'}}>{itemsArr.length} items &middot; Valor total: {fmt(r.valorTotal)}</span>
-        </div>
-        <div style={{display:'flex',gap:6,alignItems:'center'}}>
-          <button className="btn" onClick={function(){setTab(11)}} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--bdr)',borderRadius:4,background:'none',color:'var(--tx2)',cursor:'pointer'}}>{'< Resumen'}</button>
-        </div>
-        <div style={{display:'flex',gap:16,alignItems:'flex-start'}}>
-          <div style={{width:340,display:'flex',flexDirection:'column',gap:10}}>
-            <div style={{border:'1px solid var(--bdr)',borderRadius:4,padding:14,display:'flex',flexDirection:'column',gap:8}}>
-              <div style={{fontSize:12,fontWeight:700,color:'var(--ac)'}}>EXCEL</div>
-              <div style={{fontSize:10,color:'var(--tx2)',lineHeight:1.4}}>Hoja "Presupuesto" con datos del proyecto, items y resumen financiero. Hoja "Detalle APU" con el desglose de costos por item.</div>
-              <button className="btn" onClick={exportExcel} style={{fontSize:11,padding:'6px 12px',border:'1px solid var(--ok)',borderRadius:4,background:'rgba(74,222,128,.08)',color:'var(--ok)',cursor:'pointer',display:'inline-flex',alignItems:'center',gap:6,justifyContent:'center'}}><IconExport/> Exportar Excel</button>
-            </div>
-            <div style={{border:'1px solid var(--bdr)',borderRadius:4,padding:14,display:'flex',flexDirection:'column',gap:8}}>
-              <div style={{fontSize:12,fontWeight:700,color:'var(--ac)'}}>PDF</div>
-              <div style={{fontSize:10,color:'var(--tx2)',lineHeight:1.4}}>Documento con datos del proyecto, tabla de items, resumen financiero y espacio de firma, listo para entregar a la entidad contratante.</div>
-              <button className="btn" onClick={exportPDF} style={{fontSize:11,padding:'6px 12px',border:'1px solid var(--ac)',borderRadius:4,background:'rgba(77,143,247,.08)',color:'var(--ac)',cursor:'pointer',display:'inline-flex',alignItems:'center',gap:6,justifyContent:'center'}}><IconExport/> Exportar PDF</button>
-            </div>
-            {itemsArr.length===0&&<div style={{fontSize:10,color:'var(--warn)',padding:'8px 10px',border:'1px solid var(--warn)',borderRadius:4}}>Este presupuesto no tiene items. Ve a "Items" para agregarlos antes de exportar.</div>}
-          </div>
-          <div style={{flex:1,border:'1px solid var(--bdr)',borderRadius:4}}>
-            <div style={{padding:'6px 10px',background:'var(--bg3)',borderBottom:'1px solid var(--bdr)',fontSize:12,fontWeight:700,color:'var(--ac)'}}>VISTA PREVIA</div>
-            <div style={{padding:12,fontSize:11}}>
-              <div style={{fontWeight:700,fontSize:13,marginBottom:6}}>{pres.nombre||'(sin nombre)'}</div>
-              <div style={{color:'var(--tx2)',marginBottom:2}}>Entidad: {pres.entidad||'-'}</div>
-              <div style={{color:'var(--tx2)',marginBottom:2}}>Contrato: {pres.contrato||'-'}</div>
-              <div style={{color:'var(--tx2)',marginBottom:10}}>Ciudad: {pres.ciudad||'-'}{pres.departamento?(' / '+pres.departamento):''}</div>
-              <table style={{width:'100%',fontSize:10}}>
-                <tbody>
-                  <tr><td style={{padding:'3px 0',color:'var(--tx2)'}}>Costo Directo</td><td style={{padding:'3px 0',textAlign:'right'}}>{fmt(r.cdTotal)}</td></tr>
-                  <tr><td style={{padding:'3px 0',color:'var(--tx2)'}}>AIU ({r.aiuPct.toFixed(2)}%)</td><td style={{padding:'3px 0',textAlign:'right'}}>{fmt(r.aiuTotal)}</td></tr>
-                  <tr><td style={{padding:'3px 0',color:'var(--tx2)'}}>IVA sobre Utilidad</td><td style={{padding:'3px 0',textAlign:'right'}}>{fmt(r.ivaUtilidad)}</td></tr>
-                  <tr style={{borderTop:'1px solid var(--bdr)'}}><td style={{padding:'6px 0',fontWeight:700,color:'var(--ac)'}}>VALOR TOTAL</td><td style={{padding:'6px 0',textAlign:'right',fontWeight:700,color:'var(--ok)'}}>{fmt(r.valorTotal)}</td></tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  /* ══════════════════ SWITCH ENTRE SUB-PESTAÑAS ══════════════════ */
-  if(tab===10)return renderItems();
-  if(tab===11)return renderResumen();
-  if(tab===12)return renderEntregables();
-  return renderProyectos();
+  /* ══════════════════ SWITCH ENTRE SUB-PESTAÑAS (delegado a sub-componentes) ══════════════════ */
+  if(tab===10)return <PresItemsPanel pres={pres} presupuestos={presupuestos} selPresIdx={selPresIdx} data={data} onChange={onChange} apuModal={apuModal} setApuModal={setApuModal} apus={apus} categorias_apu={categorias_apu} calcItemVal={calcItemVal} setTab={setTab} estadoLabel={estadoLabel}/>;
+  if(tab===11)return <PresResumenPanel pres={pres} presupuestos={presupuestos} selPresIdx={selPresIdx} data={data} onChange={onChange} calcResumenPres={calcResumenPres} setTab={setTab}/>;
+  if(tab===12)return <PresEntregablesPanel pres={pres} calcResumenPres={calcResumenPres} calcItemVal={calcItemVal} setTab={setTab}/>;
+  return <PresProyectosPanel presupuestos={presupuestos} selPresIdx={selPresIdx} setSelPresIdx={setSelPresIdx} pres={pres} estadoColor={estadoColor} estadoLabel={estadoLabel} addPresupuesto={addPresupuesto} editPresForm={editPresForm} setEditPresForm={setEditPresForm} toggleEstado={toggleEstado} delPresupuesto={delPresupuesto} setTab={setTab} saveEditForm={saveEditForm}/>;
 }
 
 function App(){

@@ -1,0 +1,11 @@
+# Excel/Office temp and lock files
+~$*
+*.xlsx
+*.xls
+!/*.xlsx.example
+
+# Local backups made during development
+*.backup_*.html
+
+# Local preview/dev server helper (machine-specific)
+.claude/

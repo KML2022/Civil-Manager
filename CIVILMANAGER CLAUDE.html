@@ -3609,15 +3609,25 @@ function ConfigListasTab({data,onChange,factorPrest}){
 
   var fpCatOrder=['prestaciones','seguridad_social','parafiscales','otros'];
 
-  var fpCatLabels={prestaciones:'PRESTACIONES',seguridad_social:'SEGURIDAD SOCIAL',parafiscales:'PARAFISCALES',otros:'OTROS'};
+  var fpCatLabelsDefaults={prestaciones:'PRESTACIONES',seguridad_social:'SEGURIDAD SOCIAL',parafiscales:'PARAFISCALES',otros:'OTROS'};
 
   var fpCatColors={prestaciones:'var(--ac)',seguridad_social:'var(--ok)',parafiscales:'var(--warn)',otros:'var(--tx2)'};
+
+  var fpCatLabels=Object.assign({},fpCatLabelsDefaults,data.fp_categoria_labels||{});
 
   var fpGrouped=fpCatOrder.map(function(cat){return{cat:cat,label:fpCatLabels[cat],color:fpCatColors[cat],items:fps.filter(function(f){return(f.tipo||'otros')===cat})}});
 
   var fpCatDesc=Object.assign({},FP_CAT_DESC_DEFAULTS,data.fp_categoria_desc||{});
 
   var updFpCatDesc=function(cat,val){onChange(Object.assign({},data,{fp_categoria_desc:Object.assign({},fpCatDesc,{[cat]:val})}))};
+
+  var updFpCatLabel=function(cat,val){onChange(Object.assign({},data,{fp_categoria_labels:Object.assign({},fpCatLabels,{[cat]:val})}))};
+
+  var fpCatEditState=useState(false);
+
+  var fpCatEdit=fpCatEditState[0];
+
+  var setFpCatEdit=fpCatEditState[1];
 
   var fpTotal=r2(fps.reduce(function(s,f){return s+safeFloat(f.factor)},0));
 
@@ -5413,9 +5423,11 @@ var SUBS=[
 
       <div style={{width:320,border:'1px solid var(--bdr)',borderRadius:4,background:'var(--bg2)',display:'flex',flexDirection:'column'}}>
 
-        <div style={{padding:'3px 10px',borderBottom:'1px solid var(--bd)',flex:'0 0 auto'}}>
+        <div style={{padding:'3px 10px',borderBottom:'1px solid var(--bd)',flex:'0 0 auto',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
 
           <span style={{fontSize:12,fontWeight:700,color:'var(--ac)'}}>CLASIFICACIÓN FACTOR PRESTACIONAL</span>
+
+          {!fpCatEdit?<button className="btn-edit" onClick={function(){setFpCatEdit(true)}} title="Editar clasificación" style={{background:'none',border:'none',cursor:'pointer',verticalAlign:'middle'}}><IconEdit/></button>:<button className="btn" onClick={function(){setFpCatEdit(false)}} style={{fontSize:9,padding:'1px 6px',border:'1px solid var(--ok)',borderRadius:3,background:'none',color:'var(--ok)',cursor:'pointer',verticalAlign:'middle'}}>Listo</button>}
 
         </div>
 
@@ -5425,15 +5437,15 @@ var SUBS=[
 
             <div key={cat}>
 
-              <div style={{fontSize:10,fontWeight:700,color:fpCatColors[cat],marginBottom:4}}>{fpCatLabels[cat]}</div>
+              {fpCatEdit?<input className="ni" value={fpCatLabels[cat]} onChange={function(e){updFpCatLabel(cat,e.target.value)}} style={{width:'100%',fontSize:10,fontWeight:700,color:fpCatColors[cat],marginBottom:4,border:'1px solid var(--bdr)',borderRadius:4,background:'var(--bg)',padding:'2px 6px',height:22}}/>:<div style={{fontSize:10,fontWeight:700,color:fpCatColors[cat],marginBottom:4,border:'1px solid var(--bd)',borderRadius:4,background:'var(--bg3)',padding:'3px 6px'}}>{fpCatLabels[cat]}</div>}
 
-              <textarea className="ni" value={fpCatDesc[cat]} onChange={function(e){updFpCatDesc(cat,e.target.value)}} style={{width:'100%',fontSize:10,minHeight:70,resize:'vertical',lineHeight:'1.4'}} placeholder={'Describe cuando aplica '+fpCatLabels[cat].toLowerCase()+' segun el pais...'}/>
+              {fpCatEdit?<textarea className="ni" value={fpCatDesc[cat]} onChange={function(e){updFpCatDesc(cat,e.target.value)}} style={{width:'100%',fontSize:10,minHeight:70,resize:'vertical',lineHeight:'1.4',border:'1px solid var(--bdr)',borderRadius:4,background:'var(--bg)',padding:'6px 8px',cursor:'text'}} placeholder={'Describe cuando aplica '+fpCatLabels[cat].toLowerCase()+' segun el pais...'}/>:<div style={{fontSize:10,color:'var(--tx2)',lineHeight:'1.4',border:'1px solid var(--bd)',borderRadius:4,background:'var(--bg3)',padding:'6px 8px',minHeight:70,boxSizing:'border-box'}}>{fpCatDesc[cat]||'—'}</div>}
 
             </div>
 
           )})}
 
-          <div style={{fontSize:9,color:'var(--tx3)',lineHeight:'1.4'}}>Estas descripciones son de referencia y se pueden ajustar por país o normativa vigente. Se guardan junto con la configuración de este proyecto.</div>
+          <div style={{fontSize:9,color:'var(--tx3)',lineHeight:'1.4'}}>Estas descripciones son de referencia y se pueden ajustar por país o normativa vigente. Haz clic en "Editar" para modificarlas. Se guardan junto con la configuración de este proyecto.</div>
 
         </div>
 

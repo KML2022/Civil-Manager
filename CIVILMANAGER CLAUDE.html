@@ -162,6 +162,10 @@ td.col-act{padding:0;white-space:nowrap;width:80px;text-align:center;vertical-al
 
 tr:nth-child(even) td{background:var(--xl-row-alt)}
 
+tr.row-activo td{background:rgba(74,222,128,.16)!important}
+
+tr.row-sub td{background:var(--bg2)!important}
+
 tr:hover td{background:var(--xl-hover)!important}
 
 tr:hover td.col-rn{background:var(--bg4)!important}
@@ -5641,7 +5645,7 @@ function PresProyectosPanel({presupuestos,selPresIdx,setSelPresIdx,data,onChange
                 var esPrincipal=tipo==='principal';
                 var esSub=tipo==='sub_proyecto';
                 return(
-                  <tr key={p.id} onBlur={function(e){if(!e.currentTarget.contains(e.relatedTarget))setEditIdx(null)}} style={p.activo?{background:'var(--ac-soft, #FFF8E1)'}:esSub?{background:'var(--bg2, #F8FAFC)'}:undefined}>
+                  <tr key={p.id} onBlur={function(e){if(!e.currentTarget.contains(e.relatedTarget))setEditIdx(null)}} className={p.activo?'row-activo':esSub?'row-sub':undefined}>
                     <XLRowNum n={fi+1}/>
                     <td style={{textAlign:'center'}}>{p.activo?<span title="Proyecto activo" style={{color:'#F9A825',fontSize:15}}>★</span>:<button onClick={function(){setProyectoActivo(i)}} title="Marcar como proyecto activo" style={{background:'none',border:'none',cursor:'pointer',padding:0,color:'var(--muted)',fontSize:13}}>☆</button>}</td>
                     <td style={{padding:'0 6px',textAlign:'center',color:'var(--ok)',fontWeight:700}}>{p.codigo}</td>

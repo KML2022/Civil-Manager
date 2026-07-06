@@ -487,6 +487,24 @@ const CATEGORIAS_INSUMO=[{codigo:'CI-01',nombre:'Pétreos',desc:'Áridos: arena,
 
 const norm=s=>s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
 
+function getTipoProyecto(p,presupuestos){
+  if(p.parent_id)return 'sub_proyecto';
+  var tieneHijos=presupuestos.some(function(x){return x.parent_id===p.id});
+  if(tieneHijos||p.con_sub_proyectos)return 'principal';
+  return 'independiente';
+}
+
+function flattenPresupuestos(presupuestos){
+  var result=[];
+  var principales=presupuestos.filter(function(p){return !p.parent_id});
+  principales.forEach(function(p){
+    result.push({pres:p,level:0});
+    var hijos=presupuestos.filter(function(x){return x.parent_id===p.id});
+    hijos.forEach(function(h){result.push({pres:h,level:1})});
+  });
+  return result;
+}
+
 const _MONTHS_MAP={ene:0,feb:1,mar:2,abr:3,may:4,jun:5,jul:6,ago:7,sep:8,set:9,oct:10,nov:11,dic:12};
 
 const isCotOld=function(fechaCot){if(!fechaCot)return false;try{var s=String(fechaCot).trim();var d=null;if(/^\d{4}-\d{2}-\d{2}$/.test(s)){d=new Date(parseInt(s.substr(0,4)),parseInt(s.substr(5,2))-1,parseInt(s.substr(8,2)))}else if(/^\d{2}\/\d{2}\/\d{4}$/.test(s)){var pp=s.split('/');d=new Date(parseInt(pp[2]),parseInt(pp[1])-1,parseInt(pp[0]))}else if(/^\d{2}\/\d{2}\/\d{2}$/.test(s)){var pp2=s.split('/');d=new Date(2000+parseInt(pp2[2]),parseInt(pp2[1])-1,parseInt(pp2[0]))}else{var m3=s.match(/^(\d{1,2})-([a-z]{3})-(\d{2,4})$/i);if(m3){var yr=parseInt(m3[3]);if(yr<100)yr=2000+yr;var mi=_MONTHS_MAP[m3[2].toLowerCase()];if(mi!==undefined)d=new Date(yr,mi,parseInt(m3[1]))}}if(d===null||isNaN(d.getTime()))return false;var now=new Date();return(now-d)/(1000*60*60*24)>180}catch(ex){return false}};
@@ -5539,7 +5557,7 @@ var SUBS=[
 
 /* MODULO PRESUPUESTOS */
 /* ══════════════════ 1. PROYECTOS (sub-componente de PresupuestosTab) ══════════════════ */
-function PresProyectosPanel({presupuestos,selPresIdx,setSelPresIdx,data,onChange,estadoColor,estadoLabel,addPresupuesto,toggleEstado,delPresupuesto,setTab}){
+function PresProyectosPanel({presupuestos,selPresIdx,setSelPresIdx,data,onChange,estadoColor,estadoLabel,addPresupuesto,addSubProyecto,toggleEstado,delPresupuesto,setTab}){
   var editIdxState=useState(null);
   var editIdx=editIdxState[0];
   var setEditIdx=editIdxState[1];
@@ -5554,20 +5572,26 @@ function PresProyectosPanel({presupuestos,selPresIdx,setSelPresIdx,data,onChange
     var n=presupuestos.slice();n[idx]=Object.assign({},n[idx],{[key]:val});
     onChange(Object.assign({},data,{presupuestos:n}));
   };
-  var setModoTrabajo=function(idx){
-    var n=presupuestos.map(function(p,i){return Object.assign({},p,{modo_trabajo:i===idx})});
+  var setProyectoActivo=function(idx){
+    var n=presupuestos.map(function(p,i){return Object.assign({},p,{activo:i===idx})});
     onChange(Object.assign({},data,{presupuestos:n}));
   };
   var abrirItems=function(idx){setSelPresIdx(idx);setTab(10)};
+  var abrirProyecto=function(idx){
+    setSelPresIdx(idx);
+    setTab(getTipoProyecto(presupuestos[idx],presupuestos)==='principal'?12:10);
+  };
 
-  var filteredPresupuestos=presupuestos.filter(function(p){
+  var flatPresupuestos=flattenPresupuestos(presupuestos).filter(function(row){
+    var p=row.pres;
     var okCliente=!searchCliente||norm(p.entidad||'').indexOf(norm(searchCliente))>=0;
     var okTipo=!searchTipo||norm(p.tipo_proyecto||'').indexOf(norm(searchTipo))>=0;
     return okCliente&&okTipo;
   });
+  var filteredPresupuestos=flatPresupuestos.map(function(row){return row.pres});
 
   var presupuestosExcel=useExcelImportExport({items:presupuestos,data:data,onChange:onChange,dataKey:'presupuestos',prefix:'PPT',title:'CATALOGO DE PROYECTOS',sheetName:'Proyectos',filename:'proyectos.xlsx',headers:['Codigo','Nombre','Fecha de Creacion','Estado','Responsable','Cliente','Con Sub Proyectos','Tipo de Proyecto','Observaciones'],colWidths:[{wch:10},{wch:26},{wch:14},{wch:12},{wch:18},{wch:18},{wch:14},{wch:18},{wch:30}],mapRow:function(p){return[p.codigo||'',p.nombre||'',p.fecha_creacion||'',p.estado||'borrador',p.elaborado_por||'',p.entidad||'',p.con_sub_proyectos?'Si':'No',p.tipo_proyecto||'',p.observaciones||'']},parseRow:function(r){return[String(r[0]||'').trim(),String(r[1]||'').trim(),String(r[2]||'').trim(),String(r[3]||'borrador').trim(),String(r[4]||'').trim(),String(r[5]||'').trim(),String(r[6]||'No').trim(),String(r[7]||'').trim(),String(r[8]||'').trim()]},buildItem:function(r,idx,existing,genCode){
-    var base=idx>=0?existing[idx]:{id:uid(),fecha_cierre:null,items:[],aiu_override:{activo:false,pct_a:0,pct_i:0,pct_u:0,iva_pct:19},factores_snap:(data.factoresPrestaciones||[]).map(function(f){return Object.assign({},f)}),cargos_snap:(data.cargos||[]).map(function(c){return Object.assign({},c)}),modo_trabajo:false,contrato:'',objeto:'',plazo:0,ciudad:'',departamento:''};
+    var base=idx>=0?existing[idx]:{id:uid(),fecha_cierre:null,items:[],aiu_override:{activo:false,pct_a:0,pct_i:0,pct_u:0,iva_pct:19},factores_snap:(data.factoresPrestaciones||[]).map(function(f){return Object.assign({},f)}),cargos_snap:(data.cargos||[]).map(function(c){return Object.assign({},c)}),activo:false,contrato:'',objeto:'',plazo:0,ciudad:'',departamento:''};
     return Object.assign({},base,{codigo:idx>=0?existing[idx].codigo:(r[0]||genCode()),nombre:r[1]||'',fecha_creacion:r[2]||base.fecha_creacion||new Date().toISOString().slice(0,10),estado:r[3]||'borrador',elaborado_por:r[4]||'',entidad:r[5]||'',con_sub_proyectos:(r[6]||'').toLowerCase()==='si',tipo_proyecto:r[7]||'',observaciones:r[8]||''});
   },matchKey:'codigo'});
 
@@ -5595,7 +5619,7 @@ function PresProyectosPanel({presupuestos,selPresIdx,setSelPresIdx,data,onChange
             </colgroup>
             <thead><tr style={{height:34}}>
               <th className="col-rn">#</th>
-              <th style={{whiteSpace:'normal',lineHeight:'1.2'}}>Modo Trabajo</th>
+              <th style={{whiteSpace:'normal',lineHeight:'1.2'}}>Activo</th>
               <th>Codigo</th>
               <th>Nombre</th>
               <th style={{whiteSpace:'normal',lineHeight:'1.2'}}>Fecha de Creacion</th>
@@ -5608,27 +5632,38 @@ function PresProyectosPanel({presupuestos,selPresIdx,setSelPresIdx,data,onChange
               <th className="col-act">Acciones</th>
             </tr></thead>
             <tbody>
-              {filteredPresupuestos.length===0&&<tr className="empty-row"><td colSpan={12}>{presupuestos.length===0?'Sin proyectos. Agregue uno con "+ Nuevo".':'Sin resultados para el filtro aplicado.'}</td></tr>}
-              {filteredPresupuestos.map(function(p,fi){
+              {flatPresupuestos.length===0&&<tr className="empty-row"><td colSpan={12}>{presupuestos.length===0?'Sin proyectos. Agregue uno con "+ Nuevo".':'Sin resultados para el filtro aplicado.'}</td></tr>}
+              {flatPresupuestos.map(function(row,fi){
+                var p=row.pres,level=row.level;
                 var i=presupuestos.indexOf(p);
                 var isEdit=editIdx===i;
+                var tipo=getTipoProyecto(p,presupuestos);
+                var esPrincipal=tipo==='principal';
+                var esSub=tipo==='sub_proyecto';
                 return(
-                  <tr key={p.id} onBlur={function(e){if(!e.currentTarget.contains(e.relatedTarget))setEditIdx(null)}}>
+                  <tr key={p.id} onBlur={function(e){if(!e.currentTarget.contains(e.relatedTarget))setEditIdx(null)}} style={p.activo?{background:'var(--ac-soft, #FFF8E1)'}:esSub?{background:'var(--bg2, #F8FAFC)'}:undefined}>
                     <XLRowNum n={fi+1}/>
-                    <td style={{textAlign:'center'}}><input type="radio" name="modo_trabajo" checked={!!p.modo_trabajo} onChange={function(){setModoTrabajo(i)}} title="Marcar como proyecto activo"/></td>
+                    <td style={{textAlign:'center'}}>{p.activo?<span title="Proyecto activo" style={{color:'#F9A825',fontSize:15}}>★</span>:<button onClick={function(){setProyectoActivo(i)}} title="Marcar como proyecto activo" style={{background:'none',border:'none',cursor:'pointer',padding:0,color:'var(--muted)',fontSize:13}}>☆</button>}</td>
                     <td style={{padding:'0 6px',textAlign:'center',color:'var(--ok)',fontWeight:700}}>{p.codigo}</td>
-                    <td>{isEdit?<input className="ni" value={p.nombre} onChange={function(e){updField(i,'nombre',e.target.value)}} autoFocus/>:<span style={{padding:'0 6px'}}>{p.nombre||'—'}</span>}</td>
+                    <td>
+                      <span style={{display:'inline-flex',alignItems:'center',gap:4,paddingLeft:level*16}}>
+                        {esSub&&<span style={{color:'var(--muted)',fontSize:11}}>{'└─'}</span>}
+                        {esPrincipal&&<span title="Proyecto principal (consolida sub-proyectos)" style={{fontSize:12}}>📁</span>}
+                        {isEdit?<input className="ni" value={p.nombre} onChange={function(e){updField(i,'nombre',e.target.value)}} autoFocus/>:<span style={{padding:'0 6px',fontWeight:esPrincipal?700:400}}>{p.nombre||'—'}</span>}
+                      </span>
+                    </td>
                     <td style={{textAlign:'center',fontSize:10}}>{p.fecha_creacion||'—'}</td>
                     <td style={{textAlign:'center'}}><span onClick={function(){toggleEstado(i)}} style={{cursor:'pointer',fontSize:9,padding:'1px 6px',borderRadius:3,border:'1px solid '+estadoColor(p.estado),color:estadoColor(p.estado),fontWeight:600}}>{estadoLabel(p.estado)}</span></td>
                     <td>{isEdit?<input className="ni" value={p.elaborado_por||''} onChange={function(e){updField(i,'elaborado_por',e.target.value)}}/>:<span style={{padding:'0 6px'}}>{p.elaborado_por||'—'}</span>}</td>
                     <td>{isEdit?<input className="ni" value={p.entidad||''} onChange={function(e){updField(i,'entidad',e.target.value)}}/>:<span style={{padding:'0 6px'}}>{p.entidad||'—'}</span>}</td>
-                    <td style={{textAlign:'center'}}>{isEdit?<select className="ni sel" value={p.con_sub_proyectos?'1':'0'} onChange={function(e){updField(i,'con_sub_proyectos',e.target.value==='1')}}><option value='0'>No</option><option value='1'>Si</option></select>:<span>{p.con_sub_proyectos?'Si':'No'}</span>}</td>
+                    <td style={{textAlign:'center'}}>{esSub?<span style={{color:'var(--muted)'}}>{'—'}</span>:isEdit?<select className="ni sel" value={p.con_sub_proyectos?'1':'0'} onChange={function(e){updField(i,'con_sub_proyectos',e.target.value==='1')}}><option value='0'>No</option><option value='1'>Si</option></select>:<span>{p.con_sub_proyectos?'Si':'No'}</span>}</td>
                     <td>{isEdit?<input className="ni" value={p.tipo_proyecto||''} onChange={function(e){updField(i,'tipo_proyecto',e.target.value)}}/>:<span style={{padding:'0 6px'}}>{p.tipo_proyecto||'—'}</span>}</td>
                     <td>{isEdit?<input className="ni" value={p.observaciones||''} onChange={function(e){updField(i,'observaciones',e.target.value)}}/>:<span style={{padding:'0 6px'}}>{p.observaciones||'—'}</span>}</td>
                     <td className="col-act" style={{textAlign:'center'}}>
                       <span style={{display:'inline-flex',alignItems:'center',gap:4}}>
                         <button className="btn-edit" title={isEdit?'Listo':'Editar'} onClick={function(){setEditIdx(isEdit?null:i)}} style={{background:'none',border:'none',cursor:'pointer',padding:0}}>{isEdit?<span style={{fontSize:9,color:'var(--ok)',fontWeight:700}}>Listo</span>:<IconEdit/>}</button>
-                        <button onClick={function(){abrirItems(i)}} title="Ir a Items" style={{background:'none',border:'none',cursor:'pointer',padding:0,color:'var(--ac)',fontSize:13}}>{'→'}</button>
+                        {esPrincipal?<button onClick={function(){abrirProyecto(i)}} title="Proyecto principal: no tiene items propios, ir a Entregables para exportar el consolidado" style={{background:'none',border:'none',cursor:'pointer',padding:0,color:'var(--ac)',fontSize:13}}>{'→'}</button>:<button onClick={function(){abrirItems(i)}} title="Ir a Items" style={{background:'none',border:'none',cursor:'pointer',padding:0,color:'var(--ac)',fontSize:13}}>{'→'}</button>}
+                        {p.con_sub_proyectos&&!esSub&&<button onClick={function(){addSubProyecto(i)}} title="Agregar sub-proyecto" style={{background:'none',border:'none',cursor:'pointer',padding:0,color:'var(--ac)',fontSize:13,fontWeight:700}}>{'+'}</button>}
                         <button className="btn-del" title="Eliminar" onClick={function(){delPresupuesto(i)}} style={{background:'none',border:'none',cursor:'pointer',padding:0}}><IconDel/></button>
                       </span>
                     </td>
@@ -5693,9 +5728,19 @@ function PresItemsPanel({pres,presupuestos,selPresIdx,data,onChange,apuModal,set
   var assignApu=function(aid){
     if(apuModal.itemIdx===null||aid===undefined)return;
     var i=apuModal.itemIdx;
+    var apuOrig=null;
+    for(var k=0;k<apus.length;k++){if(apus[k].id===aid){apuOrig=apus[k];break}}
+    if(!apuOrig)return;
+    // Clonar el APU al snapshot del presupuesto para no romper la trazabilidad si el catalogo cambia despues
+    var snap=(pres.apus_snap||[]).slice();
+    var clon=snap.find(function(a){return a.apu_origen_id===apuOrig.id});
+    if(!clon){
+      clon=Object.assign({},apuOrig,{id:uid(),apu_origen_id:apuOrig.id});
+      snap.push(clon);
+    }
     var arr=pres.items.slice();
-    arr[i]=Object.assign({},arr[i],{apu_id:aid,tiene_apu:true,alerta_sin_apu:false});
-    var n=presupuestos.slice();n[selPresIdx]=Object.assign({},n[selPresIdx],{items:arr});
+    arr[i]=Object.assign({},arr[i],{apu_id:clon.id,tiene_apu:true,alerta_sin_apu:false});
+    var n=presupuestos.slice();n[selPresIdx]=Object.assign({},n[selPresIdx],{items:arr,apus_snap:snap});
     onChange(Object.assign({},data,{presupuestos:n}));
     closeApuModal();
     showToast('APU asignado',{type:'ok',dur:2000});
@@ -5885,12 +5930,70 @@ function PresResumenPanel({pres,presupuestos,selPresIdx,data,onChange,calcResume
 }
 
 /* ══════════════════ 4. EXPORTAR / ENTREGABLES (sub-componente de PresupuestosTab) ══════════════════ */
-function PresEntregablesPanel({pres,calcResumenPres,calcItemVal,setTab}){
+function PresEntregablesPanel({pres,presupuestos,calcResumenPres,calcItemVal,calcResumenFor,calcItemValFor,setTab}){
   if(!pres)return <div style={{padding:'40px',textAlign:'center',color:'var(--tx3)',fontSize:13,border:'1px dashed var(--bdr)',borderRadius:4}}>Selecciona un presupuesto en "Proyectos".</div>;
   var r=calcResumenPres();
   var itemsArr=r.itemsArr;
+  var hijos=(presupuestos||[]).filter(function(p){return p.parent_id===pres.id});
+  var esConsolidado=hijos.length>0;
+
+  var generarHojaPresupuesto=function(p){
+    var itemsArrP=p.items||[];
+    var rp=calcResumenFor(p);
+    var rows=[];
+    rows.push(['PRESUPUESTO: '+(p.nombre||p.codigo)]);
+    rows.push(['Codigo',p.codigo,'','Entidad contratante',p.entidad||'-']);
+    rows.push(['No. Contrato',p.contrato||'-','','Ciudad',(p.ciudad||'-')+(p.departamento?(' / '+p.departamento):'')]);
+    rows.push(['Objeto',p.objeto||'-']);
+    rows.push(['Elaborado por',p.elaborado_por||'-','','Fecha',p.fecha_creacion||'-']);
+    rows.push([]);
+    rows.push(['#','Item','Capitulo','Descripcion','UN','Cantidad','APU','Vr.Unitario','Vr.Total']);
+    itemsArrP.forEach(function(it,i){
+      var cv=calcItemValFor(it,p);
+      rows.push([i+1,it.num_item,it.capitulo,it.descripcion,it.unidad,safeFloat(it.cantidad),cv.apu?cv.apu.codigo:'-',cv.vr_unit,cv.vr_total]);
+    });
+    rows.push([]);
+    rows.push(['','','','','','','','Costo Directo Total',rp.cdTotal]);
+    rows.push(['','','','','','','','Administracion ('+rp.pctA.toFixed(2)+'%)',rp.adm]);
+    rows.push(['','','','','','','','Imprevistos ('+rp.pctI.toFixed(2)+'%)',rp.imp]);
+    rows.push(['','','','','','','','Utilidad ('+rp.pctU.toFixed(2)+'%)',rp.uti]);
+    rows.push(['','','','','','','','IVA sobre Utilidad ('+rp.ivaPct+'%)',rp.ivaUtilidad]);
+    rows.push(['','','','','','','','VALOR TOTAL CONTRATO',rp.valorTotal]);
+    var ws=XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols']=[{wch:4},{wch:10},{wch:12},{wch:38},{wch:6},{wch:11},{wch:10},{wch:15},{wch:15}];
+    return ws;
+  };
+
+  var exportExcelConsolidado=function(){
+    var wb=XLSX.utils.book_new();
+    var resRows=[];
+    resRows.push(['PROYECTO: '+(pres.nombre||pres.codigo)]);
+    resRows.push(['Entidad',pres.entidad||'-','','Contrato',pres.contrato||'-']);
+    resRows.push(['Fecha',pres.fecha_creacion||'-','','Elaboro',pres.elaborado_por||'-']);
+    resRows.push([]);
+    resRows.push(['Sub-proyecto','Nombre','Costo Directo','AIU','IVA','Valor Total']);
+    var totalCD=0,totalVT=0;
+    hijos.forEach(function(h){
+      var rh=calcResumenFor(h);
+      totalCD+=rh.cdTotal;totalVT+=rh.valorTotal;
+      resRows.push([h.codigo,h.nombre||'-',rh.cdTotal,rh.aiuTotal,rh.ivaUtilidad,rh.valorTotal]);
+    });
+    resRows.push([]);
+    resRows.push(['','TOTALES',totalCD,'','',totalVT]);
+    var wsRes=XLSX.utils.aoa_to_sheet(resRows);
+    wsRes['!cols']=[{wch:14},{wch:26},{wch:15},{wch:15},{wch:15},{wch:15}];
+    XLSX.utils.book_append_sheet(wb,wsRes,'RESUMEN');
+    hijos.forEach(function(h,hi){
+      var wsHijo=generarHojaPresupuesto(h);
+      var nombreHoja=(h.codigo||('Sub'+(hi+1))).replace(/[\\\/\?\*\[\]]/g,'').slice(0,31);
+      XLSX.utils.book_append_sheet(wb,wsHijo,nombreHoja);
+    });
+    XLSX.writeFile(wb,(pres.nombre||pres.codigo).replace(/[^a-zA-Z0-9]/g,'_')+'_Consolidado.xlsx');
+    showToast('Excel consolidado exportado',{type:'ok'});
+  };
 
   var exportExcel=function(){
+    if(esConsolidado){exportExcelConsolidado();return}
     if(itemsArr.length===0){showToast('El presupuesto no tiene items',{type:'err',dur:2500});return}
     var wb=XLSX.utils.book_new();
     var rows=[];
@@ -6032,15 +6135,16 @@ function PresEntregablesPanel({pres,calcResumenPres,calcItemVal,setTab}){
         <div style={{width:340,display:'flex',flexDirection:'column',gap:10}}>
           <div style={{border:'1px solid var(--bdr)',borderRadius:4,padding:14,display:'flex',flexDirection:'column',gap:8}}>
             <div style={{fontSize:12,fontWeight:700,color:'var(--ac)'}}>EXCEL</div>
-            <div style={{fontSize:10,color:'var(--tx2)',lineHeight:1.4}}>Hoja "Presupuesto" con datos del proyecto, items y resumen financiero. Hoja "Detalle APU" con el desglose de costos por item.</div>
-            <button className="btn" onClick={exportExcel} style={{fontSize:11,padding:'6px 12px',border:'1px solid var(--ok)',borderRadius:4,background:'rgba(74,222,128,.08)',color:'var(--ok)',cursor:'pointer',display:'inline-flex',alignItems:'center',gap:6,justifyContent:'center'}}><IconExport/> Exportar Excel</button>
+            <div style={{fontSize:10,color:'var(--tx2)',lineHeight:1.4}}>{esConsolidado?'Un solo archivo con hoja "RESUMEN" (una fila por sub-proyecto) mas una hoja completa por cada sub-proyecto.':'Hoja "Presupuesto" con datos del proyecto, items y resumen financiero. Hoja "Detalle APU" con el desglose de costos por item.'}</div>
+            <button className="btn" onClick={exportExcel} style={{fontSize:11,padding:'6px 12px',border:'1px solid var(--ok)',borderRadius:4,background:'rgba(74,222,128,.08)',color:'var(--ok)',cursor:'pointer',display:'inline-flex',alignItems:'center',gap:6,justifyContent:'center'}}><IconExport/> Exportar Excel{esConsolidado?' (Consolidado)':''}</button>
           </div>
           <div style={{border:'1px solid var(--bdr)',borderRadius:4,padding:14,display:'flex',flexDirection:'column',gap:8}}>
             <div style={{fontSize:12,fontWeight:700,color:'var(--ac)'}}>PDF</div>
             <div style={{fontSize:10,color:'var(--tx2)',lineHeight:1.4}}>Documento con datos del proyecto, tabla de items, resumen financiero y espacio de firma, listo para entregar a la entidad contratante.</div>
             <button className="btn" onClick={exportPDF} style={{fontSize:11,padding:'6px 12px',border:'1px solid var(--ac)',borderRadius:4,background:'rgba(77,143,247,.08)',color:'var(--ac)',cursor:'pointer',display:'inline-flex',alignItems:'center',gap:6,justifyContent:'center'}}><IconExport/> Exportar PDF</button>
           </div>
-          {itemsArr.length===0&&<div style={{fontSize:10,color:'var(--warn)',padding:'8px 10px',border:'1px solid var(--warn)',borderRadius:4}}>Este presupuesto no tiene items. Ve a "Items" para agregarlos antes de exportar.</div>}
+          {!esConsolidado&&itemsArr.length===0&&<div style={{fontSize:10,color:'var(--warn)',padding:'8px 10px',border:'1px solid var(--warn)',borderRadius:4}}>Este presupuesto no tiene items. Ve a "Items" para agregarlos antes de exportar.</div>}
+          {esConsolidado&&<div style={{fontSize:10,color:'var(--tx2)',padding:'8px 10px',border:'1px solid var(--bdr)',borderRadius:4}}>Proyecto principal con {hijos.length} sub-proyecto(s). El PDF solo exporta este nivel; usa Excel para el consolidado completo.</div>}
         </div>
         <div style={{flex:1,border:'1px solid var(--bdr)',borderRadius:4}}>
           <div style={{padding:'6px 10px',background:'var(--bg3)',borderBottom:'1px solid var(--bdr)',fontSize:12,fontWeight:700,color:'var(--ac)'}}>VISTA PREVIA</div>
@@ -6102,7 +6206,7 @@ function PresupuestosTab({data,onChange,cargosCalc,esHora,eqMap,insMap,factorPre
     var nuevo={
       id:uid(),codigo:genCodigoPpto(),nombre:'',entidad:'',contrato:'',objeto:'',plazo:0,
       fecha_creacion:new Date().toISOString().slice(0,10),ciudad:'',departamento:'',elaborado_por:'',
-      modo_trabajo:false,con_sub_proyectos:false,tipo_proyecto:'',observaciones:'',
+      activo:false,con_sub_proyectos:false,tipo_proyecto:'',observaciones:'',parent_id:null,
       estado:'borrador',fecha_cierre:null,items:[],
       aiu_override:{activo:false,pct_a:0,pct_i:0,pct_u:0,iva_pct:19},
       factores_snap:(data.factoresPrestaciones||[]).map(function(f){return Object.assign({},f)}),
@@ -6112,6 +6216,24 @@ function PresupuestosTab({data,onChange,cargosCalc,esHora,eqMap,insMap,factorPre
     onChange(Object.assign({},data,{presupuestos:n}));
     setSelPresIdx(n.length-1);
     showToast('Presupuesto '+nuevo.codigo+' creado',{type:'ok',dur:2000});
+  }
+
+  function addSubProyecto(parentIdx){
+    var parent=presupuestos[parentIdx];
+    if(!parent)return;
+    var nuevo={
+      id:uid(),codigo:genCodigoPpto(),parent_id:parent.id,con_sub_proyectos:false,activo:false,
+      nombre:'',entidad:parent.entidad||'',contrato:parent.contrato||'',objeto:'',plazo:0,
+      fecha_creacion:new Date().toISOString().slice(0,10),ciudad:parent.ciudad||'',departamento:parent.departamento||'',
+      elaborado_por:parent.elaborado_por||'',tipo_proyecto:'',observaciones:'',
+      estado:'borrador',fecha_cierre:null,items:[],
+      aiu_override:{activo:false,pct_a:0,pct_i:0,pct_u:0,iva_pct:19},
+      factores_snap:(data.factoresPrestaciones||[]).map(function(f){return Object.assign({},f)}),
+      cargos_snap:(data.cargos||[]).map(function(c){return Object.assign({},c)})
+    };
+    var n=presupuestos.concat([nuevo]);
+    onChange(Object.assign({},data,{presupuestos:n}));
+    showToast('Sub-proyecto '+nuevo.codigo+' creado',{type:'ok',dur:2000});
   }
 
   async function delPresupuesto(idx){
@@ -6156,17 +6278,19 @@ function PresupuestosTab({data,onChange,cargosCalc,esHora,eqMap,insMap,factorPre
     var aiuPct=(pres&&pres.aiu_override&&pres.aiu_override.activo)?
       (safeFloat(pres.aiu_override.pct_a)||0)+(safeFloat(pres.aiu_override.pct_i)||0)+(safeFloat(pres.aiu_override.pct_u)||0):
       (safeFloat(config.pct_administracion)||0)+(safeFloat(config.pct_imprevistos)||0)+(safeFloat(config.pct_utilidad)||0);
+    var snap=(pres&&pres.apus_snap)||[];
     itemsArr.forEach(function(item){
       if(!item.apu_id){map.set(item.id,{vr_unit:0,vr_total:0,apu:null,calc:null});return}
       var apu=null;
-      for(var i=0;i<apus.length;i++){if(apus[i].id===item.apu_id){apu=apus[i];break}}
+      for(var i=0;i<snap.length;i++){if(snap[i].id===item.apu_id){apu=snap[i];break}}
+      if(!apu){for(var j=0;j<apus.length;j++){if(apus[j].id===item.apu_id){apu=apus[j];break}}}
       if(!apu){map.set(item.id,{vr_unit:0,vr_total:0,apu:null,calc:null});return}
       var c=calcAPU(apu,cargosCalc,equipos,insumos,abCalcList,herrPct,factorPrest,usarFpEnApu,esHora,personMap,eqMap,insMap);
       var vrUnit=r2(c.totalDirecto*(1+aiuPct/100));
       map.set(item.id,{vr_unit:vrUnit,vr_total:r2(vrUnit*safeFloat(item.cantidad)),apu:apu,calc:c});
     });
     return map;
-  },[pres&&pres.items,pres&&pres.aiu_override,apus,cargosCalc,equipos,insumos,abCalcList,herrPct,factorPrest,usarFpEnApu,esHora,personMap,eqMap,insMap,config.pct_administracion,config.pct_imprevistos,config.pct_utilidad]);
+  },[pres&&pres.items,pres&&pres.aiu_override,pres&&pres.apus_snap,apus,cargosCalc,equipos,insumos,abCalcList,herrPct,factorPrest,usarFpEnApu,esHora,personMap,eqMap,insMap,config.pct_administracion,config.pct_imprevistos,config.pct_utilidad]);
 
   function calcItemVal(item){
     return itemValMap.get(item.id)||{vr_unit:0,vr_total:0,apu:null,calc:null};
@@ -6199,12 +6323,44 @@ function PresupuestosTab({data,onChange,cargosCalc,esHora,eqMap,insMap,factorPre
 
   function calcResumenPres(){return resumenPres}
 
+  /* ── Calculo de item/resumen para un presupuesto arbitrario (usado en export consolidado de sub-proyectos) ── */
+  function calcItemValFor(item,p){
+    if(!item.apu_id)return{vr_unit:0,vr_total:0,apu:null,calc:null};
+    var snap=(p&&p.apus_snap)||[];
+    var apu=null;
+    for(var i=0;i<snap.length;i++){if(snap[i].id===item.apu_id){apu=snap[i];break}}
+    if(!apu){for(var j=0;j<apus.length;j++){if(apus[j].id===item.apu_id){apu=apus[j];break}}}
+    if(!apu)return{vr_unit:0,vr_total:0,apu:null,calc:null};
+    var aiuPct=(p&&p.aiu_override&&p.aiu_override.activo)?
+      (safeFloat(p.aiu_override.pct_a)||0)+(safeFloat(p.aiu_override.pct_i)||0)+(safeFloat(p.aiu_override.pct_u)||0):
+      (safeFloat(config.pct_administracion)||0)+(safeFloat(config.pct_imprevistos)||0)+(safeFloat(config.pct_utilidad)||0);
+    var c=calcAPU(apu,cargosCalc,equipos,insumos,abCalcList,herrPct,factorPrest,usarFpEnApu,esHora,personMap,eqMap,insMap);
+    var vrUnit=r2(c.totalDirecto*(1+aiuPct/100));
+    return{vr_unit:vrUnit,vr_total:r2(vrUnit*safeFloat(item.cantidad)),apu:apu,calc:c};
+  }
+
+  function calcResumenFor(p){
+    var itemsArrP=(p&&p.items)||[];
+    var cdTotal=0;
+    for(var i=0;i<itemsArrP.length;i++){cdTotal+=calcItemValFor(itemsArrP[i],p).vr_total}
+    var useOv=p&&p.aiu_override&&p.aiu_override.activo;
+    var pctA=useOv?(safeFloat(p.aiu_override.pct_a)||0):(safeFloat(config.pct_administracion)||0);
+    var pctI=useOv?(safeFloat(p.aiu_override.pct_i)||0):(safeFloat(config.pct_imprevistos)||0);
+    var pctU=useOv?(safeFloat(p.aiu_override.pct_u)||0):(safeFloat(config.pct_utilidad)||0);
+    var ivaPct=useOv?(safeFloat(p.aiu_override.iva_pct)||19):19;
+    var adm=r2(cdTotal*pctA/100),imp=r2(cdTotal*pctI/100),uti=r2(cdTotal*pctU/100);
+    var aiuTotal=r2(adm+imp+uti);
+    var ivaUtilidad=r2(uti*ivaPct/100);
+    var valorTotal=r2(cdTotal+aiuTotal+ivaUtilidad);
+    return{cdTotal:cdTotal,pctA:pctA,pctI:pctI,pctU:pctU,ivaPct:ivaPct,adm:adm,imp:imp,uti:uti,aiuTotal:aiuTotal,ivaUtilidad:ivaUtilidad,valorTotal:valorTotal,itemsArr:itemsArrP};
+  }
+
   /* ══════════════════ SWITCH ENTRE SUB-PESTAÑAS (delegado a sub-componentes) ══════════════════ */
   var presCurLabel=tab===10?'2. ITEMS':tab===11?'3. RESUMEN':tab===12?'4. ENTREGABLES':'1. CATALOGO DE PROYECTOS';
   var presContent=tab===10?<PresItemsPanel pres={pres} presupuestos={presupuestos} selPresIdx={selPresIdx} data={data} onChange={onChange} apuModal={apuModal} setApuModal={setApuModal} apus={apus} categorias_apu={categorias_apu} calcItemVal={calcItemVal} setTab={setTab} estadoLabel={estadoLabel}/>
     :tab===11?<PresResumenPanel pres={pres} presupuestos={presupuestos} selPresIdx={selPresIdx} data={data} onChange={onChange} calcResumenPres={calcResumenPres} setTab={setTab}/>
-    :tab===12?<PresEntregablesPanel pres={pres} calcResumenPres={calcResumenPres} calcItemVal={calcItemVal} setTab={setTab}/>
-    :<PresProyectosPanel presupuestos={presupuestos} selPresIdx={selPresIdx} setSelPresIdx={setSelPresIdx} data={data} onChange={onChange} estadoColor={estadoColor} estadoLabel={estadoLabel} addPresupuesto={addPresupuesto} toggleEstado={toggleEstado} delPresupuesto={delPresupuesto} setTab={setTab}/>;
+    :tab===12?<PresEntregablesPanel pres={pres} presupuestos={presupuestos} calcResumenPres={calcResumenPres} calcItemVal={calcItemVal} calcResumenFor={calcResumenFor} calcItemValFor={calcItemValFor} setTab={setTab}/>
+    :<PresProyectosPanel presupuestos={presupuestos} selPresIdx={selPresIdx} setSelPresIdx={setSelPresIdx} data={data} onChange={onChange} estadoColor={estadoColor} estadoLabel={estadoLabel} addPresupuesto={addPresupuesto} addSubProyecto={addSubProyecto} toggleEstado={toggleEstado} delPresupuesto={delPresupuesto} setTab={setTab}/>;
 
   return(
     <div style={{display:'flex',gap:16,alignItems:'flex-start'}}>

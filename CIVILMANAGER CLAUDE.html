@@ -2087,7 +2087,7 @@ function InsumosTab({data,onChange,provMap,cargosCalc,cargoMap,esHora,_unidades,
 
 function ProveedoresTab({data,onChange}){
 
-  var{items:proveedores,editIdx,setEditIdx,search,setSearch,upd,add,del,filtered:hookFiltered,handleKeyDown,excel:provExcel}=useCrudTable({data,onChange,dataKey:'proveedores',prefix:'PR',defaultItem:function(){return{id:uid(),codigo:genCodeFor(data.proveedores,'PR'),nombre:'',nit:'',contacto:'',tel1:'',tel2:'',email:'',direccion:'',ciudad:'',departamento:'',tipo:['Insumo'],notas:'',activo:true}},searchKeys:['codigo','nombre','nit'],confirmDel:"Eliminar este proveedor?",excelConfig:{title:'CATALOGO DE PROVEEDORES',sheetName:'Proveedores',filename:'catalogo_proveedores.xlsx',headers:['Codigo','Nombre','NIT','Contacto','Tel 1','Tel 2','Email','Direccion','Ciudad','Dpto','Tipo','Notas','Activo'],colWidths:[{wch:10},{wch:30},{wch:16},{wch:16},{wch:14},{wch:14},{wch:24},{wch:24},{wch:16},{wch:16},{wch:12},{wch:24},{wch:8}],mapRow:function(p){return[p.codigo||'',p.nombre||'',p.nit||'',p.contacto||'',p.tel1||'',p.tel2||'',p.email||'',p.direccion||'',p.ciudad||'',p.departamento||'',(Array.isArray(p.tipo)?p.tipo:[p.tipo||'']).join(', '),p.notas||'',p.activo?'Si':'No']},parseRow:function(r){return[String(r[0]||'').trim(),String(r[1]||'').trim(),String(r[2]||'').trim(),String(r[3]||'').trim(),String(r[4]||'').trim(),String(r[5]||'').trim(),String(r[6]||'').trim(),String(r[7]||'').trim(),String(r[8]||'').trim(),String(r[9]||'').trim(),String(r[10]||'insumo').trim(),String(r[11]||'').trim(),String(r[12]||'Si').trim()]},buildItem:function(r,idx,existing,genCode){var tipoArr=(r[10]||'Insumo').split(',').map(function(s){return s.trim()}).filter(function(s){return s}).map(function(s){return s.charAt(0).toUpperCase()+s.slice(1).toLowerCase()});return{codigo:idx>=0?existing[idx].codigo:genCode(),id:idx>=0?existing[idx].id:uid(),nombre:r[1]||'',nit:r[2]||'',contacto:r[3]||'',tel1:r[4]||'',tel2:r[5]||'',email:r[6]||'',direccion:r[7]||'',ciudad:r[8]||'',departamento:r[9]||'',tipo:tipoArr,notas:r[11]||'',activo:(r[12]||'Si').toLowerCase()!=='no'}}}});
+  var{items:proveedores,editIdx,setEditIdx,search,setSearch,upd,add,del,filtered:hookFiltered,handleKeyDown,excel:provExcel}=useCrudTable({data,onChange,dataKey:'proveedores',prefix:'PR',defaultItem:function(){return{id:uid(),codigo:genCodeFor(data.proveedores,'PR'),nombre:'',nit:'',contacto:'',tel1:'',tel2:'',email:'',direccion:'',ciudad:'',tipo:['Insumo'],notas:'',activo:true}},searchKeys:['codigo','nombre','nit'],confirmDel:"Eliminar este proveedor?",excelConfig:{title:'CATALOGO DE PROVEEDORES',sheetName:'Proveedores',filename:'catalogo_proveedores.xlsx',headers:['Codigo','Nombre','NIT','Contacto','Tel 1','Tel 2','Email','Direccion','Ciudad','Tipo','Notas','Activo'],colWidths:[{wch:10},{wch:30},{wch:16},{wch:16},{wch:14},{wch:14},{wch:24},{wch:24},{wch:16},{wch:12},{wch:24},{wch:8}],mapRow:function(p){return[p.codigo||'',p.nombre||'',p.nit||'',p.contacto||'',p.tel1||'',p.tel2||'',p.email||'',p.direccion||'',p.ciudad||'',(Array.isArray(p.tipo)?p.tipo:[p.tipo||'']).join(', '),p.notas||'',p.activo?'Si':'No']},parseRow:function(r){return[String(r[0]||'').trim(),String(r[1]||'').trim(),String(r[2]||'').trim(),String(r[3]||'').trim(),String(r[4]||'').trim(),String(r[5]||'').trim(),String(r[6]||'').trim(),String(r[7]||'').trim(),String(r[8]||'').trim(),String(r[9]||'insumo').trim(),String(r[10]||'').trim(),String(r[11]||'Si').trim()]},buildItem:function(r,idx,existing,genCode){var tipoArr=(r[9]||'Insumo').split(',').map(function(s){return s.trim()}).filter(function(s){return s}).map(function(s){return s.charAt(0).toUpperCase()+s.slice(1).toLowerCase()});return{codigo:idx>=0?existing[idx].codigo:genCode(),id:idx>=0?existing[idx].id:uid(),nombre:r[1]||'',nit:r[2]||'',contacto:r[3]||'',tel1:r[4]||'',tel2:r[5]||'',email:r[6]||'',direccion:r[7]||'',ciudad:r[8]||'',tipo:tipoArr,notas:r[10]||'',activo:(r[11]||'Si').toLowerCase()!=='no'}}}});
 
   var[filtroTipo,setFiltroTipo]=useState('todos');
 
@@ -2175,8 +2175,6 @@ function ProveedoresTab({data,onChange}){
 
               <col className="cw-90"/>
 
-              <col className="cw-90"/>
-
               <col className="cw-80"/>
 
               <col className="cw-100"/>
@@ -2211,8 +2209,6 @@ function ProveedoresTab({data,onChange}){
 
                 <th>Ciudad</th>
 
-                <th>Dpto</th>
-
                 <th>Tipo</th>
 
                 <th>Notas</th>
@@ -2227,7 +2223,7 @@ function ProveedoresTab({data,onChange}){
 
             <tbody>
 
-              {filtered.length===0&&<tr className="empty-row"><td colSpan={15}>{search?'Sin resultados.':'Sin proveedores. Agregue uno.'}</td></tr>}
+              {filtered.length===0&&<tr className="empty-row"><td colSpan={14}>{search?'Sin resultados.':'Sin proveedores. Agregue uno.'}</td></tr>}
 
               {filtered.map(function(p,i){var origIdx=proveedores.indexOf(p);var isEdit=editIdx===origIdx;var pTipoArr=Array.isArray(p.tipo)?p.tipo:(p.tipo||'').split(',').map(function(s){return s.trim()}).filter(function(s){return s});
 
@@ -2254,8 +2250,6 @@ function ProveedoresTab({data,onChange}){
                     <td>{isEdit?<input className="ni" value={p.direccion||''} onChange={function(ev){upd(origIdx,'direccion',ev.target.value)}} onKeyDown={function(ev){handleKeyDown(origIdx,ev)}}/>:<span style={{padding:'0 6px'}}>{p.direccion||'—'}</span>}</td>
 
                     <td>{isEdit?<input className="ni" value={p.ciudad||''} onChange={function(ev){upd(origIdx,'ciudad',ev.target.value)}} onKeyDown={function(ev){handleKeyDown(origIdx,ev)}}/>:<span style={{padding:'0 6px'}}>{p.ciudad||'—'}</span>}</td>
-
-                    <td>{isEdit?<input className="ni" value={p.departamento||''} onChange={function(ev){upd(origIdx,'departamento',ev.target.value)}} onKeyDown={function(ev){handleKeyDown(origIdx,ev)}}/>:<span style={{padding:'0 6px'}}>{p.departamento||'—'}</span>}</td>
 
                     <td style={{padding:'0 6px',textAlign:'center'}}>{isEdit?
 
@@ -2329,7 +2323,7 @@ function ProveedoresTab({data,onChange}){
 
             <div style={{display:'grid',gridTemplateColumns:'120px 1fr',gap:'6px 10px'}}>
 
-              {[['Codigo',viewProv.codigo],['Nombre',viewProv.nombre],['NIT',viewProv.nit],['Contacto',viewProv.contacto],['Telefono 1',viewProv.tel1],['Telefono 2',viewProv.tel2],['Email',viewProv.email],['Direccion',viewProv.direccion],['Ciudad',viewProv.ciudad],['Departamento',viewProv.departamento],['Tipo',(Array.isArray(viewProv.tipo)?viewProv.tipo:[]).join(', ')||'—'],['Notas',viewProv.notas],['Activo',viewProv.activo!==false?'Si':'No']].map(function(pair){var label=pair[0],val=pair[1];
+              {[['Codigo',viewProv.codigo],['Nombre',viewProv.nombre],['NIT',viewProv.nit],['Contacto',viewProv.contacto],['Telefono 1',viewProv.tel1],['Telefono 2',viewProv.tel2],['Email',viewProv.email],['Direccion',viewProv.direccion],['Ciudad',viewProv.ciudad],['Tipo',(Array.isArray(viewProv.tipo)?viewProv.tipo:[]).join(', ')||'—'],['Notas',viewProv.notas],['Activo',viewProv.activo!==false?'Si':'No']].map(function(pair){var label=pair[0],val=pair[1];
 
                 return(
 
@@ -6297,6 +6291,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,setTab}
   var mapeoState=useState(mapeoVacio());var mapeo=mapeoState[0],setMapeo=mapeoState[1];
   var conCodigo2State=useState(false);var conCodigo2=conCodigo2State[0],setConCodigo2=conCodigo2State[1];
   var fuenteApuState=useState('item');var fuenteApu=fuenteApuState[0],setFuenteApu=fuenteApuState[1];
+  var campoActivoState=useState(null);var campoActivo=campoActivoState[0],setCampoActivo=campoActivoState[1];
   var fileRef=useRef(null);
   var presId=pres&&pres.id;
 
@@ -6455,7 +6450,9 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,setTab}
           <table style={{fontSize:9,borderCollapse:'collapse'}}>
             <thead><tr>
               <th style={{padding:'2px 6px',background:'var(--bg2)'}}>#</th>
-              {Array.from({length:maxCols}).map(function(_,ci){return <th key={ci} style={{padding:'2px 6px',background:'var(--bg2)'}}>{colLetter(ci)}</th>})}
+              {Array.from({length:maxCols}).map(function(_,ci){return(
+                <th key={ci} onClick={function(){if(campoActivo){setCol(campoActivo,ci);setCampoActivo(null)}}} title={campoActivo?'Clic para asignar columna '+colLetter(ci)+' a '+campoActivo:''} style={{padding:'2px 6px',background:campoActivo?'var(--ok)':'var(--bg2)',color:campoActivo?'#fff':'inherit',cursor:campoActivo?'crosshair':'default',fontWeight:700,userSelect:'none'}}>{colLetter(ci)}</th>
+              )})}
             </tr></thead>
             <tbody>
               {previewFilas.map(function(fila,fi){
@@ -6486,9 +6483,10 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,setTab}
             <input type="number" className="ni" style={{width:70,fontSize:11}} value={mapeo.fila_inicio} onChange={function(e){setMapeo(Object.assign({},mapeo,{fila_inicio:parseInt(e.target.value,10)||0}))}}/>
           </div>
           {MAPEO_CAMPOS.map(function(c){
+            var activo=campoActivo===c.key;
             return(
               <div key={c.key}>
-                <label style={{fontSize:10,color:'var(--tx2)',display:'block',marginBottom:3}}>{c.label}{c.requerido&&<span style={{color:'var(--err)'}}> *</span>}</label>
+                <label onClick={function(){setCampoActivo(activo?null:c.key)}} style={{fontSize:10,color:activo?'var(--ok)':'var(--tx2)',display:'block',marginBottom:3,cursor:'pointer',fontWeight:activo?700:400}}>{c.label}{c.requerido&&<span style={{color:'var(--err)'}}> *</span>}{activo&&<span style={{color:'var(--ok)',marginLeft:4}}>{'← clic en columna'}</span>}</label>
                 {sel({value:mapeo[c.key]==null?'':mapeo[c.key],onChange:function(e){setCol(c.key,e.target.value)},children:[
                   <option key="_" value="">— Elegir —</option>
                 ].concat(Array.from({length:maxCols}).map(function(_,ci){return <option key={ci} value={ci}>{colLetter(ci)}</option>}))})}
@@ -6497,12 +6495,12 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,setTab}
           })}
           <div>
             <label style={{fontSize:10,color:'var(--tx2)',display:'block',marginBottom:3}}><input type="checkbox" checked={conCodigo2} onChange={function(e){setConCodigo2(e.target.checked);if(!e.target.checked)setCol('col_codigo_2','')}}/> ¿Hay segunda columna de código?</label>
-            <label style={{fontSize:10,color:'var(--tx2)',display:'block',marginBottom:3,marginTop:6}}>Columna — Código 1</label>
+            <label onClick={function(){setCampoActivo(campoActivo==='col_codigo_1'?null:'col_codigo_1')}} style={{fontSize:10,color:campoActivo==='col_codigo_1'?'var(--ok)':'var(--tx2)',display:'block',marginBottom:3,marginTop:6,cursor:'pointer',fontWeight:campoActivo==='col_codigo_1'?700:400}}>Columna — Código 1{campoActivo==='col_codigo_1'&&<span style={{color:'var(--ok)',marginLeft:4}}>{'← clic en columna'}</span>}</label>
             {sel({value:mapeo.col_codigo_1==null?'':mapeo.col_codigo_1,onChange:function(e){setCol('col_codigo_1',e.target.value)},children:[<option key="_" value="">— Ninguna —</option>].concat(Array.from({length:maxCols}).map(function(_,ci){return <option key={ci} value={ci}>{colLetter(ci)}</option>}))})}
           </div>
           {conCodigo2&&
             <div>
-              <label style={{fontSize:10,color:'var(--tx2)',display:'block',marginBottom:3}}>Columna — Código 2</label>
+              <label onClick={function(){setCampoActivo(campoActivo==='col_codigo_2'?null:'col_codigo_2')}} style={{fontSize:10,color:campoActivo==='col_codigo_2'?'var(--ok)':'var(--tx2)',display:'block',marginBottom:3,cursor:'pointer',fontWeight:campoActivo==='col_codigo_2'?700:400}}>Columna — Código 2{campoActivo==='col_codigo_2'&&<span style={{color:'var(--ok)',marginLeft:4}}>{'← clic en columna'}</span>}</label>
               {sel({value:mapeo.col_codigo_2==null?'':mapeo.col_codigo_2,onChange:function(e){setCol('col_codigo_2',e.target.value)},children:[<option key="_" value="">— Ninguna —</option>].concat(Array.from({length:maxCols}).map(function(_,ci){return <option key={ci} value={ci}>{colLetter(ci)}</option>}))})}
             </div>
           }
@@ -6548,18 +6546,20 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,setTab}
           <table style={{tableLayout:'fixed',width:'100%'}}>
             <thead><tr>
               <th style={{width:60}}>Item</th>
+              <th style={{width:100}}>Código APU</th>
               <th>Descripción</th>
               <th style={{width:60}}>UN</th>
               <th style={{width:90}}>Cantidad</th>
               <th style={{width:70}}>Tipo</th>
             </tr></thead>
             <tbody>
-              {itemsArr.length===0&&<tr className="empty-row"><td colSpan={5}>Sin datos importados.</td></tr>}
+              {itemsArr.length===0&&<tr className="empty-row"><td colSpan={6}>Sin datos importados.</td></tr>}
               {itemsArr.map(function(it){
                 var esCap=esCapituloFinal(it);
                 return(
                   <tr key={it.id} style={esCap?{background:'#1E3A5F'}:undefined}>
                     <td style={{padding:'2px 6px',color:esCap?'#fff':'inherit',fontWeight:esCap?700:400}}>{it.num_item}</td>
+                    <td style={{padding:'2px 6px',color:esCap?'#fff':(it.codigo_apu?'var(--ok)':'var(--err)'),fontSize:10,fontWeight:500}}>{esCap?'':(it.codigo_apu||'⚠ sin código')}</td>
                     <td style={{padding:'2px 6px',color:esCap?'#fff':'inherit',fontWeight:esCap?700:400}}>{it.descripcion}</td>
                     <td style={{padding:'2px 6px',textAlign:'center',color:esCap?'#fff':'inherit'}}>{it.unidad}</td>
                     <td style={{padding:'2px 6px',textAlign:'right',color:esCap?'#fff':'inherit'}}>{esCap?'':it.cantidad}</td>

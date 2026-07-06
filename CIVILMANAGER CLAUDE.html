@@ -764,6 +764,50 @@ function Toast(){
 
 function showToast(msg,opts){if(_showToast)_showToast(msg,opts)}
 
+var _showConfirm=null;
+
+function ConfirmDialog(){
+
+  var st=React.useState(null);
+
+  var req=st[0],setReq=st[1];
+
+  var resolveRef=React.useRef(null);
+
+  React.useEffect(function(){_showConfirm=function(msg){return new Promise(function(res){resolveRef.current=res;setReq(msg)})};return function(){_showConfirm=null}},[]);
+
+  if(!req)return null;
+
+  function answer(v){setReq(null);if(resolveRef.current){resolveRef.current(v);resolveRef.current=null}}
+
+  return(
+
+    <div className="modal-overlay" style={{position:'fixed',top:0,left:0,right:0,bottom:0,display:'flex',alignItems:'center',justifyContent:'center',background:'rgba(0,0,0,.55)',zIndex:9999}} onClick={function(){answer(false)}}>
+
+      <div className="modal-box" style={{width:420,background:'var(--bg2)',border:'1px solid var(--bdr)',borderRadius:6,boxShadow:'0 8px 30px rgba(0,0,0,.5)'}} onClick={function(e){e.stopPropagation()}}>
+
+        <div style={{padding:'8px 14px',background:'var(--bg3)',borderBottom:'1px solid var(--bdr)',borderRadius:'6px 6px 0 0',fontSize:12,fontWeight:700,color:'var(--tx2)',letterSpacing:'.5px'}}>CIVILMANAGER PREGUNTA:</div>
+
+        <div style={{padding:'16px 14px',fontSize:12,color:'var(--tx)',lineHeight:1.5}}>{req}</div>
+
+        <div style={{padding:'10px 14px',borderTop:'1px solid var(--bdr)',display:'flex',justifyContent:'flex-end',gap:8}}>
+
+          <button onClick={function(){answer(true)}} style={{fontSize:11,fontWeight:700,padding:'6px 16px',border:'1px solid var(--ac)',borderRadius:4,background:'var(--ac)',color:'#fff',cursor:'pointer'}}>Aceptar</button>
+
+          <button onClick={function(){answer(false)}} style={{fontSize:11,fontWeight:700,padding:'6px 16px',border:'1px solid var(--bdr)',borderRadius:4,background:'var(--bg3)',color:'var(--tx2)',cursor:'pointer'}}>Cancelar</button>
+
+        </div>
+
+      </div>
+
+    </div>
+
+  );
+
+}
+
+function askConfirm(msg){if(_showConfirm)return _showConfirm(msg);return Promise.resolve(window.confirm(msg))}
+
 
 
 const genCodeFor=function(items,prefix,codeOverride,padLen){if(codeOverride&&String(codeOverride).trim())return String(codeOverride).trim();padLen=padLen||3;var maxNum=items.reduce(function(m,item){var match=(item.codigo||'').match(new RegExp(prefix+'-(\\d+)'));return match?Math.max(m,parseInt(match[1])):m},0);return prefix+'-'+String(maxNum+1).padStart(padLen,'0')};
@@ -784,7 +828,7 @@ function useCrudTable({data,onChange,dataKey,prefix,defaultItem,searchKeys,confi
 
   var add=useCallback(function(){var d=defaultItem();var n=[].concat(items,[d]);onChange(Object.assign({},data,{[dataKey]:n}));setEditIdx(n.length-1)},[items,data,onChange,dataKey,defaultItem]);
 
-  var del=useCallback(function(i){if(!confirm(confirmDel))return;if(editIdx===i)setEditIdx(null);onChange(Object.assign({},data,{[dataKey]:items.filter(function(_,j){return j!==i})}))},[items,data,onChange,dataKey,editIdx,confirmDel]);
+  var del=useCallback(async function(i){if(!(await askConfirm(confirmDel)))return;if(editIdx===i)setEditIdx(null);onChange(Object.assign({},data,{[dataKey]:items.filter(function(_,j){return j!==i})}))},[items,data,onChange,dataKey,editIdx,confirmDel]);
 
   var filtered=useMemo(function(){return search?items.filter(function(item){return searchKeys.some(function(k){return norm(item[k]||'').includes(norm(search))})}):items},[items,search,searchKeys]);
 
@@ -844,7 +888,7 @@ function FactorPrestacionalTab({data,onChange,factorPrest,cargosCalc,cargoMap,es
 
   var addCargo=function(){setCargoDelErr('');setFpCuadDelErr('');var newIdx=cargos.length;onChange(Object.assign({},data,{cargos:cargos.concat([{id:uid(),codigo:genCodeFor(cargos,'MO'),descripcion:'',num_salarios_base:1}])}));setCargosEditIdx(newIdx)};
 
-  var delCargo=function(i){var cargoId=cargos[i].id;var enCuadrillas=(data.cuadrillas||[]).reduce(function(s,q){return s+(q.integrantes||[]).filter(function(int){return int.cargo_id===cargoId}).length},0);var enAPU=(data.apus||[]).reduce(function(s,a){return s+(a.recursos_mo||[]).filter(function(r){return r.cargo_id===cargoId}).length},0);if(enCuadrillas>0||enAPU>0){setCargoDelErr('Este colaborador se usa en '+enCuadrillas+' cuadrilla(s) y '+enAPU+' APU. No se puede eliminar.');return}setCargoDelErr('');if(!confirm("Eliminar este colaborador del cat\u00e1logo?"))return;if(cargosEditIdx===i)setCargosEditIdx(null);onChange(Object.assign({},data,{cargos:cargos.filter(function(_,j){return j!==i})}))};
+  var delCargo=async function(i){var cargoId=cargos[i].id;var enCuadrillas=(data.cuadrillas||[]).reduce(function(s,q){return s+(q.integrantes||[]).filter(function(int){return int.cargo_id===cargoId}).length},0);var enAPU=(data.apus||[]).reduce(function(s,a){return s+(a.recursos_mo||[]).filter(function(r){return r.cargo_id===cargoId}).length},0);if(enCuadrillas>0||enAPU>0){setCargoDelErr('Este colaborador se usa en '+enCuadrillas+' cuadrilla(s) y '+enAPU+' APU. No se puede eliminar.');return}setCargoDelErr('');if(!(await askConfirm('\u00bfDesea eliminar "'+(cargos[i].descripcion||'este colaborador')+'"? Esta acci\u00f3n no se puede deshacer.')))return;if(cargosEditIdx===i)setCargosEditIdx(null);onChange(Object.assign({},data,{cargos:cargos.filter(function(_,j){return j!==i})}))};
 
   var handleCargosKeyDown=handleTabKeyDown(setCargosEditIdx);
 
@@ -862,7 +906,7 @@ function FactorPrestacionalTab({data,onChange,factorPrest,cargosCalc,cargoMap,es
 
   var editCuadrilla=function(qi){setPrevTab(tab);setTab(1);setSelCuadrillaIdx(qi)};
 
-  var deleteCuadrilla=function(qi){var cuadId='CU-'+cuadrillas[qi].id;var enAPU=(data.apus||[]).reduce(function(s,a){return s+(a.recursos_mo||[]).filter(function(r){return r.cargo_id===cuadId}).length},0);if(enAPU>0){setFpCuadDelErr('Esta cuadrilla se usa en '+enAPU+' APU. No se puede eliminar.');return}setFpCuadDelErr('');if(!confirm("Eliminar esta cuadrilla?"))return;onChange(Object.assign({},data,{cuadrillas:cuadrillas.filter(function(_,j){return j!==qi})}))};
+  var deleteCuadrilla=async function(qi){var cuadId='CU-'+cuadrillas[qi].id;var enAPU=(data.apus||[]).reduce(function(s,a){return s+(a.recursos_mo||[]).filter(function(r){return r.cargo_id===cuadId}).length},0);if(enAPU>0){setFpCuadDelErr('Esta cuadrilla se usa en '+enAPU+' APU. No se puede eliminar.');return}setFpCuadDelErr('');if(!(await askConfirm('¿Desea eliminar "'+(cuadrillas[qi].descripcion||cuadrillas[qi].codigo)+'"? Esta acción no se puede deshacer.')))return;onChange(Object.assign({},data,{cuadrillas:cuadrillas.filter(function(_,j){return j!==qi})}))};
 
 
 
@@ -1062,7 +1106,7 @@ function CuadrillasTab({data,onChange,cargosCalc,cargoMap,esHora,selCuadrillaIdx
 
   var cancelCuadCreation=function(){if(selectedIdx===null)return;var nn=cuadrillas.filter(function(_,j){return j!==selectedIdx});onChange(Object.assign({},data,{cuadrillas:nn}));setSelectedIdx(null);setEditCuadIdx(null);setEditIntIdx(null);setEditName(false);setCuadEmptyErr('');setApuWarnMsg('');setApuWarnFn(null);setPendingQty(null)};
 
-  var delCuad=function(i){var cuadId='CU-'+cuadrillas[i].id;var enAPU=(data.apus||[]).reduce(function(s,a){return s+(a.recursos_mo||[]).filter(function(r){return r.cargo_id===cuadId}).length},0);if(enAPU>0){setCuadDelErr('Esta cuadrilla se usa en '+enAPU+' APU. No se puede eliminar.');return}setCuadDelErr('');if(!confirm("Eliminar esta cuadrilla?"))return;if(selectedIdx===i){setSelectedIdx(null);setEditCuadIdx(null);setEditIntIdx(null);setEditName(false)}else if(selectedIdx!==null&&selectedIdx>i){setSelectedIdx(selectedIdx-1);setEditCuadIdx(null);setEditIntIdx(null);setEditName(false)}onChange(Object.assign({},data,{cuadrillas:cuadrillas.filter(function(_,j){return j!==i})}))};
+  var delCuad=async function(i){var cuadId='CU-'+cuadrillas[i].id;var enAPU=(data.apus||[]).reduce(function(s,a){return s+(a.recursos_mo||[]).filter(function(r){return r.cargo_id===cuadId}).length},0);if(enAPU>0){setCuadDelErr('Esta cuadrilla se usa en '+enAPU+' APU. No se puede eliminar.');return}setCuadDelErr('');if(!(await askConfirm('¿Desea eliminar "'+(cuadrillas[i].descripcion||cuadrillas[i].codigo)+'"? Esta acción no se puede deshacer.')))return;if(selectedIdx===i){setSelectedIdx(null);setEditCuadIdx(null);setEditIntIdx(null);setEditName(false)}else if(selectedIdx!==null&&selectedIdx>i){setSelectedIdx(selectedIdx-1);setEditCuadIdx(null);setEditIntIdx(null);setEditName(false)}onChange(Object.assign({},data,{cuadrillas:cuadrillas.filter(function(_,j){return j!==i})}))};
 
   var [apuWarnMsg,setApuWarnMsg]=useState('');
 
@@ -1082,7 +1126,7 @@ function CuadrillasTab({data,onChange,cargosCalc,cargoMap,esHora,selCuadrillaIdx
 
   var addInt=function(qi){var n=countCuadApuRefs();if(n>0){setApuWarnMsg('Este cambio afectar\u00e1 a '+n+' APU. \u00bfDesea continuar?');setApuWarnFn(function(){return function(){_doAddInt(qi)}});return}_doAddInt(qi)};
 
-  var delInt=function(qi,ii){var n=countCuadApuRefs();if(n>0){setApuWarnMsg('Este cambio afectar\u00e1 a '+n+' APU. \u00bfDesea continuar?');setApuWarnFn(function(){return function(){_doDelInt(qi,ii)}});return}if(!confirm("Eliminar este integrante?"))return;_doDelInt(qi,ii)};
+  var delInt=async function(qi,ii){var n=countCuadApuRefs();if(n>0){setApuWarnMsg('Este cambio afectar\u00e1 a '+n+' APU. \u00bfDesea continuar?');setApuWarnFn(function(){return function(){_doDelInt(qi,ii)}});return}if(!(await askConfirm('¿Desea eliminar este integrante? Esta acción no se puede deshacer.')))return;_doDelInt(qi,ii)};
 
   var updInt=function(qi,ii,k,v){var nn=[].concat(cuadrillas);var ints=[].concat(nn[qi].integrantes);ints[ii]=Object.assign({},ints[ii]);ints[ii][k]=v;nn[qi]=Object.assign({},nn[qi],{integrantes:ints});onChange(Object.assign({},data,{cuadrillas:nn}));setCuadEmptyErr('')};
 
@@ -1484,7 +1528,7 @@ function EquiposTab({data,onChange,provMap,_unidades}){
 
   var proveedoresEquipo=proveedores.filter(function(p){if(p.activo===false)return false;var tArr=Array.isArray(p.tipo)?p.tipo:(p.tipo||'').split(',').map(function(s){return s.trim()}).filter(function(s){return s});return tArr.some(function(t){return t.toLowerCase()==='equipo'})});
 
-  var delEquipo=function(i){
+  var delEquipo=async function(i){
 
     var eqId=equipos[i].id;
 
@@ -1508,7 +1552,7 @@ function EquiposTab({data,onChange,provMap,_unidades}){
 
     setEquipoDelErr('');
 
-    if(!confirm("Eliminar este equipo?"))return;
+    if(!(await askConfirm('¿Desea eliminar "'+(equipos[i].nombre||'este equipo')+'"? Esta acción no se puede deshacer.')))return;
 
     if(editIdx===i)setEditIdx(null);
 
@@ -1632,7 +1676,7 @@ function EquiposTab({data,onChange,provMap,_unidades}){
 
         </div>
 
-        <CrudFooter onAdd={add} addLabel="Equipo" onClearAll={function(){if(!confirm("Borrar todo el contenido de Equipos?"))return;onChange(Object.assign({},data,{equipos:[]}))}} clearLabel="Borrar" excel={eqExcel} exportLabel="Exportar Excel" onSearch={{v:search,set:setSearch}} searchPlaceholder="Buscar equipo..." countLabel="No. de Equipos:" count={tipoFilter!=='Todos'||search?filteredEquiposF.length+'/'+equipos.length:equipos.length}>
+        <CrudFooter onAdd={add} addLabel="Equipo" onClearAll={async function(){if(!(await askConfirm('¿Desea eliminar todo el contenido de Equipos? Esta acción no se puede deshacer.')))return;onChange(Object.assign({},data,{equipos:[]}))}} clearLabel="Borrar" excel={eqExcel} exportLabel="Exportar Excel" onSearch={{v:search,set:setSearch}} searchPlaceholder="Buscar equipo..." countLabel="No. de Equipos:" count={tipoFilter!=='Todos'||search?filteredEquiposF.length+'/'+equipos.length:equipos.length}>
 
           <span style={{fontSize:11}}>Filtrar por Categoria:</span>
 
@@ -1746,7 +1790,7 @@ function InsumosTab({data,onChange,provMap,cargosCalc,cargoMap,esHora,_unidades,
 
   var proveedoresInsumo=proveedores.filter(function(p){if(p.activo===false)return false;var tArr=Array.isArray(p.tipo)?p.tipo:(p.tipo||'').split(',').map(function(s){return s.trim()}).filter(function(s){return s});return tArr.some(function(t){return t.toLowerCase()==='insumo'})});
 
-  var delInsumo=function(i){
+  var delInsumo=async function(i){
 
     var insId=insumos[i].id;
 
@@ -1766,7 +1810,7 @@ function InsumosTab({data,onChange,provMap,cargosCalc,cargoMap,esHora,_unidades,
 
     setInsDelErr('');
 
-    if(!confirm("Eliminar este insumo?"))return;
+    if(!(await askConfirm('¿Desea eliminar "'+(insumos[i].nombre||'este insumo')+'"? Esta acción no se puede deshacer.')))return;
 
     if(editIdx===i)setEditIdx(null);
 
@@ -1936,7 +1980,7 @@ function InsumosTab({data,onChange,provMap,cargosCalc,cargoMap,esHora,_unidades,
 
         </div>
 
-        <CrudFooter onAdd={add} addLabel="Insumo" onClearAll={function(){if(!confirm("Borrar todo el contenido de Insumos?"))return;onChange(Object.assign({},data,{insumos:[]}))}} clearLabel="Borrar" excel={insExcel} exportLabel="Exportar Excel" onSearch={{v:search,set:setSearch}} searchPlaceholder="Buscar insumo..." countLabel="No. Insumos:" count={catFilter!=='Todas'||origFilter!=='Todos'||search?filteredInsumos.length+'/'+insumos.length:insumos.length}>
+        <CrudFooter onAdd={add} addLabel="Insumo" onClearAll={async function(){if(!(await askConfirm('¿Desea eliminar todo el contenido de Insumos? Esta acción no se puede deshacer.')))return;onChange(Object.assign({},data,{insumos:[]}))}} clearLabel="Borrar" excel={insExcel} exportLabel="Exportar Excel" onSearch={{v:search,set:setSearch}} searchPlaceholder="Buscar insumo..." countLabel="No. Insumos:" count={catFilter!=='Todas'||origFilter!=='Todos'||search?filteredInsumos.length+'/'+insumos.length:insumos.length}>
 
           <span style={{fontSize:11}}>Filtrar Insumo por:</span>
 
@@ -1990,7 +2034,7 @@ function ProveedoresTab({data,onChange}){
 
   var filtered=hookFiltered.filter(function(p){if(filtroTipo!=='todos'){var tArr=Array.isArray(p.tipo)?p.tipo:(p.tipo||'').split(',').map(function(s){return s.trim()}).filter(function(s){return s});if(!tArr.some(function(t){return t.toLowerCase()===filtroTipo.toLowerCase()}))return false;}return true;});
 
-  var delProv=function(i){
+  var delProv=async function(i){
 
     var provId=proveedores[i].id;
 
@@ -2020,7 +2064,7 @@ function ProveedoresTab({data,onChange}){
 
     setProvDelErr('');
 
-    if(!confirm("Eliminar este proveedor?"))return;
+    if(!(await askConfirm('¿Desea eliminar "'+(proveedores[i].nombre||'este proveedor')+'"? Esta acción no se puede deshacer.')))return;
 
     if(editIdx===i)setEditIdx(null);
 
@@ -2184,7 +2228,7 @@ function ProveedoresTab({data,onChange}){
 
         </div>
 
-        <CrudFooter onAdd={add} addLabel="Proveedor" onClearAll={function(){if(!confirm("Borrar todo el contenido de Proveedores?"))return;onChange(Object.assign({},data,{proveedores:[]}))}} clearLabel="Borrar" excel={provExcel} exportLabel="Exportar" onSearch={{v:search,set:setSearch}} searchPlaceholder="Buscar proveedor..." countLabel="No. de Proveedores:" count={proveedores.length}>
+        <CrudFooter onAdd={add} addLabel="Proveedor" onClearAll={async function(){if(!(await askConfirm('¿Desea eliminar todo el contenido de Proveedores? Esta acción no se puede deshacer.')))return;onChange(Object.assign({},data,{proveedores:[]}))}} clearLabel="Borrar" excel={provExcel} exportLabel="Exportar" onSearch={{v:search,set:setSearch}} searchPlaceholder="Buscar proveedor..." countLabel="No. de Proveedores:" count={proveedores.length}>
 
           <span style={{fontSize:11}}>Filtrar:</span>
 
@@ -2364,7 +2408,7 @@ function APUTab({data,onChange,cargosCalc,cargoMap,esHora,eqMap,insMap,cuadrilla
 
   var add=useCallback(function(){var now=new Date().toISOString();var newIdx=apus.length;onChange(Object.assign({},data,{apus:apus.concat([{id:uid(),codigo:genCodeFor(apus,'APU'),nombre:'',categoria:'',unidad:'m2',fecha_creacion:now,recursos_mo:[],recursos_eq:[],recursos_ins:[],recursos_transporte:[]}])}));setSelectedIdx(newIdx)},[data,apus,onChange]);var addBasico=useCallback(function(){var now=new Date().toISOString();var newIdx=apus.length;onChange(Object.assign({},data,{apus:apus.concat([{id:uid(),codigo:genCodeFor(apus,'APU-BAS'),nombre:'',categoria:'Preparado en Obra',unidad:'m2',es_basico:true,fecha_creacion:now,recursos_mo:[],recursos_eq:[],recursos_ins:[],recursos_transporte:[]}])}));setSelectedIdx(newIdx)},[data,apus,onChange]);
 
-  var del=useCallback(function(i){var a=apus[i];if(a&&a.es_basico===true){var linkedIns=(data.insumos||[]).filter(function(x){return x.apu_basico_id===a.id});if(linkedIns.length>0){var usedInAPU=false;for(var li=0;li<linkedIns.length;li++){var insId=linkedIns[li].id;for(var ai=0;ai<apus.length;ai++){if(apus[ai].es_basico===true)continue;var rIns=apus[ai].recursos_ins||[];for(var ri=0;ri<rIns.length;ri++){if(rIns[ri].insumo_id===insId){usedInAPU=true;break}}if(usedInAPU)break}if(usedInAPU)break}if(usedInAPU){showToast("Este APU Basico tiene insumos ligados usados en otros APU. No se puede eliminar.",{type:'err',dur:4000});return}}}if(!confirm("Eliminar este APU?"))return;if(selectedIdx===i)setSelectedIdx(null);else if(selectedIdx!==null&&selectedIdx>i)setSelectedIdx(selectedIdx-1);onChange(Object.assign({},data,{apus:apus.filter(function(_,j){return j!==i})}))},[data,apus,selectedIdx,onChange]);
+  var del=useCallback(async function(i){var a=apus[i];if(a&&a.es_basico===true){var linkedIns=(data.insumos||[]).filter(function(x){return x.apu_basico_id===a.id});if(linkedIns.length>0){var usedInAPU=false;for(var li=0;li<linkedIns.length;li++){var insId=linkedIns[li].id;for(var ai=0;ai<apus.length;ai++){if(apus[ai].es_basico===true)continue;var rIns=apus[ai].recursos_ins||[];for(var ri=0;ri<rIns.length;ri++){if(rIns[ri].insumo_id===insId){usedInAPU=true;break}}if(usedInAPU)break}if(usedInAPU)break}if(usedInAPU){showToast("Este APU Basico tiene insumos ligados usados en otros APU. No se puede eliminar.",{type:'err',dur:4000});return}}}if(!(await askConfirm('¿Desea eliminar "'+(a.nombre||'este APU')+'"? Esta acción no se puede deshacer.')))return;if(selectedIdx===i)setSelectedIdx(null);else if(selectedIdx!==null&&selectedIdx>i)setSelectedIdx(selectedIdx-1);onChange(Object.assign({},data,{apus:apus.filter(function(_,j){return j!==i})}))},[data,apus,selectedIdx,onChange]);
 
   var closeDetail=useCallback(function(){setSelectedIdx(null)},[]);
 
@@ -2407,7 +2451,7 @@ function APUTab({data,onChange,cargosCalc,cargoMap,esHora,eqMap,insMap,cuadrilla
 
   var addRes=useCallback(function(sec,defaults){if(selectedIdx===null)return;var n=apus.slice();n[selectedIdx]=Object.assign({},n[selectedIdx],{[sec]:n[selectedIdx][sec].concat([{id:uid(),...defaults}])});onChange(Object.assign({},data,{apus:n}))},[data,apus,selectedIdx,onChange]);
 
-  var delRes=useCallback(function(sec,ri){if(selectedIdx===null)return;if(!confirm("Eliminar este recurso?"))return;var n=apus.slice();n[selectedIdx]=Object.assign({},n[selectedIdx],{[sec]:n[selectedIdx][sec].filter(function(_,j){return j!==ri})});onChange(Object.assign({},data,{apus:n}))},[data,apus,selectedIdx,onChange]);
+  var delRes=useCallback(async function(sec,ri){if(selectedIdx===null)return;if(!(await askConfirm('¿Desea eliminar este recurso? Esta acción no se puede deshacer.')))return;var n=apus.slice();n[selectedIdx]=Object.assign({},n[selectedIdx],{[sec]:n[selectedIdx][sec].filter(function(_,j){return j!==ri})});onChange(Object.assign({},data,{apus:n}))},[data,apus,selectedIdx,onChange]);
 
   var addEq=useCallback(function(){addRes('recursos_eq',{equipo_id:'',rendimiento:1})},[addRes]);
 
@@ -3607,7 +3651,7 @@ function ConfigListasTab({data,onChange,factorPrest}){
 
   var addFp=function(){var newIdx=fps.length;onChange(Object.assign({},data,{factoresPrestaciones:fps.concat([{id:uid(),codigo:genCodeFor(fps,'FP'),nombre:'',factor:0,tipo:'otros'}])}));setFpEditIdx(newIdx)};
 
-  var delFp=function(i){if(!confirm("Eliminar este factor?"))return;if(fpEditIdx===i)setFpEditIdx(null);onChange(Object.assign({},data,{factoresPrestaciones:fps.filter(function(_,j){return j!==i})}))};
+  var delFp=async function(i){if(!(await askConfirm('¿Desea eliminar "'+(fps[i].nombre||'este factor')+'"? Esta acción no se puede deshacer.')))return;if(fpEditIdx===i)setFpEditIdx(null);onChange(Object.assign({},data,{factoresPrestaciones:fps.filter(function(_,j){return j!==i})}))};
 
   var fpCatOrder=['prestaciones','seguridad_social','parafiscales','otros'];
 
@@ -3801,7 +3845,7 @@ var SUBS=[
 
   function addCat(){updCl('categorias_apu',categorias_apu.concat([{codigo:genCatCode(),categoria:'Nueva Categoría',desc:''}]))}
 
-  function delCat(i){
+  async function delCat(i){
 
     var c=categorias_apu[i];
 
@@ -3811,7 +3855,7 @@ var SUBS=[
 
     setCatDelErr('');
 
-    if(!confirm('Eliminar "'+c.categoria+'"?'))return;
+    if(!(await askConfirm('¿Desea eliminar "'+c.categoria+'"? Esta acción no se puede deshacer.')))return;
 
     updCl('categorias_apu',categorias_apu.filter(function(_,j){return j!==i}))
 
@@ -3847,7 +3891,7 @@ var SUBS=[
 
   }
 
-  function delItem(idx){
+  async function delItem(idx){
 
     var val=isUnidades?items[idx].abreviatura:(isTipoEq||isOrigenes||isTranspUn)?items[idx].nombre:(typeof items[idx]==='string'?items[idx]:items[idx].categoria);
 
@@ -3859,7 +3903,7 @@ var SUBS=[
 
     var label=isUnidades?items[idx].abreviatura:isTipoEq?items[idx].nombre:isOrigenes?items[idx].nombre:String(items[idx]);
 
-    if(!confirm('Eliminar "'+label+'"?'))return;
+    if(!(await askConfirm('¿Desea eliminar "'+label+'"? Esta acción no se puede deshacer.')))return;
 
     updCl(sub,items.filter(function(_,j){return j!==idx}))
 
@@ -3963,7 +4007,7 @@ var SUBS=[
 
         </div>
 
-        <div style={{width:800}}><CrudFooter onAdd={addCat} addLabel="Categoría" onClearAll={function(){if(categorias_apu.length===0)return;var used=[];var apusA=data.apus||[];categorias_apu.forEach(function(c){var cnt=0;for(var a=0;a<apusA.length;a++){if(apusA[a].categoria===c.categoria)cnt++}if(cnt>0)used.push(c.categoria+' ('+cnt+')')});if(used.length>0){setClearConfirm({msg:'Categorías en uso que se mantendrán: '+used.join(', ')+'. Los demás serán eliminados.',onConfirm:function(){updCl('categorias_apu',[])}});return}if(!confirm('Eliminar todas las categorías APU?'))return;updCl('categorias_apu',[])}} clearLabel="Borrar" excel={catApuExcel} exportLabel="Exportar" countLabel="Categorías:" count={categorias_apu.length}/></div>
+        <div style={{width:800}}><CrudFooter onAdd={addCat} addLabel="Categoría" onClearAll={async function(){if(categorias_apu.length===0)return;var used=[];var apusA=data.apus||[];categorias_apu.forEach(function(c){var cnt=0;for(var a=0;a<apusA.length;a++){if(apusA[a].categoria===c.categoria)cnt++}if(cnt>0)used.push(c.categoria+' ('+cnt+')')});if(used.length>0){setClearConfirm({msg:'Categorías en uso que se mantendrán: '+used.join(', ')+'. Los demás serán eliminados.',onConfirm:function(){updCl('categorias_apu',[])}});return}if(!(await askConfirm('¿Desea eliminar todas las categorías APU? Esta acción no se puede deshacer.')))return;updCl('categorias_apu',[])}} clearLabel="Borrar" excel={catApuExcel} exportLabel="Exportar" countLabel="Categorías:" count={categorias_apu.length}/></div>
 
         {catDelErr&&<div style={{padding:'6px 10px',fontSize:11,color:'#f87171',background:'rgba(248,113,113,0.08)',borderTop:'1px solid rgba(248,113,113,0.2)',borderRadius:'0 0 4px 4px',display:'flex',alignItems:'center',justifyContent:'space-between',width:800}}><span>{catDelErr}</span><button onClick={function(){setCatDelErr('')}} style={{background:'none',border:'none',color:'#f87171',cursor:'pointer',fontSize:14,lineHeight:1,padding:'0 4px'}} title="Cerrar">✕</button></div>}
 
@@ -4015,7 +4059,7 @@ var SUBS=[
 
   function addCatIns(){updCl('categorias_insumo',categorias_insumoArr.concat([{codigo:genCatInsCode(),nombre:'Nueva Categoría',desc:''}]))}
 
-  function delCatIns(i){
+  async function delCatIns(i){
 
     var c=categorias_insumoArr[i];
 
@@ -4025,7 +4069,7 @@ var SUBS=[
 
     setCatDelErr('');
 
-    if(!confirm('Eliminar "'+c.nombre+'"?'))return;
+    if(!(await askConfirm('¿Desea eliminar "'+c.nombre+'"? Esta acción no se puede deshacer.')))return;
 
     updCl('categorias_insumo',categorias_insumoArr.filter(function(_,j){return j!==i}))
 
@@ -4127,7 +4171,7 @@ var SUBS=[
 
         </div>
 
-        <CrudFooter onAdd={addCatIns} addLabel="Categoría" onClearAll={function(){if(categorias_insumoArr.length===0)return;var used=[];var ins=data.insumos||[];categorias_insumoArr.forEach(function(c){var cnt=0;for(var i=0;i<ins.length;i++){if(ins[i].categoria===c.nombre)cnt++}if(cnt>0)used.push(c.nombre+' ('+cnt+')')});if(used.length>0){setClearConfirm({msg:'Categorías en uso que se mantendrán: '+used.join(', ')+'. Los demás serán eliminados.',onConfirm:function(){updCl('categorias_insumo',[])}});return}if(!confirm('Eliminar todas las categorías de insumo?'))return;updCl('categorias_insumo',[])}} clearLabel="Borrar" excel={catInsExcel} exportLabel="Exportar" countLabel="Categorías:" count={categorias_insumoArr.length}/>
+        <CrudFooter onAdd={addCatIns} addLabel="Categoría" onClearAll={async function(){if(categorias_insumoArr.length===0)return;var used=[];var ins=data.insumos||[];categorias_insumoArr.forEach(function(c){var cnt=0;for(var i=0;i<ins.length;i++){if(ins[i].categoria===c.nombre)cnt++}if(cnt>0)used.push(c.nombre+' ('+cnt+')')});if(used.length>0){setClearConfirm({msg:'Categorías en uso que se mantendrán: '+used.join(', ')+'. Los demás serán eliminados.',onConfirm:function(){updCl('categorias_insumo',[])}});return}if(!(await askConfirm('¿Desea eliminar todas las categorías de insumo? Esta acción no se puede deshacer.')))return;updCl('categorias_insumo',[])}} clearLabel="Borrar" excel={catInsExcel} exportLabel="Exportar" countLabel="Categorías:" count={categorias_insumoArr.length}/>
 
         {catDelErr&&<div style={{padding:'6px 10px',fontSize:11,color:'#f87171',background:'rgba(248,113,113,0.08)',borderTop:'1px solid rgba(248,113,113,0.2)',borderRadius:'0 0 4px 4px',display:'flex',alignItems:'center',justifyContent:'space-between',width:800}}><span>{catDelErr}</span><button onClick={function(){setCatDelErr('')}} style={{background:'none',border:'none',color:'#f87171',cursor:'pointer',fontSize:14,lineHeight:1,padding:'0 4px'}} title="Cerrar">✕</button></div>}
 
@@ -4169,7 +4213,7 @@ var SUBS=[
 
     if(isUnidades){
 
-      function clearAllUnid(){
+      async function clearAllUnid(){
 
         if(items.length===0)return;
 
@@ -4209,7 +4253,7 @@ var SUBS=[
 
         }
 
-        if(!confirm('Eliminar todas las unidades?'))return;
+        if(!(await askConfirm('¿Desea eliminar todas las unidades? Esta acción no se puede deshacer.')))return;
 
         updCl('unidades',[]);
 
@@ -4407,7 +4451,7 @@ var SUBS=[
 
         </div>
 
-        <CrudFooter onAdd={function(){updCl(sub,items.concat(['Nuevo']))}} addLabel="Unidad de Transporte" onClearAll={function(){if(items.length===0)return;var totalRef=0;var usedNames=[];items.forEach(function(v){var ref=checkRef(sub,v);if(ref){totalRef++;usedNames.push(v)}});if(totalRef>0){setClearConfirm({msg:'Hay '+totalRef+' referencia(s) en uso que se mantendrán ('+usedNames.join(', ')+'). Los demás serán eliminados.',onConfirm:function(){updCl(sub,[])}});return}if(!confirm('Eliminar todos los elementos?'))return;updCl(sub,[])}} clearLabel="Borrar" countLabel="Total:" count={items.length}/>
+        <CrudFooter onAdd={function(){updCl(sub,items.concat(['Nuevo']))}} addLabel="Unidad de Transporte" onClearAll={async function(){if(items.length===0)return;var totalRef=0;var usedNames=[];items.forEach(function(v){var ref=checkRef(sub,v);if(ref){totalRef++;usedNames.push(v)}});if(totalRef>0){setClearConfirm({msg:'Hay '+totalRef+' referencia(s) en uso que se mantendrán ('+usedNames.join(', ')+'). Los demás serán eliminados.',onConfirm:function(){updCl(sub,[])}});return}if(!(await askConfirm('¿Desea eliminar todos los elementos? Esta acción no se puede deshacer.')))return;updCl(sub,[])}} clearLabel="Borrar" countLabel="Total:" count={items.length}/>
 
         {delErr&&<div style={{padding:'6px 10px',fontSize:11,color:'#f87171',background:'rgba(248,113,113,0.08)',borderTop:'1px solid rgba(248,113,113,0.2)',borderRadius:'0 0 4px 4px',display:'flex',alignItems:'center',justifyContent:'space-between'}}><span>{delErr}</span><button onClick={function(){setDelErr('')}} style={{background:'none',border:'none',color:'#f87171',cursor:'pointer',fontSize:14,lineHeight:1,padding:'0 4px'}} title="Cerrar">✕</button></div>}
 
@@ -4577,7 +4621,7 @@ var SUBS=[
 
         </div>
 
-        <CrudFooter onAdd={function(){var arr=tiposEquipoArr.concat([{codigo:genTECode(),nombre:'Nuevo Tipo',desc:''}]);updCl('tipos_equipo',arr);setEditUnidIdx(arr.length-1)}} addLabel="Tipo" onClearAll={function(){if(tiposEquipoArr.length===0)return;var used=[];var eqs=data.equipos||[];tiposEquipoArr.forEach(function(t){var cnt=0;for(var j=0;j<eqs.length;j++){if(eqs[j].tipo===t.nombre)cnt++}if(cnt>0)used.push(t.nombre+' ('+cnt+')')});if(used.length>0){setClearConfirm({msg:'Tipos en uso que se mantendrán: '+used.join(', ')+'. Los demás serán eliminados.',onConfirm:function(){updCl('tipos_equipo',[])}});return}if(!confirm('Eliminar todos los tipos de equipo?'))return;updCl('tipos_equipo',[])}} clearLabel="Borrar" excel={tipoEqExcel} exportLabel="Exportar" countLabel="Tipos:" count={tiposEquipoArr.length}/>
+        <CrudFooter onAdd={function(){var arr=tiposEquipoArr.concat([{codigo:genTECode(),nombre:'Nuevo Tipo',desc:''}]);updCl('tipos_equipo',arr);setEditUnidIdx(arr.length-1)}} addLabel="Tipo" onClearAll={async function(){if(tiposEquipoArr.length===0)return;var used=[];var eqs=data.equipos||[];tiposEquipoArr.forEach(function(t){var cnt=0;for(var j=0;j<eqs.length;j++){if(eqs[j].tipo===t.nombre)cnt++}if(cnt>0)used.push(t.nombre+' ('+cnt+')')});if(used.length>0){setClearConfirm({msg:'Tipos en uso que se mantendrán: '+used.join(', ')+'. Los demás serán eliminados.',onConfirm:function(){updCl('tipos_equipo',[])}});return}if(!(await askConfirm('¿Desea eliminar todos los tipos de equipo? Esta acción no se puede deshacer.')))return;updCl('tipos_equipo',[])}} clearLabel="Borrar" excel={tipoEqExcel} exportLabel="Exportar" countLabel="Tipos:" count={tiposEquipoArr.length}/>
 
         {delErr&&<div style={{padding:'6px 10px',fontSize:11,color:'#f87171',background:'rgba(248,113,113,0.08)',borderTop:'1px solid rgba(248,113,113,0.2)',borderRadius:'0 0 4px 4px',display:'flex',alignItems:'center',justifyContent:'space-between'}}><span>{delErr}</span><button onClick={function(){setDelErr('')}} style={{background:'none',border:'none',color:'#f87171',cursor:'pointer',fontSize:14,lineHeight:1,padding:'0 4px'}} title="Cerrar">✕</button></div>}
 
@@ -4693,7 +4737,7 @@ var SUBS=[
 
         </div>
 
-        <CrudFooter onAdd={function(){var arr=origenesArr.concat([{codigo:genOrigenCode(),nombre:'Nuevo Origen',desc:''}]);updCl('origenes',arr);setEditUnidIdx(arr.length-1)}} addLabel="Origen" onClearAll={function(){if(origenesArr.length===0)return;var used=[];var ins=data.insumos||[];origenesArr.forEach(function(o){var cnt=0;for(var i=0;i<ins.length;i++){if(ins[i].origen===o.nombre)cnt++}if(cnt>0)used.push(o.nombre+' ('+cnt+')')});if(used.length>0){setClearConfirm({msg:'Orígenes en uso que se mantendrán: '+used.join(', ')+'. Los demás serán eliminados.',onConfirm:function(){updCl('origenes',[])}});return}if(!confirm('Eliminar todos los orígenes?'))return;updCl('origenes',[])}} clearLabel="Borrar" excel={origenExcel} exportLabel="Exportar" countLabel="Orígenes:" count={origenesArr.length}/>
+        <CrudFooter onAdd={function(){var arr=origenesArr.concat([{codigo:genOrigenCode(),nombre:'Nuevo Origen',desc:''}]);updCl('origenes',arr);setEditUnidIdx(arr.length-1)}} addLabel="Origen" onClearAll={async function(){if(origenesArr.length===0)return;var used=[];var ins=data.insumos||[];origenesArr.forEach(function(o){var cnt=0;for(var i=0;i<ins.length;i++){if(ins[i].origen===o.nombre)cnt++}if(cnt>0)used.push(o.nombre+' ('+cnt+')')});if(used.length>0){setClearConfirm({msg:'Orígenes en uso que se mantendrán: '+used.join(', ')+'. Los demás serán eliminados.',onConfirm:function(){updCl('origenes',[])}});return}if(!(await askConfirm('¿Desea eliminar todos los orígenes? Esta acción no se puede deshacer.')))return;updCl('origenes',[])}} clearLabel="Borrar" excel={origenExcel} exportLabel="Exportar" countLabel="Orígenes:" count={origenesArr.length}/>
 
         {delErr&&<div style={{padding:'6px 10px',fontSize:11,color:'#f87171',background:'rgba(248,113,113,0.08)',borderTop:'1px solid rgba(248,113,113,0.2)',borderRadius:'0 0 4px 4px',display:'flex',alignItems:'center',justifyContent:'space-between'}}><span>{delErr}</span><button onClick={function(){setDelErr('')}} style={{background:'none',border:'none',color:'#f87171',cursor:'pointer',fontSize:14,lineHeight:1,padding:'0 4px'}} title="Cerrar">✕</button></div>}
 
@@ -4809,7 +4853,7 @@ var SUBS=[
 
         </div>
 
-        <CrudFooter onAdd={function(){var arr=transpUnArr.concat([{codigo:genUTCode(),nombre:'Nueva Unidad',desc:''}]);updCl('unidades_transporte',arr);setEditUnidIdx(arr.length-1)}} addLabel="Unidad" onClearAll={function(){if(transpUnArr.length===0)return;var used=[];var apusA=data.apus||[];transpUnArr.forEach(function(u){var cnt=0;for(var a=0;a<apusA.length;a++){(apusA[a].recursos_transporte||[]).forEach(function(r){if(r.unidad===u.nombre)cnt++})}if(cnt>0)used.push(u.nombre+' ('+cnt+')')});if(used.length>0){setClearConfirm({msg:'Unidades en uso que se mantendrán: '+used.join(', ')+'. Los demás serán eliminados.',onConfirm:function(){updCl('unidades_transporte',[])}});return}if(!confirm('Eliminar todas las unidades de transporte?'))return;updCl('unidades_transporte',[])}} clearLabel="Borrar" excel={transpUnExcel} exportLabel="Exportar" countLabel="Unidades:" count={transpUnArr.length}/>
+        <CrudFooter onAdd={function(){var arr=transpUnArr.concat([{codigo:genUTCode(),nombre:'Nueva Unidad',desc:''}]);updCl('unidades_transporte',arr);setEditUnidIdx(arr.length-1)}} addLabel="Unidad" onClearAll={async function(){if(transpUnArr.length===0)return;var used=[];var apusA=data.apus||[];transpUnArr.forEach(function(u){var cnt=0;for(var a=0;a<apusA.length;a++){(apusA[a].recursos_transporte||[]).forEach(function(r){if(r.unidad===u.nombre)cnt++})}if(cnt>0)used.push(u.nombre+' ('+cnt+')')});if(used.length>0){setClearConfirm({msg:'Unidades en uso que se mantendrán: '+used.join(', ')+'. Los demás serán eliminados.',onConfirm:function(){updCl('unidades_transporte',[])}});return}if(!(await askConfirm('¿Desea eliminar todas las unidades de transporte? Esta acción no se puede deshacer.')))return;updCl('unidades_transporte',[])}} clearLabel="Borrar" excel={transpUnExcel} exportLabel="Exportar" countLabel="Unidades:" count={transpUnArr.length}/>
 
         <ExcelPreviewModal excel={transpUnExcel}/>
 
@@ -4869,7 +4913,7 @@ var SUBS=[
 
   function renderPerfilPais(){
 
-    function delPerfilPais(i){
+    async function delPerfilPais(i){
 
       var p=perfilesPaisArr[i];
 
@@ -4877,7 +4921,7 @@ var SUBS=[
 
       if(p.codigo===config.pais){setPerfilPaisErr('No se puede eliminar el país activo del proyecto');return}
 
-      if(!confirm('Eliminar el perfil de '+p.nombre+' ('+p.codigo+')?'))return;
+      if(!(await askConfirm('¿Desea eliminar "'+p.nombre+' ('+p.codigo+')"? Esta acción no se puede deshacer.')))return;
 
       var arr=perfilesPaisArr.filter(function(_,j){return j!==i});
 
@@ -5025,7 +5069,7 @@ var SUBS=[
 
           </div>
 
-          <div style={{width:720}}><CrudFooter onAdd={null} addLabel="" onClearAll={function(){if(perfilesPaisArr.length===0)return;var used=[];var activePais=config.pais;perfilesPaisArr.forEach(function(p){if(p.codigo===activePais)used.push(p.nombre)});if(used.length>0){setClearConfirm({msg:'El país activo ('+used.join(', ')+') se restaurará con los valores por defecto. Los demás se eliminarán.',onConfirm:function(){var defMap={};Object.keys(PAISES).forEach(function(k){var pp=PAISES[k];defMap[k]={codigo:k,nombre:pp.nombre,moneda:pp.moneda,smmlv:pp.smmlv,tope_ibc_mult:pp.tope_ibc_mult||0,auxilio_transporte:pp.auxilio_transporte||0,dias_mes:pp.dias_mes||30,horas_mes:pp.horas_mes||240,unidad:pp.unidad||'mes'}});var arr=[defMap[activePais]||defMap.CO];onChange(Object.assign({},data,{config_listas:Object.assign({},cl,{perfiles_pais:arr})}))}});return}if(!confirm('Restaurar todos los perfiles de país a los valores por defecto?'))return;var defArr=Object.keys(PAISES).map(function(k){var pp=PAISES[k];return{codigo:k,nombre:pp.nombre,moneda:pp.moneda,smmlv:pp.smmlv,tope_ibc_mult:pp.tope_ibc_mult||0,auxilio_transporte:pp.auxilio_transporte||0,dias_mes:pp.dias_mes||30,horas_mes:pp.horas_mes||240,unidad:pp.unidad||'mes'}});onChange(Object.assign({},data,{config_listas:Object.assign({},cl,{perfiles_pais:defArr})}))}} clearLabel="Borrar" excel={perfilPaisExcel} exportLabel="Exportar" countLabel="Países:" count={perfilesPaisArr.length}/></div>
+          <div style={{width:720}}><CrudFooter onAdd={null} addLabel="" onClearAll={async function(){if(perfilesPaisArr.length===0)return;var used=[];var activePais=config.pais;perfilesPaisArr.forEach(function(p){if(p.codigo===activePais)used.push(p.nombre)});if(used.length>0){setClearConfirm({msg:'El país activo ('+used.join(', ')+') se restaurará con los valores por defecto. Los demás se eliminarán.',onConfirm:function(){var defMap={};Object.keys(PAISES).forEach(function(k){var pp=PAISES[k];defMap[k]={codigo:k,nombre:pp.nombre,moneda:pp.moneda,smmlv:pp.smmlv,tope_ibc_mult:pp.tope_ibc_mult||0,auxilio_transporte:pp.auxilio_transporte||0,dias_mes:pp.dias_mes||30,horas_mes:pp.horas_mes||240,unidad:pp.unidad||'mes'}});var arr=[defMap[activePais]||defMap.CO];onChange(Object.assign({},data,{config_listas:Object.assign({},cl,{perfiles_pais:arr})}))}});return}if(!(await askConfirm('¿Desea restaurar todos los perfiles de país a los valores por defecto? Esta acción no se puede deshacer.')))return;var defArr=Object.keys(PAISES).map(function(k){var pp=PAISES[k];return{codigo:k,nombre:pp.nombre,moneda:pp.moneda,smmlv:pp.smmlv,tope_ibc_mult:pp.tope_ibc_mult||0,auxilio_transporte:pp.auxilio_transporte||0,dias_mes:pp.dias_mes||30,horas_mes:pp.horas_mes||240,unidad:pp.unidad||'mes'}});onChange(Object.assign({},data,{config_listas:Object.assign({},cl,{perfiles_pais:defArr})}))}} clearLabel="Borrar" excel={perfilPaisExcel} exportLabel="Exportar" countLabel="Países:" count={perfilesPaisArr.length}/></div>
 
           <ExcelPreviewModal excel={perfilPaisExcel}/>
 
@@ -5616,8 +5660,8 @@ function PresItemsPanel({pres,presupuestos,selPresIdx,data,onChange,apuModal,set
     var n=presupuestos.slice();n[selPresIdx]=Object.assign({},n[selPresIdx],{items:arr});
     onChange(Object.assign({},data,{presupuestos:n}));
   };
-  var delItem=function(i){
-    if(readOnly)return;if(!confirm('Eliminar item?'))return;
+  var delItem=async function(i){
+    if(readOnly)return;if(!(await askConfirm('¿Desea eliminar "'+(pres.items[i].descripcion||'este ítem')+'"? Esta acción no se puede deshacer.')))return;
     var arr=pres.items.filter(function(_,j){return j!==i});
     var n=presupuestos.slice();n[selPresIdx]=Object.assign({},n[selPresIdx],{items:arr});
     onChange(Object.assign({},data,{presupuestos:n}));
@@ -5656,8 +5700,8 @@ function PresItemsPanel({pres,presupuestos,selPresIdx,data,onChange,apuModal,set
     closeApuModal();
     showToast('APU asignado',{type:'ok',dur:2000});
   };
-  var unassignApu=function(i){
-    if(readOnly)return;if(!confirm('Quitar APU?'))return;
+  var unassignApu=async function(i){
+    if(readOnly)return;if(!(await askConfirm('¿Desea quitar el APU asignado a este ítem? Esta acción no se puede deshacer.')))return;
     var arr=pres.items.slice();arr[i]=Object.assign({},arr[i],{apu_id:null,tiene_apu:false});
     var n=presupuestos.slice();n[selPresIdx]=Object.assign({},n[selPresIdx],{items:arr});
     onChange(Object.assign({},data,{presupuestos:n}));
@@ -6070,9 +6114,9 @@ function PresupuestosTab({data,onChange,cargosCalc,esHora,eqMap,insMap,factorPre
     showToast('Presupuesto '+nuevo.codigo+' creado',{type:'ok',dur:2000});
   }
 
-  function delPresupuesto(idx){
+  async function delPresupuesto(idx){
     if(idx===null||idx===undefined||!presupuestos[idx])return;
-    if(!confirm('Eliminar el presupuesto "'+(presupuestos[idx].nombre||presupuestos[idx].codigo)+'"? Esta accion no se puede deshacer.'))return;
+    if(!(await askConfirm('¿Desea eliminar el presupuesto "'+(presupuestos[idx].nombre||presupuestos[idx].codigo)+'"? Esta acción no se puede deshacer.')))return;
     var arr=presupuestos.filter(function(_,i){return i!==idx});
     onChange(Object.assign({},data,{presupuestos:arr}));
     setSelPresIdx(null);
@@ -6389,6 +6433,8 @@ var factorPrest=useMemo(function(){return r2(factoresPrestaciones.reduce(functio
       </div>
 
       <Toast/>
+
+      <ConfirmDialog/>
 
     </React.Fragment>
 

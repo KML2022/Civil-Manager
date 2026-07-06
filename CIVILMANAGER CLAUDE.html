@@ -5637,9 +5637,14 @@ function PresProyectosPanel({presupuestos,selPresIdx,setSelPresIdx,data,onChange
   });
   var filteredPresupuestos=flatPresupuestos.map(function(row){return row.pres});
 
-  var presupuestosExcel=useExcelImportExport({items:presupuestos,data:data,onChange:onChange,dataKey:'presupuestos',prefix:'PPT',title:'CATALOGO DE PROYECTOS',sheetName:'Proyectos',filename:'proyectos.xlsx',headers:['Codigo','Nombre','Fecha de Creacion','Estado','Responsable','Cliente','Con Sub Proyectos','Tipo de Proyecto','Observaciones'],colWidths:[{wch:10},{wch:26},{wch:14},{wch:12},{wch:18},{wch:18},{wch:14},{wch:18},{wch:30}],mapRow:function(p){return[p.codigo||'',p.nombre||'',p.fecha_creacion||'',p.estado||'borrador',p.elaborado_por||'',p.entidad||'',p.con_sub_proyectos?'Si':'No',p.tipo_proyecto||'',p.observaciones||'']},parseRow:function(r){return[String(r[0]||'').trim(),String(r[1]||'').trim(),String(r[2]||'').trim(),String(r[3]||'borrador').trim(),String(r[4]||'').trim(),String(r[5]||'').trim(),String(r[6]||'No').trim(),String(r[7]||'').trim(),String(r[8]||'').trim()]},buildItem:function(r,idx,existing,genCode){
-    var base=idx>=0?existing[idx]:{id:uid(),fecha_cierre:null,items:[],aiu_override:{activo:false,pct_a:0,pct_i:0,pct_u:0,iva_pct:19},factores_snap:(data.factoresPrestaciones||[]).map(function(f){return Object.assign({},f)}),cargos_snap:(data.cargos||[]).map(function(c){return Object.assign({},c)}),activo:false,contrato:'',objeto:'',plazo:0,ciudad:'',departamento:''};
-    return Object.assign({},base,{codigo:idx>=0?existing[idx].codigo:(r[0]||genCode()),nombre:r[1]||'',fecha_creacion:r[2]||base.fecha_creacion||new Date().toISOString().slice(0,10),estado:r[3]||'borrador',elaborado_por:r[4]||'',entidad:r[5]||'',con_sub_proyectos:(r[6]||'').toLowerCase()==='si',tipo_proyecto:r[7]||'',observaciones:r[8]||''});
+  var presupuestosExcel=useExcelImportExport({items:presupuestos,data:data,onChange:onChange,dataKey:'presupuestos',prefix:'PPT',title:'CATALOGO DE PROYECTOS',sheetName:'Proyectos',filename:'proyectos.xlsx',headers:['Codigo','Nombre','Fecha de Creacion','Estado','Responsable','Cliente','Con Sub Proyectos','Tipo de Proyecto','Observaciones','Codigo Proyecto Padre'],colWidths:[{wch:10},{wch:26},{wch:14},{wch:12},{wch:18},{wch:18},{wch:14},{wch:18},{wch:30},{wch:18}],mapRow:function(p){
+    var padre=p.parent_id?presupuestos.find(function(x){return x.id===p.parent_id}):null;
+    return[p.codigo||'',p.nombre||'',p.fecha_creacion||'',p.estado||'borrador',p.elaborado_por||'',p.entidad||'',p.con_sub_proyectos?'Si':'No',p.tipo_proyecto||'',p.observaciones||'',padre?padre.codigo:''];
+  },parseRow:function(r){return[String(r[0]||'').trim(),String(r[1]||'').trim(),String(r[2]||'').trim(),String(r[3]||'borrador').trim(),String(r[4]||'').trim(),String(r[5]||'').trim(),String(r[6]||'No').trim(),String(r[7]||'').trim(),String(r[8]||'').trim(),String(r[9]||'').trim()]},buildItem:function(r,idx,existing,genCode){
+    var base=idx>=0?existing[idx]:{id:uid(),fecha_cierre:null,items:[],aiu_override:{activo:false,pct_a:0,pct_i:0,pct_u:0,iva_pct:19},factores_snap:(data.factoresPrestaciones||[]).map(function(f){return Object.assign({},f)}),cargos_snap:(data.cargos||[]).map(function(c){return Object.assign({},c)}),activo:false,contrato:'',objeto:'',plazo:0,ciudad:'',departamento:'',parent_id:null};
+    var codigoPadre=String(r[9]||'').trim();
+    var padreObj=codigoPadre?existing.find(function(e){return(e.codigo||'').toLowerCase()===codigoPadre.toLowerCase()}):null;
+    return Object.assign({},base,{codigo:idx>=0?existing[idx].codigo:(r[0]||genCode()),nombre:r[1]||'',fecha_creacion:r[2]||base.fecha_creacion||new Date().toISOString().slice(0,10),estado:r[3]||'borrador',elaborado_por:r[4]||'',entidad:r[5]||'',con_sub_proyectos:(r[6]||'').toLowerCase()==='si',tipo_proyecto:r[7]||'',observaciones:r[8]||'',parent_id:codigoPadre?(padreObj?padreObj.id:base.parent_id||null):null});
   },matchKey:'codigo'});
 
   return(
@@ -5827,6 +5832,19 @@ function PresItemsPanel({pres,presupuestos,selPresIdx,data,onChange,apuModal,set
               {itemsArr.map(function(it,i){
                 var c=calcItemVal(it);
                 var apu=c.apu;
+                var esCap=esCapituloFinal(it);
+                if(esCap)return(
+                  <tr key={it.id} style={{background:'#1E3A5F'}}>
+                    <td style={{textAlign:'center',color:'#fff'}}>{i+1}</td>
+                    <td style={{color:'#fff',fontWeight:700}}>{readOnly?it.num_item:<input className="ni" value={it.num_item} onChange={function(e){updItem(i,'num_item',e.target.value)}} style={{width:'100%',fontSize:10,background:'transparent',color:'#fff',fontWeight:700}}/>}</td>
+                    <td/>
+                    <td style={{color:'#fff',fontWeight:700}} colSpan={2}>{readOnly?it.descripcion:<input className="ni" value={it.descripcion} onChange={function(e){updItem(i,'descripcion',e.target.value)}} style={{width:'100%',fontSize:10,background:'transparent',color:'#fff',fontWeight:700}} placeholder="Descripcion"/>}</td>
+                    <td style={{textAlign:'center'}}><span style={{fontSize:9,padding:'1px 6px',border:'1px solid #fff',borderRadius:3,color:'#fff'}}>Capítulo</span></td>
+                    <td style={{textAlign:'right',color:'#fff'}}>-</td>
+                    <td style={{textAlign:'right',color:'#fff'}}>-</td>
+                    <td className="col-act" style={{textAlign:'center'}}>{!readOnly&&<button className="btn-del" onClick={function(){delItem(i)}} title="Eliminar" style={{background:'none',border:'none',cursor:'pointer',padding:0}}><IconDel/></button>}</td>
+                  </tr>
+                );
                 return(
                   <tr key={it.id}>
                     <td style={{textAlign:'center',color:'var(--tx3)'}}>{i+1}</td>

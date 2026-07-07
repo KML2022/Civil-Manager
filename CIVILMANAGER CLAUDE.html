@@ -6619,7 +6619,8 @@ function PresupuestosTab({data,onChange,cargosCalc,esHora,eqMap,insMap,factorPre
       estado:'borrador',fecha_cierre:null,items:[],
       aiu_override:{activo:false,pct_a:0,pct_i:0,pct_u:0,iva_pct:19},
       factores_snap:(data.factoresPrestaciones||[]).map(function(f){return Object.assign({},f)}),
-      cargos_snap:(data.cargos||[]).map(function(c){return Object.assign({},c)})
+      cargos_snap:(data.cargos||[]).map(function(c){return Object.assign({},c)}),
+      apus_snap:[]
     };
     var n=presupuestos.concat([nuevo]);
     onChange(Object.assign({},data,{presupuestos:n}));
@@ -6638,7 +6639,8 @@ function PresupuestosTab({data,onChange,cargosCalc,esHora,eqMap,insMap,factorPre
       estado:'borrador',fecha_cierre:null,items:[],
       aiu_override:{activo:false,pct_a:0,pct_i:0,pct_u:0,iva_pct:19},
       factores_snap:(data.factoresPrestaciones||[]).map(function(f){return Object.assign({},f)}),
-      cargos_snap:(data.cargos||[]).map(function(c){return Object.assign({},c)})
+      cargos_snap:(data.cargos||[]).map(function(c){return Object.assign({},c)}),
+      apus_snap:[]
     };
     var n=presupuestos.concat([nuevo]);
     onChange(Object.assign({},data,{presupuestos:n}));
@@ -6829,7 +6831,7 @@ function App(){
 
     {label:'APUs',sub:[{l:'Catálogo APU',i:6}]},
 
-    {label:'Presupuestos',sub:[{l:'Proyectos',i:9},{l:'Items',i:11},{l:'Resumen',i:12},{l:'Entregables',i:13}]},
+    {label:'Presupuestos',sub:[{l:'Proyectos',i:9},{l:'Formulario',i:10},{l:'Items',i:11},{l:'Resumen',i:12},{l:'Entregables',i:13}]},
 
     {label:'Programación',sub:[]},
 
@@ -6972,7 +6974,10 @@ var factorPrest=useMemo(function(){return r2(factoresPrestaciones.reduce(functio
             4:['M1 3h15v13H1z','M16 8h4l3 3v5h-7V8z','M5.5 18.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z','M18.5 18.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z'],
 
 6:['M9 3H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2h-5','M9 3V1h6v2','M9 12h6'],
-            8:['M12 15v2m-6 4h12a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2zm10-10V7a4 4 0 0 0-8 0v4h8z'], 9:['M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-6l-2-2H5a2 2 0 0 0-2 2z'], 11:[ 'M22 12A10 10 0 0 0 12 2v10z' ], 12:['M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z','M14 2v6h6','M16 13H8','M16 17H8','M10 9H8']
+            8:['M12 15v2m-6 4h12a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2zm10-10V7a4 4 0 0 0-8 0v4h8z'], 9:['M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-6l-2-2H5a2 2 0 0 0-2 2z'],
+            10:['M16 4h2a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2H6a2 2 0 0 0-2-2V6a2 2 0 0 0-2-2h2','M9 2h6a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z','M9 12h6','M9 16h6'],
+            11:[ 'M22 12A10 10 0 0 0 12 2v10z' ], 12:['M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z','M14 2v6h6','M16 13H8','M16 17H8','M10 9H8'],
+            13:['M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z','M14 2v6h6','M9 15l2 2 4-4']
           };
 
           var paths=subPaths[st.i]||subPaths[0];

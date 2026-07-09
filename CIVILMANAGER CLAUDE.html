@@ -6980,7 +6980,7 @@ function App(){
 
     {label:'APUs',sub:[{l:'Catálogo APU',i:6}]},
 
-    {label:'Presupuestos',sub:[{l:'Proyectos',i:9},{l:'Formulario',i:10},{l:'Items',i:11},{l:'Resumen',i:12},{l:'Entregables',i:13}]},
+    {label:'Presupuestos',sub:[],defaultTab:9},
 
     {label:'Programación',sub:[]},
 
@@ -7062,7 +7062,7 @@ var factorPrest=useMemo(function(){return r2(factoresPrestaciones.reduce(functio
 
   var switchTab=useCallback(function(i){setTab(i)},[]);
 
-  var switchSection=useCallback(function(i){setMainSection(i);if(SECTIONS[i]&&SECTIONS[i].sub.length>0){setTab(SECTIONS[i].sub[0].i)}},[]);
+  var switchSection=useCallback(function(i){setMainSection(i);if(SECTIONS[i]&&SECTIONS[i].sub.length>0){setTab(SECTIONS[i].sub[0].i)}else if(SECTIONS[i]&&SECTIONS[i].defaultTab!==undefined){setTab(SECTIONS[i].defaultTab)}},[]);
 
   var isFuture=mainSection>=3;
 

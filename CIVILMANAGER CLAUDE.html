@@ -5729,7 +5729,7 @@ function PresProyectosPanel({presupuestos,selPresIdx,setSelPresIdx,data,onChange
                         {isEdit?<input className="ni" value={p.nombre} onChange={function(e){updField(i,'nombre',e.target.value)}} autoFocus/>:<span style={{padding:'0 6px',fontWeight:esPrincipal?700:400}}>{p.nombre||'—'}</span>}
                       </span>
                     </td>
-                    <td style={{textAlign:'center',fontSize:10}}>{p.fecha_creacion||'—'}</td>
+                    <td style={{textAlign:'center',fontSize:10}}>{fmtDate(p.fecha_creacion)}</td>
                     <td style={{textAlign:'center'}}><span onClick={function(){toggleEstado(i)}} style={{cursor:'pointer',fontSize:9,padding:'1px 6px',borderRadius:3,border:'1px solid '+estadoColor(p.estado),color:estadoColor(p.estado),fontWeight:600}}>{estadoLabel(p.estado)}</span></td>
                     <td>{isEdit?<input className="ni" value={p.elaborado_por||''} onChange={function(e){updField(i,'elaborado_por',e.target.value)}}/>:<span style={{padding:'0 6px'}}>{p.elaborado_por||'—'}</span>}</td>
                     <td>{isEdit?<input className="ni" value={p.entidad||''} onChange={function(e){updField(i,'entidad',e.target.value)}}/>:<span style={{padding:'0 6px'}}>{p.entidad||'—'}</span>}</td>
@@ -5746,7 +5746,7 @@ function PresProyectosPanel({presupuestos,selPresIdx,setSelPresIdx,data,onChange
                           </svg>
                         </button>
                         {esPrincipal?<button onClick={function(){abrirProyecto(i)}} title="Proyecto principal: no tiene items propios, ir a Entregables para exportar el consolidado" style={{background:'none',border:'none',cursor:'pointer',padding:0,color:'var(--ac)',fontSize:13}}>{'→'}</button>:<button onClick={function(){abrirItems(i)}} title="Ir a Items" style={{background:'none',border:'none',cursor:'pointer',padding:0,color:'var(--ac)',fontSize:13}}>{'→'}</button>}
-                        {p.con_sub_proyectos&&!esSub&&<button onClick={function(){addSubProyecto(i)}} title="Agregar sub-proyecto" style={{background:'none',border:'none',cursor:'pointer',padding:0,color:'var(--ac)',fontSize:13,fontWeight:700}}>{'+'}</button>}
+                        {p.con_sub_proyectos&&!esSub&&<button onClick={function(){setEditIdx(presupuestos.length);addSubProyecto(i)}} title="Agregar sub-proyecto" style={{background:'none',border:'none',cursor:'pointer',padding:0,color:'var(--ac)',fontSize:13,fontWeight:700}}>{'+'}</button>}
                         <button className="btn-del" title="Eliminar" onClick={function(){delPresupuesto(i)}} style={{background:'none',border:'none',cursor:'pointer',padding:0}}><IconDel/></button>
                       </span>
                     </td>
@@ -5756,7 +5756,7 @@ function PresProyectosPanel({presupuestos,selPresIdx,setSelPresIdx,data,onChange
             </tbody>
           </table>
         </div>
-        <CrudFooter onAdd={addPresupuesto} addLabel="Nuevo Proyecto" excel={presupuestosExcel} exportLabel="Exportar" countLabel="No. de Proyectos:" count={filteredPresupuestos.length}>
+        <CrudFooter onAdd={function(){setEditIdx(presupuestos.length);addPresupuesto()}} addLabel="Nuevo Proyecto" excel={presupuestosExcel} exportLabel="Exportar" countLabel="No. de Proyectos:" count={filteredPresupuestos.length}>
           <input className="ni" style={{width:130,height:22,fontSize:11,border:'1px solid var(--ac)',borderRadius:4}} placeholder="Buscar por Cliente..." value={searchCliente} onChange={function(e){setSearchCliente(e.target.value)}}/>
           <input className="ni" style={{width:130,height:22,fontSize:11,border:'1px solid var(--ac)',borderRadius:4}} placeholder="Buscar por Tipo de Proyecto..." value={searchTipo} onChange={function(e){setSearchTipo(e.target.value)}}/>
         </CrudFooter>

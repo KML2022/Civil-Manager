@@ -5636,9 +5636,6 @@ function PresProyectosPanel({presupuestos,selPresIdx,setSelPresIdx,data,onChange
   var searchTipoState=useState('');
   var searchTipo=searchTipoState[0];
   var setSearchTipo=searchTipoState[1];
-  var editInfoIdxState=useState(null);
-  var editInfoIdx=editInfoIdxState[0];
-  var setEditInfoIdx=editInfoIdxState[1];
 
   var updField=function(idx,key,val){
     var n=presupuestos.slice();n[idx]=Object.assign({},n[idx],{[key]:val});
@@ -5648,12 +5645,6 @@ function PresProyectosPanel({presupuestos,selPresIdx,setSelPresIdx,data,onChange
     var n=presupuestos.map(function(p,i){return Object.assign({},p,{activo:i===idx})});
     onChange(Object.assign({},data,{presupuestos:n}));
   };
-  var abrirItems=function(idx){setSelPresIdx(idx);setTab(11)};
-  var abrirProyecto=function(idx){
-    setSelPresIdx(idx);
-    setTab(getTipoProyecto(presupuestos[idx],presupuestos)==='principal'?13:11);
-  };
-
   var flatPresupuestos=flattenPresupuestos(presupuestos).filter(function(row){
     var p=row.pres;
     var okCliente=!searchCliente||norm(p.entidad||'').indexOf(norm(searchCliente))>=0;
@@ -5674,12 +5665,12 @@ function PresProyectosPanel({presupuestos,selPresIdx,setSelPresIdx,data,onChange
 
   return(
     <div>
-      <div className="sec-hdr" style={{border:'1px solid var(--bdr)',borderRadius:4,padding:'2px 10px',height:25,marginBottom:8,display:'flex',alignItems:'center',justifyContent:'space-between',width:1300}}>
+      <div className="sec-hdr" style={{border:'1px solid var(--bdr)',borderRadius:4,padding:'2px 10px',height:25,marginBottom:8,display:'flex',alignItems:'center',justifyContent:'space-between',width:1465}}>
         <span className="title" style={{fontSize:15,lineHeight:'19px'}}>1. CATALOGO DE PROYECTOS</span>
       </div>
-      <div className="xl-wrap" style={{width:1300}}>
+      <div className="xl-wrap" style={{width:1465}}>
         <div className="xl-scroll">
-          <table style={{tableLayout:'fixed',width:'1300px'}}>
+          <table style={{tableLayout:'fixed',width:'1465px'}}>
             <colgroup>
               <col className="col-rn" style={{width:'30px'}}/>
               <col style={{width:'70px'}}/>
@@ -5689,10 +5680,12 @@ function PresProyectosPanel({presupuestos,selPresIdx,setSelPresIdx,data,onChange
               <col style={{width:'80px'}}/>
               <col style={{width:'110px'}}/>
               <col style={{width:'110px'}}/>
+              <col style={{width:'100px'}}/>
+              <col style={{width:'65px'}}/>
               <col style={{width:'75px'}}/>
               <col style={{width:'110px'}}/>
               <col style={{width:'230px'}}/>
-              <col className="col-act" style={{width:'110px'}}/>
+              <col className="col-act" style={{width:'90px'}}/>
             </colgroup>
             <thead><tr style={{height:34}}>
               <th className="col-rn">#</th>
@@ -5703,13 +5696,15 @@ function PresProyectosPanel({presupuestos,selPresIdx,setSelPresIdx,data,onChange
               <th>Estado</th>
               <th>Responsable</th>
               <th>Cliente</th>
+              <th>Ciudad</th>
+              <th style={{whiteSpace:'normal',lineHeight:'1.2'}}>Plazo (días)</th>
               <th style={{whiteSpace:'normal',lineHeight:'1.2'}}>Con Sub Proyectos?</th>
               <th style={{whiteSpace:'normal',lineHeight:'1.2'}}>Tipo de Proyecto</th>
               <th>Observaciones</th>
               <th className="col-act">Acciones</th>
             </tr></thead>
             <tbody>
-              {flatPresupuestos.length===0&&<tr className="empty-row"><td colSpan={12}>{presupuestos.length===0?'Sin proyectos. Agregue uno con "+ Nuevo".':'Sin resultados para el filtro aplicado.'}</td></tr>}
+              {flatPresupuestos.length===0&&<tr className="empty-row"><td colSpan={14}>{presupuestos.length===0?'Sin proyectos. Agregue uno con "+ Nuevo".':'Sin resultados para el filtro aplicado.'}</td></tr>}
               {flatPresupuestos.map(function(row,fi){
                 var p=row.pres,level=row.level;
                 var i=presupuestos.indexOf(p);
@@ -5733,20 +5728,14 @@ function PresProyectosPanel({presupuestos,selPresIdx,setSelPresIdx,data,onChange
                     <td style={{textAlign:'center'}}><span onClick={function(){toggleEstado(i)}} style={{cursor:'pointer',fontSize:9,padding:'1px 6px',borderRadius:3,border:'1px solid '+estadoColor(p.estado),color:estadoColor(p.estado),fontWeight:600}}>{estadoLabel(p.estado)}</span></td>
                     <td>{isEdit?<input className="ni" value={p.elaborado_por||''} onChange={function(e){updField(i,'elaborado_por',e.target.value)}}/>:<span style={{padding:'0 6px'}}>{p.elaborado_por||'—'}</span>}</td>
                     <td>{isEdit?<input className="ni" value={p.entidad||''} onChange={function(e){updField(i,'entidad',e.target.value)}}/>:<span style={{padding:'0 6px'}}>{p.entidad||'—'}</span>}</td>
-                    <td style={{textAlign:'center'}}>{esSub?<span style={{color:'var(--muted)'}}>{'—'}</span>:isEdit?<select className="ni sel" value={p.con_sub_proyectos?'1':'0'} onChange={function(e){updField(i,'con_sub_proyectos',e.target.value==='1')}}><option value='0'>No</option><option value='1'>Si</option></select>:<span>{p.con_sub_proyectos?'Si':'No'}</span>}</td>
+                    <td>{isEdit?<input className="ni" value={p.ciudad||''} onChange={function(e){updField(i,'ciudad',e.target.value)}}/>:<span style={{padding:'0 6px'}}>{p.ciudad||'—'}</span>}</td>
+                    <td style={{textAlign:'center'}}>{isEdit?<input className="ni" type="number" value={p.plazo||''} onChange={function(e){updField(i,'plazo',e.target.value)}} style={{width:'100%',textAlign:'center'}}/>:<span>{p.plazo?p.plazo+' d':'—'}</span>}</td>
+                    <td style={{textAlign:'center'}}>{esSub?<span style={{color:'var(--muted)'}}>{'—'}</span>:isEdit?<select className="ni sel" value={p.con_sub_proyectos?'1':'0'} onChange={function(e){updField(i,'con_sub_proyectos',e.target.value==='1')}}><option value='0'>No</option><option value='1'>Si</option></select>:p.con_sub_proyectos?<button onClick={function(){setEditIdx(presupuestos.length);addSubProyecto(i)}} title="Agregar sub-proyecto" style={{background:'transparent',border:'1px solid var(--ok)',borderRadius:4,color:'var(--ok)',fontWeight:700,fontSize:16,lineHeight:'1',padding:'0px 7px 2px 7px',cursor:'pointer'}}>{'+'}</button>:<span style={{color:'var(--muted)',fontSize:10}}>No</span>}</td>
                     <td>{isEdit?<input className="ni" value={p.tipo_proyecto||''} onChange={function(e){updField(i,'tipo_proyecto',e.target.value)}}/>:<span style={{padding:'0 6px'}}>{p.tipo_proyecto||'—'}</span>}</td>
                     <td>{isEdit?<input className="ni" value={p.observaciones||''} onChange={function(e){updField(i,'observaciones',e.target.value)}}/>:<span style={{padding:'0 6px'}}>{p.observaciones||'—'}</span>}</td>
                     <td className="col-act" style={{textAlign:'center'}}>
                       <span style={{display:'inline-flex',alignItems:'center',gap:4}}>
                         <button className="btn-edit" title={isEdit?'Listo':'Editar'} onClick={function(){setEditIdx(isEdit?null:i)}} style={{background:'none',border:'none',cursor:'pointer',padding:0}}>{isEdit?<span style={{fontSize:9,color:'var(--ok)',fontWeight:700}}>Listo</span>:<IconEdit/>}</button>
-                        <button onClick={function(){setEditInfoIdx(i)}} title="Editar información del proyecto (contrato, objeto, plazo, ciudad, departamento)" style={{background:'transparent',border:'none',cursor:'pointer',padding:0,color:'var(--tx3)'}}>
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                          </svg>
-                        </button>
-                        {esPrincipal?<button onClick={function(){abrirProyecto(i)}} title="Proyecto principal: no tiene items propios, ir a Entregables para exportar el consolidado" style={{background:'none',border:'none',cursor:'pointer',padding:0,color:'var(--ac)',fontSize:13}}>{'→'}</button>:<button onClick={function(){abrirItems(i)}} title="Ir a Items" style={{background:'none',border:'none',cursor:'pointer',padding:0,color:'var(--ac)',fontSize:13}}>{'→'}</button>}
-                        {p.con_sub_proyectos&&!esSub&&<button onClick={function(){setEditIdx(presupuestos.length);addSubProyecto(i)}} title="Agregar sub-proyecto" style={{background:'none',border:'none',cursor:'pointer',padding:0,color:'var(--ac)',fontSize:13,fontWeight:700}}>{'+'}</button>}
                         <button className="btn-del" title="Eliminar" onClick={function(){delPresupuesto(i)}} style={{background:'none',border:'none',cursor:'pointer',padding:0}}><IconDel/></button>
                       </span>
                     </td>
@@ -5762,37 +5751,6 @@ function PresProyectosPanel({presupuestos,selPresIdx,setSelPresIdx,data,onChange
         </CrudFooter>
         <ExcelPreviewModal excel={presupuestosExcel}/>
       </div>
-      {editInfoIdx!==null&&presupuestos[editInfoIdx]&&(
-        <div className="modal-overlay" onClick={function(){setEditInfoIdx(null)}}>
-          <div className="modal-box" style={{width:480}} onClick={function(e){e.stopPropagation()}}>
-            <div className="modal-hdr">
-              <span className="title">Información del proyecto — {presupuestos[editInfoIdx].codigo}</span>
-              <button className="btn-del" onClick={function(){setEditInfoIdx(null)}} style={{background:'none',border:'none',cursor:'pointer',padding:2,color:'var(--ok)'}}><IconX/></button>
-            </div>
-            <div className="modal-body" style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px 16px'}}>
-              {[['contrato','No. Contrato','text'],['ciudad','Ciudad','text'],['departamento','Departamento','text'],['plazo','Plazo (días)','number']].map(function(arr){
-                var key=arr[0],lbl=arr[1],tipo=arr[2];
-                return(
-                  <div key={key} style={{display:'flex',flexDirection:'column',gap:3}}>
-                    <label style={{fontSize:10,color:'var(--tx3)'}}>{lbl}</label>
-                    {tipo==='number'?
-                      <NumInput step="1" inputMode="decimal" value={presupuestos[editInfoIdx][key]||0} onChange={function(v){updField(editInfoIdx,key,v)}} style={{height:28,fontSize:11}}/>
-                      :<input className="ni" value={presupuestos[editInfoIdx][key]||''} onChange={function(e){updField(editInfoIdx,key,e.target.value)}} style={{height:28,fontSize:11,border:'1px solid var(--bdr)',borderRadius:4,padding:'0 8px',background:'var(--bg)',color:'var(--tx)'}}/>
-                    }
-                  </div>
-                );
-              })}
-              <div style={{gridColumn:'1/-1',display:'flex',flexDirection:'column',gap:3}}>
-                <label style={{fontSize:10,color:'var(--tx3)'}}>Objeto del contrato</label>
-                <textarea className="ni" value={presupuestos[editInfoIdx].objeto||''} onChange={function(e){updField(editInfoIdx,'objeto',e.target.value)}} rows={3} style={{fontSize:11,border:'1px solid var(--bdr)',borderRadius:4,padding:'6px 8px',background:'var(--bg)',color:'var(--tx)',resize:'vertical'}}/>
-              </div>
-            </div>
-            <div className="modal-foot">
-              <button className="btn" onClick={function(){setEditInfoIdx(null)}} style={{fontSize:11,padding:'4px 14px',border:'1px solid var(--ok)',borderRadius:4,background:'rgba(74,222,128,.08)',color:'var(--ok)',cursor:'pointer'}}>Listo</button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

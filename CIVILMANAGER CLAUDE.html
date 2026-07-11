@@ -108,7 +108,7 @@ body{background:var(--bg);color:var(--tx);font-family:'JetBrains Mono',monospace
 
 .xl-wrap{border:1px solid var(--bdr);border-radius:var(--r);overflow:hidden;background:var(--bg2);margin-bottom:10px}
 
-.xl-scroll{overflow-y:auto;overflow-x:hidden;max-height:calc(100vh - 200px);position:relative}
+.xl-scroll{overflow-y:auto;overflow-x:hidden;max-height:calc(100vh - 245px);position:relative}
 
 .xl-scroll table{border-collapse:separate;border-spacing:0}
 
@@ -1033,9 +1033,13 @@ function FactorPrestacionalTab({data,onChange,factorPrest,cargosCalc,cargoMap,es
 
       </div>
 
+      {cargoDelErr&&<div style={{padding:'8px 10px',fontSize:12,color:'#f87171',background:'rgba(248,113,113,0.08)',border:'1px solid rgba(248,113,113,0.2)',borderRadius:4,marginBottom:8,width:tblW,display:'flex',alignItems:'center',justifyContent:'space-between'}}><span>{cargoDelErr}</span><button onClick={function(){setCargoDelErr('')}} style={{background:'none',border:'none',color:'#f87171',cursor:'pointer',fontSize:16,lineHeight:1,padding:'0 4px'}} title="Cerrar">✕</button></div>}
+
+      {fpCuadDelErr&&<div style={{padding:'8px 10px',fontSize:12,color:'#f87171',background:'rgba(248,113,113,0.08)',border:'1px solid rgba(248,113,113,0.2)',borderRadius:4,marginBottom:8,width:tblW,display:'flex',alignItems:'center',justifyContent:'space-between'}}><span>{fpCuadDelErr}</span><button onClick={function(){setFpCuadDelErr('')}} style={{background:'none',border:'none',color:'#f87171',cursor:'pointer',fontSize:16,lineHeight:1,padding:'0 4px'}} title="Cerrar">✕</button></div>}
+
       <div className="xl-wrap" style={{width:tblW}}>
 
-          <div className="xl-scroll">
+          <div className="xl-scroll" style={{maxHeight:'calc(100vh - 272px)'}}>
 
             <table style={{tableLayout:'fixed',width:tblW+'px'}}>
 
@@ -1159,10 +1163,6 @@ function FactorPrestacionalTab({data,onChange,factorPrest,cargosCalc,cargoMap,es
 
         <CrudFooter onAdd={addCargo} addLabel="Colaborador" excel={cargosExcel} exportLabel="Exportar" onSearch={{v:cargoSearch,set:setCargoSearch}} searchPlaceholder="Buscar colaborador..." countLabel="No. de Colaboradores:" count={cargos.length}/>
 
-        {cargoDelErr&&<div style={{padding:'8px 10px',fontSize:12,color:'#f87171',background:'rgba(248,113,113,0.08)',borderTop:'1px solid rgba(248,113,113,0.2)',display:'flex',alignItems:'center',justifyContent:'space-between'}}><span>{cargoDelErr}</span><button onClick={function(){setCargoDelErr('')}} style={{background:'none',border:'none',color:'#f87171',cursor:'pointer',fontSize:16,lineHeight:1,padding:'0 4px'}} title="Cerrar">✕</button></div>}
-
-        {fpCuadDelErr&&<div style={{padding:'8px 10px',fontSize:12,color:'#f87171',background:'rgba(248,113,113,0.08)',borderTop:'1px solid rgba(248,113,113,0.2)',display:'flex',alignItems:'center',justifyContent:'space-between'}}><span>{fpCuadDelErr}</span><button onClick={function(){setFpCuadDelErr('')}} style={{background:'none',border:'none',color:'#f87171',cursor:'pointer',fontSize:16,lineHeight:1,padding:'0 4px'}} title="Cerrar">✕</button></div>}
-
         <div style={{padding:'6px 10px',fontSize:10,color:'var(--tx3)',lineHeight:'1.5'}}><b style={{color:'var(--warn)'}}>NOTA:</b> "# S.B." Se refiere a la cantidad de Salarios Básicos de cada país que se requieren para obtener el Salario Básico de cada Colaborador.</div>
 
         </div>
@@ -1269,9 +1269,11 @@ function CuadrillasTab({data,onChange,cargosCalc,cargoMap,esHora,selCuadrillaIdx
 
         </div>
 
+        {cuadDelErr&&<div style={{padding:'8px 10px',fontSize:12,color:'#f87171',background:'rgba(248,113,113,0.08)',border:'1px solid rgba(248,113,113,0.2)',borderRadius:4,marginBottom:8,width:650,display:'flex',alignItems:'center',justifyContent:'space-between'}}><span>{cuadDelErr}</span><button onClick={function(){setCuadDelErr('')}} style={{background:'none',border:'none',color:'#f87171',cursor:'pointer',fontSize:16,lineHeight:1,padding:'0 4px'}} title="Cerrar">{'✕'}</button></div>}
+
         <div className="xl-wrap" style={{width:650}}>
 
-          <div className="xl-scroll">
+          <div className="xl-scroll" style={{maxHeight:'calc(100vh - 272px)'}}>
 
             <table style={{tableLayout:'fixed',width:650}}>
 
@@ -1345,8 +1347,6 @@ function CuadrillasTab({data,onChange,cargosCalc,cargoMap,esHora,selCuadrillaIdx
 
         </div>
 
-          {cuadDelErr&&<div style={{padding:'8px 10px',fontSize:12,color:'#f87171',background:'rgba(248,113,113,0.08)',borderTop:'1px solid rgba(248,113,113,0.2)',borderRadius:'0 0 4px 4px',width:650,display:'flex',alignItems:'center',justifyContent:'space-between'}}><span>{cuadDelErr}</span><button onClick={function(){setCuadDelErr('')}} style={{background:'none',border:'none',color:'#f87171',cursor:'pointer',fontSize:16,lineHeight:1,padding:'0 4px'}} title="Cerrar">{'\u2715'}</button></div>}
-
       </div>
 
 
@@ -1377,7 +1377,7 @@ function CuadrillasTab({data,onChange,cargosCalc,cargoMap,esHora,selCuadrillaIdx
 
       <div className="xl-wrap" style={{width:830}}>
 
-          <div className="xl-scroll">
+          <div className="xl-scroll" style={{maxHeight:'calc(100vh - 272px)'}}>
 
               <table>
 
@@ -1681,9 +1681,11 @@ function EquiposTab({data,onChange,provMap,_unidades}){
 
       </div>
 
+      {equipoDelErr&&<div style={{padding:'8px 10px',fontSize:12,color:'#f87171',background:'rgba(248,113,113,0.08)',border:'1px solid rgba(248,113,113,0.2)',borderRadius:4,marginBottom:8,width:1137,display:'flex',alignItems:'center',justifyContent:'space-between'}}><span>{equipoDelErr}</span><button onClick={function(){setEquipoDelErr('')}} style={{background:'none',border:'none',color:'#f87171',cursor:'pointer',fontSize:16,lineHeight:1,padding:'0 4px'}} title="Cerrar">✕</button></div>}
+
       <div className="xl-wrap" style={{width:1137,display:'flex',flexDirection:'column'}}>
 
-        <div className="xl-scroll" style={{maxHeight:'calc(100vh - 310px)'}}>
+        <div className="xl-scroll" style={{maxHeight:'calc(100vh - 382px)'}}>
 
           <table style={{tableLayout:'fixed',width:'1135px'}}>
 
@@ -1802,8 +1804,6 @@ function EquiposTab({data,onChange,provMap,_unidades}){
       </div>
 
       <div className="banner" style={{width:1137,display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical',overflow:'hidden',fontSize:11,padding:'6px 10px'}}><b className="c-warn">Nota:</b> Las herramientas menores no se registran aqui. Se calculan automaticamente como <b>un porcentaje del total de la mano de obra</b> dentro de cada APU.</div>
-
-      {equipoDelErr&&<div style={{padding:'8px 10px',fontSize:12,color:'#f87171',background:'rgba(248,113,113,0.08)',borderTop:'1px solid rgba(248,113,113,0.2)',borderRadius:'0 0 4px 4px',width:1137,display:'flex',alignItems:'center',justifyContent:'space-between'}}><span>{equipoDelErr}</span><button onClick={function(){setEquipoDelErr('')}} style={{background:'none',border:'none',color:'#f87171',cursor:'pointer',fontSize:16,lineHeight:1,padding:'0 4px'}} title="Cerrar">✕</button></div>}
 
       <ExcelPreviewModal excel={eqExcel}/>
 
@@ -1937,9 +1937,11 @@ function InsumosTab({data,onChange,provMap,cargosCalc,cargoMap,esHora,_unidades,
 
       </div>
 
+      {insDelErr&&<div style={{padding:'8px 10px',fontSize:12,color:'#f87171',background:'rgba(248,113,113,0.08)',border:'1px solid rgba(248,113,113,0.2)',borderRadius:4,marginBottom:8,width:1570,display:'flex',alignItems:'center',justifyContent:'space-between'}}><span>{insDelErr}</span><button onClick={function(){setInsDelErr('')}} style={{background:'none',border:'none',color:'#f87171',cursor:'pointer',fontSize:16,lineHeight:1,padding:'0 4px'}} title="Cerrar">✕</button></div>}
+
       <div className="xl-wrap" style={{width:1570}}>
 
-        <div className="xl-scroll" style={{maxHeight:'calc(100vh - 310px)'}}>
+        <div className="xl-scroll" style={{maxHeight:'calc(100vh - 382px)'}}>
 
           <table style={{tableLayout:'fixed'}}>
 
@@ -2115,8 +2117,6 @@ function InsumosTab({data,onChange,provMap,cargosCalc,cargoMap,esHora,_unidades,
 
       </div>
 
-      {insDelErr&&<div style={{padding:'8px 10px',fontSize:12,color:'#f87171',background:'rgba(248,113,113,0.08)',borderTop:'1px solid rgba(248,113,113,0.2)',borderRadius:'0 0 4px 4px',width:1570,display:'flex',alignItems:'center',justifyContent:'space-between'}}><span>{insDelErr}</span><button onClick={function(){setInsDelErr('')}} style={{background:'none',border:'none',color:'#f87171',cursor:'pointer',fontSize:16,lineHeight:1,padding:'0 4px'}} title="Cerrar">✕</button></div>}
-
       <div className="banner" style={{width:1570,fontSize:12,padding:'6px 10px',boxSizing:'border-box'}}><b style={{color:'var(--warn)'}}>NOTA:</b> Todos los Costos/UN deben incluir todos los impuestos vigentes.</div>
 
       <ExcelPreviewModal excel={insExcel}/>
@@ -2191,9 +2191,11 @@ function ProveedoresTab({data,onChange}){
 
       </div>
 
+      {provDelErr&&<div style={{padding:'8px 10px',fontSize:12,color:'#f87171',background:'rgba(248,113,113,0.08)',border:'1px solid rgba(248,113,113,0.2)',borderRadius:4,marginBottom:8,display:'flex',alignItems:'center',justifyContent:'space-between'}}><span>{provDelErr}</span><button onClick={function(){setProvDelErr('')}} style={{background:'none',border:'none',color:'#f87171',cursor:'pointer',fontSize:16,lineHeight:1,padding:'0 4px'}} title="Cerrar">✕</button></div>}
+
       <div className="xl-wrap" style={{width:'100%'}}>
 
-        <div className="xl-scroll" style={{maxHeight:'calc(100vh - 310px)'}}>
+        <div className="xl-scroll" style={{maxHeight:'calc(100vh - 382px)'}}>
 
           <table style={{tableLayout:'fixed',width:'100%'}}>
 
@@ -2348,8 +2350,6 @@ function ProveedoresTab({data,onChange}){
         </CrudFooter>
 
       </div>
-
-      {provDelErr&&<div style={{padding:'8px 10px',fontSize:12,color:'#f87171',background:'rgba(248,113,113,0.08)',borderTop:'1px solid rgba(248,113,113,0.2)',borderRadius:'0 0 4px 4px',display:'flex',alignItems:'center',justifyContent:'space-between'}}><span>{provDelErr}</span><button onClick={function(){setProvDelErr('')}} style={{background:'none',border:'none',color:'#f87171',cursor:'pointer',fontSize:16,lineHeight:1,padding:'0 4px'}} title="Cerrar">✕</button></div>}
 
       {viewProv&&<div className="modal-overlay" onClick={function(){setViewProv(null)}}>
 
@@ -3122,7 +3122,7 @@ function APUTab({data,onChange,cargosCalc,cargoMap,esHora,eqMap,insMap,cuadrilla
 
           </div>
 
-          <div className="xl-wrap" style={{width:'100%',display:'flex',flexDirection:'column',height:'calc(100vh - 200px)'}}>
+          <div className="xl-wrap" style={{width:'100%',display:'flex',flexDirection:'column',height:'calc(100vh - 245px)'}}>
 
             {/* Header APU - fijo arriba */}
 
@@ -4034,7 +4034,9 @@ var SUBS=[
 
     return(
 
-      <div style={{display:'flex',flexDirection:'column',height:'calc(100vh - 170px)'}}>
+      <div style={{display:'flex',flexDirection:'column',height:'calc(100vh - 242px)'}}>
+
+        {catDelErr&&<div style={{padding:'6px 10px',fontSize:11,color:'#f87171',background:'rgba(248,113,113,0.08)',border:'1px solid rgba(248,113,113,0.2)',borderRadius:4,marginBottom:8,display:'flex',alignItems:'center',justifyContent:'space-between',width:800,flex:'0 0 auto'}}><span>{catDelErr}</span><button onClick={function(){setCatDelErr('')}} style={{background:'none',border:'none',color:'#f87171',cursor:'pointer',fontSize:14,lineHeight:1,padding:'0 4px'}} title="Cerrar">✕</button></div>}
 
         <div className="xl-scroll" style={{flex:'1 1 0',minHeight:0,width:800,overflowY:'auto'}}>
 
@@ -4111,8 +4113,6 @@ var SUBS=[
         </div>
 
         <div style={{width:800}}><CrudFooter onAdd={addCat} addLabel="Categoría" onClearAll={async function(){if(categorias_apu.length===0)return;var used=[];var apusA=data.apus||[];categorias_apu.forEach(function(c){var cnt=0;for(var a=0;a<apusA.length;a++){if(apusA[a].categoria===c.categoria)cnt++}if(cnt>0)used.push(c.categoria+' ('+cnt+')')});if(used.length>0){setClearConfirm({msg:'Categorías en uso que se mantendrán: '+used.join(', ')+'. Los demás serán eliminados.',onConfirm:function(){updCl('categorias_apu',[])}});return}if(!(await askConfirm('¿Desea eliminar todas las categorías APU? Esta acción no se puede deshacer.')))return;updCl('categorias_apu',[])}} clearLabel="Borrar" excel={catApuExcel} exportLabel="Exportar" countLabel="Categorías:" count={categorias_apu.length}/></div>
-
-        {catDelErr&&<div style={{padding:'6px 10px',fontSize:11,color:'#f87171',background:'rgba(248,113,113,0.08)',borderTop:'1px solid rgba(248,113,113,0.2)',borderRadius:'0 0 4px 4px',display:'flex',alignItems:'center',justifyContent:'space-between',width:800}}><span>{catDelErr}</span><button onClick={function(){setCatDelErr('')}} style={{background:'none',border:'none',color:'#f87171',cursor:'pointer',fontSize:14,lineHeight:1,padding:'0 4px'}} title="Cerrar">✕</button></div>}
 
         <ExcelPreviewModal excel={catApuExcel}/>
 
@@ -4200,6 +4200,8 @@ var SUBS=[
 
       <div style={{width:750}}>
 
+        {catDelErr&&<div style={{padding:'6px 10px',fontSize:11,color:'#f87171',background:'rgba(248,113,113,0.08)',border:'1px solid rgba(248,113,113,0.2)',borderRadius:4,marginBottom:8,display:'flex',alignItems:'center',justifyContent:'space-between',width:750}}><span>{catDelErr}</span><button onClick={function(){setCatDelErr('')}} style={{background:'none',border:'none',color:'#f87171',cursor:'pointer',fontSize:14,lineHeight:1,padding:'0 4px'}} title="Cerrar">✕</button></div>}
+
         <div style={{border:'1px solid var(--bdr)',borderRadius:4,overflow:'hidden'}}>
 
           <table style={{tableLayout:'fixed',width:750}}>
@@ -4275,8 +4277,6 @@ var SUBS=[
         </div>
 
         <CrudFooter onAdd={addCatIns} addLabel="Categoría" onClearAll={async function(){if(categorias_insumoArr.length===0)return;var used=[];var ins=data.insumos||[];categorias_insumoArr.forEach(function(c){var cnt=0;for(var i=0;i<ins.length;i++){if(ins[i].categoria===c.nombre)cnt++}if(cnt>0)used.push(c.nombre+' ('+cnt+')')});if(used.length>0){setClearConfirm({msg:'Categorías en uso que se mantendrán: '+used.join(', ')+'. Los demás serán eliminados.',onConfirm:function(){updCl('categorias_insumo',[])}});return}if(!(await askConfirm('¿Desea eliminar todas las categorías de insumo? Esta acción no se puede deshacer.')))return;updCl('categorias_insumo',[])}} clearLabel="Borrar" excel={catInsExcel} exportLabel="Exportar" countLabel="Categorías:" count={categorias_insumoArr.length}/>
-
-        {catDelErr&&<div style={{padding:'6px 10px',fontSize:11,color:'#f87171',background:'rgba(248,113,113,0.08)',borderTop:'1px solid rgba(248,113,113,0.2)',borderRadius:'0 0 4px 4px',display:'flex',alignItems:'center',justifyContent:'space-between',width:800}}><span>{catDelErr}</span><button onClick={function(){setCatDelErr('')}} style={{background:'none',border:'none',color:'#f87171',cursor:'pointer',fontSize:14,lineHeight:1,padding:'0 4px'}} title="Cerrar">✕</button></div>}
 
         <ExcelPreviewModal excel={catInsExcel}/>
 
@@ -5036,7 +5036,7 @@ var SUBS=[
 
       <div style={{display:'flex',gap:16,alignItems:'flex-start'}}>
 
-        <div style={{flex:'0 0 auto',display:'flex',flexDirection:'column',height:'calc(100vh - 170px)'}}>
+        <div style={{flex:'0 0 auto',display:'flex',flexDirection:'column',height:'calc(100vh - 242px)'}}>
 
           <div className="xl-scroll" style={{flex:'1 1 0',minHeight:0,width:720,overflowY:'auto'}}>
 
@@ -5512,7 +5512,7 @@ var SUBS=[
 
           </div>
 
-          <div className="xl-scroll" style={{maxHeight:'calc(100vh - 260px)',overflowY:'auto'}}>
+          <div className="xl-scroll" style={{maxHeight:'calc(100vh - 332px)',overflowY:'auto'}}>
 
             <table style={{tableLayout:'fixed',width:'540px'}}>
 
@@ -5580,7 +5580,7 @@ var SUBS=[
 
         </div>
 
-        <div style={{padding:'8px 10px',display:'flex',flexDirection:'column',gap:10,maxHeight:'calc(100vh - 260px)',overflowY:'auto'}}>
+        <div style={{padding:'8px 10px',display:'flex',flexDirection:'column',gap:10,maxHeight:'calc(100vh - 332px)',overflowY:'auto'}}>
 
           {fpCatOrder.map(function(cat){return(
 
@@ -7062,17 +7062,17 @@ var factorPrest=useMemo(function(){return r2(factoresPrestaciones.reduce(functio
 
       <div className="tabbar sec-bar" style={{background:'var(--bg3)'}}>
 
-        <button className={mainSection===0?'active':''} onClick={function(){switchSection(0)}}><img src={CIVILMANAGER_ICONS.Catalogos} width="20" height="20" alt="" style={{objectFit:'contain'}}/>Catálogos</button>
+        <button onClick={function(){switchSection(0)}} style={{display:'flex',alignItems:'center',flexDirection:'column',justifyContent:'center',gap:4,padding:'8px 16px',fontSize:11,minWidth:80,borderRadius:6,background:'transparent',border:'none',borderBottom:mainSection===0?'3px solid var(--ok)':'3px solid transparent',marginBottom:-2,color:mainSection===0?'var(--ok)':'var(--tx3)',cursor:'pointer',whiteSpace:'nowrap'}}><img src={CIVILMANAGER_ICONS.Catalogos} width="48" height="48" alt="Catálogos" style={{objectFit:'contain',filter:mainSection===0?'none':'opacity(0.72)',transition:'filter 0.15s ease'}}/><span>Catálogos</span></button>
 
-        <button className={mainSection===1?'active':''} onClick={function(){switchSection(1)}}><img src={CIVILMANAGER_ICONS.APUs} width="20" height="20" alt="" style={{objectFit:'contain'}}/>APUs</button>
+        <button onClick={function(){switchSection(1)}} style={{display:'flex',alignItems:'center',flexDirection:'column',justifyContent:'center',gap:4,padding:'8px 16px',fontSize:11,minWidth:80,borderRadius:6,background:'transparent',border:'none',borderBottom:mainSection===1?'3px solid var(--ok)':'3px solid transparent',marginBottom:-2,color:mainSection===1?'var(--ok)':'var(--tx3)',cursor:'pointer',whiteSpace:'nowrap'}}><img src={CIVILMANAGER_ICONS.APUs} width="48" height="48" alt="APUs" style={{objectFit:'contain',filter:mainSection===1?'none':'opacity(0.72)',transition:'filter 0.15s ease'}}/><span>APUs</span></button>
 
-        <button className={mainSection===2?'active':''} onClick={function(){switchSection(2)}}><img src={CIVILMANAGER_ICONS.Presupuestos} width="20" height="20" alt="" style={{objectFit:'contain'}}/>Presupuestos</button>
+        <button onClick={function(){switchSection(2)}} style={{display:'flex',alignItems:'center',flexDirection:'column',justifyContent:'center',gap:4,padding:'8px 16px',fontSize:11,minWidth:80,borderRadius:6,background:'transparent',border:'none',borderBottom:mainSection===2?'3px solid var(--ok)':'3px solid transparent',marginBottom:-2,color:mainSection===2?'var(--ok)':'var(--tx3)',cursor:'pointer',whiteSpace:'nowrap'}}><img src={CIVILMANAGER_ICONS.Presupuestos} width="48" height="48" alt="Presupuestos" style={{objectFit:'contain',filter:mainSection===2?'none':'opacity(0.72)',transition:'filter 0.15s ease'}}/><span>Presupuestos</span></button>
 
-        <button className={mainSection===3?'active':''} onClick={function(){}} disabled style={{opacity:0.5,cursor:'not-allowed'}}><img src={CIVILMANAGER_ICONS.Programacion} width="20" height="20" alt="" style={{objectFit:'contain'}}/>Programación ⏳</button>
+        <button onClick={function(){}} disabled style={{display:'flex',alignItems:'center',flexDirection:'column',justifyContent:'center',gap:4,padding:'8px 16px',fontSize:11,minWidth:80,borderRadius:6,background:'transparent',border:'none',borderBottom:'3px solid transparent',marginBottom:-2,color:'var(--tx3)',cursor:'not-allowed',whiteSpace:'nowrap',opacity:0.5}}><img src={CIVILMANAGER_ICONS.Programacion} width="48" height="48" alt="Programación" style={{objectFit:'contain'}}/><span>Programación ⏳</span></button>
 
-        <button className={mainSection===4?'active':''} onClick={function(){}} disabled style={{opacity:0.5,cursor:'not-allowed'}}><img src={CIVILMANAGER_ICONS.ControlCostos} width="20" height="20" alt="" style={{objectFit:'contain'}}/>Control de Costos ⏳</button>
+        <button onClick={function(){}} disabled style={{display:'flex',alignItems:'center',flexDirection:'column',justifyContent:'center',gap:4,padding:'8px 16px',fontSize:11,minWidth:80,borderRadius:6,background:'transparent',border:'none',borderBottom:'3px solid transparent',marginBottom:-2,color:'var(--tx3)',cursor:'not-allowed',whiteSpace:'nowrap',opacity:0.5}}><img src={CIVILMANAGER_ICONS.ControlCostos} width="48" height="48" alt="Control de Costos" style={{objectFit:'contain'}}/><span>Control de Costos ⏳</span></button>
 
-        <button className={mainSection===5?'active':''} onClick={function(){}} disabled style={{opacity:0.5,cursor:'not-allowed'}}><img src={CIVILMANAGER_ICONS.Reportes} width="20" height="20" alt="" style={{objectFit:'contain'}}/>Reportes ⏳</button>
+        <button onClick={function(){}} disabled style={{display:'flex',alignItems:'center',flexDirection:'column',justifyContent:'center',gap:4,padding:'8px 16px',fontSize:11,minWidth:80,borderRadius:6,background:'transparent',border:'none',borderBottom:'3px solid transparent',marginBottom:-2,color:'var(--tx3)',cursor:'not-allowed',whiteSpace:'nowrap',opacity:0.5}}><img src={CIVILMANAGER_ICONS.Reportes} width="48" height="48" alt="Reportes" style={{objectFit:'contain'}}/><span>Reportes ⏳</span></button>
 
       </div>
 
@@ -7107,7 +7107,7 @@ var factorPrest=useMemo(function(){return r2(factoresPrestaciones.reduce(functio
 
           var SUB_ICONS={0:'Colaboradores',1:'Cuadrillas',2:'Equipos',3:'Insumos',4:'Proveedores',8:'Configuracion'};
 
-          return <button key={st.i} className={isActive?'active':''} onClick={function(){setTab(st.i)}}>{SUB_ICONS[st.i]?<img src={CIVILMANAGER_ICONS[SUB_ICONS[st.i]]} width="16" height="16" alt="" style={{objectFit:'contain'}}/>:<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{paths.map(function(d,pi){return <path key={pi} d={d}/>})}</svg>}{st.l}</button>
+          return <button key={st.i} className={isActive?'active':''} onClick={function(){setTab(st.i)}}>{SUB_ICONS[st.i]?<img src={CIVILMANAGER_ICONS[SUB_ICONS[st.i]]} width="40" height="40" alt="" style={{objectFit:'contain'}}/>:<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{paths.map(function(d,pi){return <path key={pi} d={d}/>})}</svg>}{st.l}</button>
 
         })}
 

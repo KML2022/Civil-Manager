@@ -2463,16 +2463,204 @@ function consolidarRecursosApu(bloques){
       (b[sec]||[]).forEach(function(r){
         var key=r.tipo+'|'+normalizarTexto(r.nombre)+'|'+normalizarTexto(r.unidad);
         if(!mapa.has(key)){
-          mapa.set(key,{tipo:r.tipo,nombre_normalizado:normalizarTexto(r.nombre),nombre_variantes:[],unidad:r.unidad,precio_excel:r.precio,precio_excel_variantes:[],apariciones:[],match:null,severidad:null,decision:null,edicion:{}});
+          mapa.set(key,{tipo:r.tipo,nombre_normalizado:normalizarTexto(r.nombre),nombre_variantes:[],unidad:r.unidad,precio_excel:r.precio,precio_excel_variantes:[],apariciones:[],match:null,severidad:null,decision:null,edicion:{},desperdicio_valido:true});
         }
         var e=mapa.get(key);
         if(e.nombre_variantes.indexOf(r.nombre)===-1)e.nombre_variantes.push(r.nombre);
         if(e.precio_excel_variantes.indexOf(r.precio)===-1)e.precio_excel_variantes.push(r.precio);
+        if(r.tipo==='INSUMO'&&r.desperdicios_pct===null)e.desperdicio_valido=false;
         e.apariciones.push({apu_codigo:b.codigo,ref:r});
       });
     });
   });
   return Array.from(mapa.values());
+}
+
+/* ══════ Importador Multi-APU — matching, severidad y repositorio (Fase 3) ══════ */
+function similitud(a,b){
+  a=normalizarTexto(a);b=normalizarTexto(b);
+  if(a===b)return 100;
+  var la=a.length,lb=b.length;
+  if(la===0||lb===0)return 0;
+  var dp=[];
+  for(var i=0;i<=la;i++){dp.push([i])}
+  for(var j=0;j<=lb;j++){dp[0][j]=j}
+  for(i=1;i<=la;i++){
+    for(j=1;j<=lb;j++){
+      var costo=a[i-1]===b[j-1]?0:1;
+      dp[i][j]=Math.min(dp[i-1][j]+1,dp[i][j-1]+1,dp[i-1][j-1]+costo);
+    }
+  }
+  var dist=dp[la][lb],maxLen=Math.max(la,lb);
+  return r2(Math.max(0,(1-dist/maxLen)*100));
+}
+
+/* tipo de recurso importado -> categoria del repositorio contra la que se matchea.
+   TRANSPORTE matchea contra equipos porque recursos_transporte referencia un equipo_id (el vehiculo). */
+var TIPO_RECURSO_A_CATEGORIA={INSUMO:'insumos',EQUIPO:'equipos',TRANSPORTE:'equipos',MO:'colaboradores'};
+
+function nombreCatalogo(registro){return registro.nombre||registro.descripcion||''}
+function precioCatalogo(registro){
+  if(registro.costo_unitario!=null)return safeFloat(registro.costo_unitario);
+  if(registro.costo_hora!=null)return safeFloat(registro.costo_hora);
+  if(registro.costo_total_dia!=null)return safeFloat(registro.costo_total_dia);
+  if(registro.costo_base_dia!=null)return safeFloat(registro.costo_base_dia);
+  return 0;
+}
+
+function buscarMatch(recurso,base){
+  var categoria=TIPO_RECURSO_A_CATEGORIA[recurso.tipo];
+  var candidatos=(base&&base[categoria])||[];
+  var mejor=null,mejorSim=-1;
+  candidatos.forEach(function(c){
+    var sim=similitud(recurso.nombre_normalizado,normalizarTexto(nombreCatalogo(c)));
+    if(sim>mejorSim){mejorSim=sim;mejor=c}
+  });
+  if(!mejor||mejorSim<50)return null; // umbral minimo de candidatura (no confundir con umbralPct de precio)
+  return{id:mejor.id,nombre:nombreCatalogo(mejor),unidad:mejor.unidad||recurso.unidad,precio:precioCatalogo(mejor)};
+}
+
+function calcularSeveridad(recurso,umbralPct){
+  umbralPct=umbralPct==null?15:umbralPct;
+  if(recurso.tipo==='INSUMO'&&!recurso.desperdicio_valido)return'bloqueante';
+  if(!recurso.match)return'sin_match';
+  var simNombre=similitud(recurso.nombre_normalizado,normalizarTexto(recurso.match.nombre));
+  var unidadIgual=normalizarTexto(recurso.unidad)===normalizarTexto(recurso.match.unidad);
+  var deltaPct=Math.abs(recurso.precio_excel-recurso.match.precio)/(recurso.match.precio||1)*100;
+  if(!unidadIgual)return'critica';
+  if(simNombre>=99.5&&deltaPct>umbralPct)return'alta';
+  if(simNombre>=80&&simNombre<99.5)return'media';
+  if(simNombre>=99.5&&deltaPct<=umbralPct)return'baja';
+  return'sin_match';
+}
+
+/* contexto = { modo:'catalogo_global'|'snapshot_proyecto', data, presupuesto, setData, setPresupuesto }
+   modo se determina por donde se invoca el modal (Catalogo/APU general vs. dentro de un proyecto), no por un flag en los datos. */
+function crearRepositorio(contexto){
+  var esSnapshot=contexto.modo==='snapshot_proyecto';
+  var campoSnap={insumos:'insumos_snap',equipos:'equipos_snap',colaboradores:'cargos_snap'};
+  var campoGlobal={insumos:'insumos',equipos:'equipos',colaboradores:'cargos'};
+  return{
+    leer:function(tipo){
+      return esSnapshot?(contexto.presupuesto[campoSnap[tipo]]||[]):(contexto.data[campoGlobal[tipo]]||[]);
+    },
+    crear:function(tipo,registro){
+      if(esSnapshot){
+        var campo=campoSnap[tipo];
+        var arr=(contexto.presupuesto[campo]||[]).concat([registro]);
+        contexto.setPresupuesto(Object.assign({},contexto.presupuesto,{[campo]:arr}));
+      }else{
+        var campoG=campoGlobal[tipo];
+        var arrG=(contexto.data[campoG]||[]).concat([registro]);
+        contexto.setData(Object.assign({},contexto.data,{[campoG]:arrG}));
+      }
+      return registro;
+    },
+    actualizarPrecio:function(tipo,id,nuevoPrecio){
+      var campoPrecio={insumos:'costo_unitario',equipos:'costo_hora',colaboradores:'costo_total_hora'}[tipo];
+      var upd=function(arr){return arr.map(function(x){return x.id===id?Object.assign({},x,{[campoPrecio]:nuevoPrecio}):x})};
+      if(esSnapshot){
+        var campo=campoSnap[tipo];
+        contexto.setPresupuesto(Object.assign({},contexto.presupuesto,{[campo]:upd(contexto.presupuesto[campo]||[])}));
+      }else{
+        var campoG=campoGlobal[tipo];
+        contexto.setData(Object.assign({},contexto.data,{[campoG]:upd(contexto.data[campoG]||[])}));
+      }
+    }
+  };
+}
+
+function claveDeRU(ru){return ru.tipo+'|'+ru.nombre_normalizado+'|'+normalizarTexto(ru.unidad)}
+
+/* Construye un cargo (colaborador) nuevo a partir de un costo importado (asumido CON F.P. incluido).
+   El modelo real de CIVILMANAGER solo permite fijar el costo de un cargo via num_salarios_base
+   (multiplo del salario base global) — costo_total_dia/hora se recalculan siempre en cargosCalc
+   y no pueden fijarse directamente. Por eso aqui se aproxima num_salarios_base deshaciendo el F.P.
+   y dividiendo por el salario base: es una aproximacion con perdida de precision, no un valor exacto. */
+function buildCargoDesdeImport(nombreExcel,costoImportado,esHa,factorPrestGlobal,config,existingCargos){
+  var sb=config.salario_base||1750905;
+  var dias=config.dias_mes||30;
+  var factor=1+(safeFloat(factorPrestGlobal)/100);
+  var costo=safeFloat(costoImportado)||0;
+  var total=esHa?costo:costo*dias; // equivalente mensual (valorBasico+prestaciones)
+  var valorBasico=factor?total/factor:total;
+  var numSalariosBase=r2(valorBasico/sb)||1;
+  return{id:uid(),codigo:genCodeFor(existingCargos||[],'MO'),descripcion:nombreExcel,num_salarios_base:numSalariosBase};
+}
+
+function buildApuFromBlock(b,idPorKey){
+  function idDe(r){return idPorKey.get(claveDeRU({tipo:r.tipo,nombre_normalizado:normalizarTexto(r.nombre),unidad:r.unidad}))}
+  return{
+    id:uid(),codigo:b.codigo||('APU-IMP-'+uid().slice(0,6)),nombre:b.nombre,categoria:b.categoria,unidad:b.unidad||'un',
+    fecha_creacion:new Date().toISOString(),
+    recursos_ins:(b.recursos_ins||[]).map(function(r){return{id:uid(),insumo_id:idDe(r),consumo:r.cantidad||0,desperdicios_pct:r.desperdicios_pct!=null?r.desperdicios_pct:5}}),
+    recursos_mo:(b.recursos_mo||[]).map(function(r){return{id:uid(),cargo_id:idDe(r),cant_personas:r.cantidad||1,rendimiento:r.rendimiento||0}}),
+    recursos_eq:(b.recursos_eq||[]).map(function(r){return{id:uid(),equipo_id:idDe(r),rendimiento:r.rendimiento||0}}),
+    recursos_transporte:(b.recursos_transporte||[]).map(function(r){return{id:uid(),equipo_id:idDe(r),unidad:'Definir',distancia_km:r.cantidad||0,tarifa:r.precio||0}})
+  };
+}
+
+/* Propaga las decisiones tomadas en Fase 3 (crear/vincular/actualizar) al repositorio,
+   y arma los objetos APU finales listos para agregar a data.apus (o presupuesto.apus_snap). */
+/* Funcion pura: NO llama repositorio.crear/actualizarPrecio (que disparan su propio onChange
+   cada uno). Si se hicieran varias llamadas a onChange seguidas de forma sincrona dentro del
+   forEach, cada una parte del mismo `data`/`presupuesto` desactualizado capturado al crear el
+   repositorio, y las llamadas posteriores pisan lo que hicieron las anteriores (ultima gana).
+   Por eso se acumulan los arreglos localmente y se devuelven para que el llamador aplique
+   TODO en un unico onChange/setPresupuesto. */
+function aplicarImportacion(bloques,recursosUnicos,repositorio,contextoCalc){
+  var insumosLocal=repositorio.leer('insumos').slice();
+  var equiposLocal=repositorio.leer('equipos').slice();
+  var colaboradoresLocal=repositorio.leer('colaboradores').slice();
+  var idPorKey=new Map();
+  recursosUnicos.forEach(function(ru){
+    var decision=ru.decision||(ru.severidad==='baja'?'vincular':'crear_nuevo');
+    var precioFinal=ru.edicion&&ru.edicion.precio!=null?safeFloat(ru.edicion.precio):ru.precio_excel;
+    var nombreFinal=(ru.edicion&&ru.edicion.nombre)||ru.nombre_variantes[0]||ru.nombre_normalizado;
+    var unidadFinal=(ru.edicion&&ru.edicion.unidad)||ru.unidad;
+    var id=null;
+    if(decision==='crear_nuevo'){
+      if(ru.tipo==='MO'){
+        var cargo=buildCargoDesdeImport(nombreFinal,precioFinal,contextoCalc.esHora,contextoCalc.factorPrest,contextoCalc.config,colaboradoresLocal);
+        colaboradoresLocal=colaboradoresLocal.concat([cargo]);
+        id=cargo.id;
+      }else if(ru.tipo==='INSUMO'){
+        var insumo={id:uid(),codigo:genCodeFor(insumosLocal,'IN'),nombre:nombreFinal,unidad:unidadFinal,origen:'Local',categoria:'Pétreos',subcategoria:'otros',marca_referencia:'',costo_unitario:precioFinal,fecha_cotizacion:'',apu_basico_id:'',proveedor_id:''};
+        insumosLocal=insumosLocal.concat([insumo]);
+        id=insumo.id;
+      }else{ // EQUIPO o TRANSPORTE -> catalogo de equipos
+        var equipo={id:uid(),codigo:genCodeFor(equiposLocal,'EQ'),nombre:nombreFinal,tipo:'Equipo menor',unidad:unidadFinal,costo_hora:precioFinal,fecha_cotizacion:'',proveedor_id:''};
+        equiposLocal=equiposLocal.concat([equipo]);
+        id=equipo.id;
+      }
+    }else if(decision==='vincular_actualizar'&&ru.match){
+      if(ru.tipo==='INSUMO'){
+        insumosLocal=insumosLocal.map(function(x){return x.id===ru.match.id?Object.assign({},x,{costo_unitario:precioFinal}):x});
+      }else if(ru.tipo==='EQUIPO'||ru.tipo==='TRANSPORTE'){
+        equiposLocal=equiposLocal.map(function(x){return x.id===ru.match.id?Object.assign({},x,{costo_hora:precioFinal}):x});
+      }else if(ru.tipo==='MO'){
+        colaboradoresLocal=colaboradoresLocal.map(function(x){return x.id===ru.match.id?Object.assign({},x,{num_salarios_base:r2(precioFinal/(contextoCalc.config.salario_base||1750905))}):x});
+      }
+      id=ru.match.id;
+    }else{
+      id=ru.match?ru.match.id:null;
+    }
+    idPorKey.set(claveDeRU(ru),id);
+  });
+  var nuevosApus=bloques.map(function(b){return buildApuFromBlock(b,idPorKey)});
+  return{nuevosApus:nuevosApus,insumos:insumosLocal,equipos:equiposLocal,colaboradores:colaboradoresLocal};
+}
+
+/* Presupuestos cuyo insumos_snap/equipos_snap/cargos_snap incluyen (via algun APU de su apus_snap)
+   una referencia al recurso dado — sirve para avisar el impacto de decision==='vincular_actualizar'.
+   Solo tiene sentido en modo catalogo_global: dentro de snapshot_proyecto el unico afectado posible
+   es el propio proyecto. */
+function presupuestosAfectados(recursoId,tipoRecurso,data){
+  var campoRes={INSUMO:'recursos_ins',EQUIPO:'recursos_eq',TRANSPORTE:'recursos_eq',MO:'recursos_mo'}[tipoRecurso];
+  var campoId={INSUMO:'insumo_id',EQUIPO:'equipo_id',TRANSPORTE:'equipo_id',MO:'cargo_id'}[tipoRecurso];
+  return(data.presupuestos||[]).filter(function(p){
+    return(p.apus_snap||[]).some(function(a){return(a[campoRes]||[]).some(function(r){return r[campoId]===recursoId})});
+  });
 }
 
 function cargoJornal(cargo,usarFP,esHa){if(!cargo)return 0;if(esHa){return usarFP?(cargo.costo_base_hora||0):(cargo.costo_total_hora||0)}return usarFP?(cargo.costo_base_dia||cargo.costo_total_dia||0):(cargo.costo_total_dia||0)}
@@ -2555,6 +2743,198 @@ function calcAPU(a,cargosCalc,equipos,insumos,allCalc,herrPct,factorPrest,usarFP
 
 
 
+/* ══════ Importador Multi-APU — orquestacion (Fase 5) ══════ */
+var SEVERIDAD_ORDEN={bloqueante:0,critica:1,alta:2,media:3,baja:4,sin_match:5};
+var SEVERIDAD_LABEL={bloqueante:'Bloqueante',critica:'Critica',alta:'Alta',media:'Media',baja:'Baja (auto)',sin_match:'Sin match'};
+var SEVERIDAD_COLOR={bloqueante:'#f87171',critica:'#f87171',alta:'#fbbf24',media:'#fbbf24',baja:'#4ade80',sin_match:'var(--tx3)'};
+
+function useApuBlockImport(repositorio,contextoCalc){
+  var faseSt=useState(1);var fase=faseSt[0],setFase=faseSt[1];
+  var umbralSt=useState(15);var umbralPct=umbralSt[0],setUmbralPct=umbralSt[1];
+  var nombreArchivoSt=useState('');var nombreArchivo=nombreArchivoSt[0],setNombreArchivo=nombreArchivoSt[1];
+  var bloquesSt=useState([]);var bloques=bloquesSt[0],setBloques=bloquesSt[1];
+  var erroresSt=useState([]);var erroresParse=erroresSt[0],setErroresParse=erroresSt[1];
+  var recursosSt=useState([]);var recursosUnicos=recursosSt[0],setRecursosUnicos=recursosSt[1];
+  var procesandoSt=useState(false);var procesando=procesandoSt[0],setProcesando=procesandoSt[1];
+
+  var baseMatch=function(){return{insumos:repositorio.leer('insumos'),equipos:repositorio.leer('equipos'),colaboradores:repositorio.leer('colaboradores')}};
+
+  var procesarArchivo=function(file){
+    setProcesando(true);
+    var reader=new FileReader();
+    reader.onload=function(e){
+      try{
+        var wb=XLSX.read(e.target.result,{type:'array'});
+        var ws=wb.Sheets[wb.SheetNames[0]];
+        var aoa=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+        var parsed=parseApuBlocks(aoa);
+        var base=baseMatch();
+        var consolidados=consolidarRecursosApu(parsed.bloques).map(function(ru){
+          ru.match=buscarMatch(ru,base);
+          ru.severidad=calcularSeveridad(ru,umbralPct);
+          if(ru.severidad==='baja')ru.decision='vincular';
+          return ru;
+        });
+        setBloques(parsed.bloques);setErroresParse(parsed.errores);setRecursosUnicos(consolidados);
+        setNombreArchivo(file.name);setProcesando(false);setFase(3);
+      }catch(err){setProcesando(false);showToast('Error leyendo el archivo: '+err.message,{type:'err'})}
+    };
+    reader.onerror=function(){setProcesando(false);showToast('Error leyendo el archivo',{type:'err'})};
+    reader.readAsArrayBuffer(file);
+  };
+
+  var cambiarUmbral=function(v){
+    setUmbralPct(v);
+    var base=baseMatch();
+    setRecursosUnicos(function(list){return list.map(function(ru){var n=Object.assign({},ru);n.severidad=calcularSeveridad(n,v);return n})});
+  };
+
+  var editarRecurso=function(key,campo,valor){
+    var base=baseMatch();
+    setRecursosUnicos(function(list){
+      return list.map(function(ru){
+        if(claveDeRU(ru)!==key)return ru;
+        var n=Object.assign({},ru,{edicion:Object.assign({},ru.edicion,{[campo]:valor})});
+        if(campo==='nombre'){n.nombre_normalizado=normalizarTexto(valor);n.match=buscarMatch(n,base)}
+        if(campo==='desperdicios_pct'&&n.tipo==='INSUMO'){n.desperdicio_valido=valor!==''&&valor!=null&&!isNaN(parseFloat(String(valor).replace(',','.')))}
+        n.severidad=calcularSeveridad(n,umbralPct);
+        return n;
+      });
+    });
+  };
+
+  var setDecision=function(key,decision){
+    setRecursosUnicos(function(list){return list.map(function(ru){return claveDeRU(ru)===key?Object.assign({},ru,{decision:decision}):ru})});
+  };
+
+  var hayBloqueos=recursosUnicos.some(function(ru){return ru.severidad==='bloqueante'||(ru.severidad==='critica'&&!ru.decision)});
+
+  var confirmar=function(){
+    return aplicarImportacion(bloques,recursosUnicos,repositorio,contextoCalc);
+  };
+
+  return{fase:fase,setFase:setFase,umbralPct:umbralPct,cambiarUmbral:cambiarUmbral,nombreArchivo:nombreArchivo,
+    bloques:bloques,erroresParse:erroresParse,recursosUnicos:recursosUnicos,procesando:procesando,
+    procesarArchivo:procesarArchivo,editarRecurso:editarRecurso,setDecision:setDecision,hayBloqueos:hayBloqueos,confirmar:confirmar};
+}
+
+function ImportApuModal({repositorio,contextoCalc,onAplicar,onClose}){
+  var st=useApuBlockImport(repositorio,contextoCalc);
+  var recursosOrdenados=st.recursosUnicos.slice().sort(function(a,b){return SEVERIDAD_ORDEN[a.severidad]-SEVERIDAD_ORDEN[b.severidad]});
+  var numAuto=st.recursosUnicos.filter(function(ru){return ru.severidad==='baja'}).length;
+  var numPendientes=st.recursosUnicos.length-numAuto;
+
+  var handleConfirmar=function(){
+    var resultado=st.confirmar();
+    onAplicar(resultado);
+    showToast(resultado.nuevosApus.length+' APU importados correctamente',{type:'ok'});
+    onClose();
+  };
+
+  return(
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-box" style={{width:960,maxHeight:'88vh',display:'flex',flexDirection:'column'}} onClick={function(e){e.stopPropagation()}}>
+        <div className="modal-hdr">
+          <span className="title">Importar Multi-APU desde Excel</span>
+          <button className="btn-del" onClick={onClose} style={{background:'none',border:'none',cursor:'pointer',padding:2,color:'var(--ok)'}}><IconX/></button>
+        </div>
+        <div className="modal-body" style={{overflowY:'auto',flex:'1 1 auto',padding:'10px 4px'}}>
+
+          {st.fase===1&&(
+            <div style={{display:'flex',flexDirection:'column',gap:16}}>
+              <div style={{fontSize:12,color:'var(--tx2)'}}>Importa varios APU de una sola vez desde un archivo Excel con la estructura de la plantilla oficial (botón "Descargar plantilla APU"). Los recursos (insumos, mano de obra, equipos, transporte) se comparan contra el catálogo general para detectar coincidencias.</div>
+              <div>
+                <label style={{fontSize:11,color:'var(--tx3)',display:'block',marginBottom:6}}>¿Qué variación de precio aceptás para autoasignar automáticamente un recurso cuyo nombre y unidad coinciden exactamente con el catálogo?</label>
+                <div style={{display:'flex',gap:6}}>
+                  {[0,5,15,30].map(function(v){return(
+                    <button key={v} onClick={function(){st.cambiarUmbral(v)}} style={{fontSize:11,padding:'5px 12px',border:'1px solid '+(st.umbralPct===v?'var(--ok)':'var(--bdr)'),borderRadius:4,background:st.umbralPct===v?'rgba(74,222,128,.1)':'transparent',color:st.umbralPct===v?'var(--ok)':'var(--tx2)',cursor:'pointer'}}>{v===0?'0% — revisar todo':v+'%'}</button>
+                  )})}
+                </div>
+              </div>
+              <div>
+                <label className="btn" style={{fontSize:11,padding:'8px 16px',border:'1px solid var(--ok)',borderRadius:4,background:'rgba(74,222,128,.08)',color:'var(--ok)',cursor:'pointer',display:'inline-flex',alignItems:'center',gap:6}}>
+                  <IconExport/> {st.procesando?'Procesando...':'Subir archivo Excel'}
+                  <input type="file" accept=".xlsx,.xls" style={{display:'none'}} disabled={st.procesando} onChange={function(e){var f=e.target.files&&e.target.files[0];if(f)st.procesarArchivo(f)}}/>
+                </label>
+              </div>
+            </div>
+          )}
+
+          {st.fase===3&&(
+            <div style={{display:'flex',flexDirection:'column',gap:10}}>
+              <div style={{fontSize:11,color:'var(--tx3)'}}>{st.nombreArchivo} · {st.bloques.length} APU detectados · {st.recursosUnicos.length} recursos unicos</div>
+              {st.erroresParse.length>0&&(
+                <div style={{padding:'8px 10px',fontSize:11,color:'#f87171',background:'rgba(248,113,113,0.08)',border:'1px solid rgba(248,113,113,0.2)',borderRadius:4}}>
+                  <b>{st.erroresParse.length} fila(s) rechazada(s) del archivo:</b>
+                  <ul style={{margin:'4px 0 0 18px',padding:0}}>{st.erroresParse.slice(0,8).map(function(er,i){return <li key={i}>Fila {er.fila}: {er.msg}</li>})}</ul>
+                </div>
+              )}
+              <div className="xl-scroll" style={{maxHeight:380,overflowY:'auto',border:'1px solid var(--bdr)',borderRadius:4}}>
+                <table style={{tableLayout:'fixed',width:'100%',fontSize:10}}>
+                  <colgroup><col style={{width:60}}/><col style={{width:140}}/><col style={{width:60}}/><col style={{width:80}}/><col style={{width:170}}/><col style={{width:80}}/><col style={{width:140}}/><col style={{width:50}}/></colgroup>
+                  <thead style={{position:'sticky',top:0,background:'var(--bg3)'}}><tr>
+                    <th>Tipo</th><th>Nombre</th><th>Unidad</th><th>Precio Excel</th><th>Match en catalogo</th><th>Severidad</th><th>Decision</th><th>#</th>
+                  </tr></thead>
+                  <tbody>
+                    {recursosOrdenados.map(function(ru){
+                      var key=claveDeRU(ru);
+                      var nombreVal=(ru.edicion&&ru.edicion.nombre)!=null?ru.edicion.nombre:ru.nombre_variantes[0];
+                      var unidadVal=(ru.edicion&&ru.edicion.unidad)!=null?ru.edicion.unidad:ru.unidad;
+                      var precioVal=(ru.edicion&&ru.edicion.precio)!=null?ru.edicion.precio:ru.precio_excel;
+                      var despVal=(ru.edicion&&ru.edicion.desperdicios_pct)!=null?ru.edicion.desperdicios_pct:'';
+                      return(
+                        <tr key={key} style={ru.severidad==='bloqueante'||ru.severidad==='critica'?{background:'rgba(248,113,113,.06)'}:{}}>
+                          <td style={{textAlign:'center'}}>{ru.tipo}</td>
+                          <td><input className="ni" value={nombreVal} onChange={function(e){st.editarRecurso(key,'nombre',e.target.value)}} style={{fontSize:10,width:'100%'}}/></td>
+                          <td><input className="ni" value={unidadVal} onChange={function(e){st.editarRecurso(key,'unidad',e.target.value)}} style={{fontSize:10,width:'100%',textAlign:'center'}}/></td>
+                          <td><input className="ni" type="number" value={precioVal} onChange={function(e){st.editarRecurso(key,'precio',e.target.value)}} style={{fontSize:10,width:'100%',textAlign:'right'}}/>
+                            {ru.tipo==='INSUMO'&&(<div style={{marginTop:2,display:'flex',alignItems:'center',gap:2}}><input className="ni" type="number" placeholder="Desp %" value={despVal} onChange={function(e){st.editarRecurso(key,'desperdicios_pct',e.target.value)}} style={{fontSize:9,width:'100%',textAlign:'right',borderColor:ru.desperdicio_valido?undefined:'#f87171'}}/></div>)}
+                          </td>
+                          <td style={{fontSize:9}}>{ru.match?(ru.match.nombre+' — '+fmt(ru.match.precio)+' / '+ru.match.unidad):'— sin coincidencia —'}</td>
+                          <td style={{textAlign:'center'}}><span style={{fontSize:9,padding:'2px 6px',borderRadius:3,border:'1px solid '+SEVERIDAD_COLOR[ru.severidad],color:SEVERIDAD_COLOR[ru.severidad]}}>{SEVERIDAD_LABEL[ru.severidad]}</span></td>
+                          <td>
+                            <select className="ni sel" value={ru.decision||''} onChange={function(e){st.setDecision(key,e.target.value)}} style={{fontSize:9,width:'100%'}} disabled={ru.severidad==='bloqueante'}>
+                              <option value="">-- elegir --</option>
+                              {ru.match&&<option value="vincular">Vincular a existente</option>}
+                              {ru.match&&<option value="vincular_actualizar">Vincular y actualizar precio</option>}
+                              <option value="crear_nuevo">Crear nuevo</option>
+                            </select>
+                          </td>
+                          <td style={{textAlign:'center'}}>{ru.apariciones.length}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                <span style={{fontSize:10,color:'var(--tx3)'}}>{st.hayBloqueos?'Resuelva los recursos en rojo (bloqueante/critica) para continuar.':'Todo listo para confirmar.'}</span>
+                <button className="btn" disabled={st.hayBloqueos} onClick={function(){st.setFase(4)}} style={{fontSize:11,padding:'6px 14px',border:'1px solid var(--ok)',borderRadius:4,background:st.hayBloqueos?'none':'rgba(74,222,128,.08)',color:'var(--ok)',cursor:st.hayBloqueos?'not-allowed':'pointer',opacity:st.hayBloqueos?0.5:1}}>Continuar a Confirmación →</button>
+              </div>
+            </div>
+          )}
+
+          {st.fase===4&&(
+            <div style={{display:'flex',flexDirection:'column',gap:12}}>
+              <div style={{fontSize:13,fontWeight:700,color:'var(--ok)'}}>Resumen de la importación</div>
+              <div style={{fontSize:12,lineHeight:1.8}}>
+                <div>{st.bloques.length} APU a crear</div>
+                <div>{st.recursosUnicos.length} recursos únicos ({numAuto} autoasignados, {numPendientes} con decisión manual)</div>
+              </div>
+              <div style={{fontSize:11,padding:'8px 10px',border:'1px solid var(--bdr)',borderRadius:4,color:'var(--tx2)'}}>🌐 Estos datos se guardarán en el catálogo general (disponible para todos los proyectos).</div>
+              <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
+                <button className="btn" onClick={function(){st.setFase(3)}} style={{fontSize:11,padding:'6px 14px',border:'1px solid var(--bdr)',borderRadius:4,background:'none',color:'var(--tx2)',cursor:'pointer'}}>{'← Volver a Revisión'}</button>
+                <button className="btn" onClick={handleConfirmar} style={{fontSize:11,padding:'6px 14px',border:'1px solid var(--ok)',borderRadius:4,background:'rgba(74,222,128,.08)',color:'var(--ok)',cursor:'pointer'}}>Confirmar e importar</button>
+              </div>
+            </div>
+          )}
+
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function APUTab({data,onChange,cargosCalc,cargoMap,esHora,eqMap,insMap,cuadrillasCalc,_unidades,equipos,insumos,factorPrest,usarFpEnApu,view,apusBasico}){
 
   var apus=data.apus;
@@ -2568,6 +2948,8 @@ function APUTab({data,onChange,cargosCalc,cargoMap,esHora,eqMap,insMap,cuadrilla
   var categorias_apu=_cl.categorias_apu||[];
 
   var[selectedIdx,setSelectedIdx]=useState(null);
+
+  var[showImportModal,setShowImportModal]=useState(false);
 
   var[search,setSearch]=useState('');
 
@@ -3036,6 +3418,30 @@ function APUTab({data,onChange,cargosCalc,cargoMap,esHora,eqMap,insMap,cuadrilla
 
   },[apus,apuCalcMap,abCalcList,eqMap,insMap,personMap,config,factorPrest,usarFpEnApu,esHora,categorias_apu,herrPct]);
 
+  var descargarPlantillaApu=useCallback(function(){
+    var HEADER_RECURSO=['TIPO','RECURSO','UNIDAD','CANTIDAD','RENDIMIENTO','PRECIO_UNIT','DESPERDICIO_PCT'];
+    var rows=[
+      ['APU_CODIGO','APU-001','APU_NOMBRE','Excavacion manual','UNIDAD','m3','CATEGORIA','Movimiento de tierra'],
+      HEADER_RECURSO,
+      ['INSUMO','Arena lavada','m3',0.5,'',25000,8],
+      ['MO','Oficial 1a','hr','',0.10,'',''],
+      ['EQUIPO','Retroexcavadora','hr','',0.05,'',''],
+      ['TRANSPORTE','Volqueta 5m3','km','','',3500,''],
+      [],
+      ['APU_CODIGO','APU-002','APU_NOMBRE','Concreto 3000 PSI','UNIDAD','m3','CATEGORIA','Concretos'],
+      HEADER_RECURSO,
+      ['INSUMO','Cemento gris','saco',7,'',28500,5],
+      ['INSUMO','Arena lavada','m3',0.5,'',25000,8],
+      ['MO','Ayudante','hr','',1.5,'','']
+    ];
+    var ws=XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols']=[{wch:12},{wch:22},{wch:10},{wch:10},{wch:12},{wch:12},{wch:16}];
+    var wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,ws,'Plantilla APU');
+    XLSX.writeFile(wb,'Plantilla_Import_MultiAPU_CIVILMANAGER.xlsx');
+    showToast('Plantilla descargada',{type:'ok'});
+  },[]);
+
   return(
 
     <div style={{display:'flex',gap:16,alignItems:'stretch',overflow:'hidden'}}>
@@ -3147,6 +3553,10 @@ function APUTab({data,onChange,cargosCalc,cargoMap,esHora,eqMap,insMap,cuadrilla
             <input className="ni" style={{width:140,height:22,fontSize:11,border:'1px solid var(--ok)',borderRadius:4}} placeholder="Buscar APU..." value={search} onChange={function(e){setSearch(e.target.value)}}/>
 
             <button className="btn" onClick={exportApuExcel} style={{fontSize:10,border:'1px solid var(--ok)',borderRadius:4,display:'inline-flex',alignItems:'center',gap:4}}><IconExport/> Exportar Excel</button>
+
+            <button className="btn" onClick={descargarPlantillaApu} title="Descargar plantilla Excel para importar multiples APU" style={{fontSize:10,border:'1px solid var(--ac)',borderRadius:4,display:'inline-flex',alignItems:'center',gap:4}}><IconExport/> Descargar plantilla APU</button>
+
+            <button className="btn" onClick={function(){setShowImportModal(true)}} title="Importar varios APU de una vez desde un Excel con la estructura de la plantilla" style={{fontSize:10,border:'1px solid var(--ac)',borderRadius:4,display:'inline-flex',alignItems:'center',gap:4}}><IconPlus/> Importar Multi-APU</button>
 
             <span className="f1"/>
 
@@ -3693,6 +4103,13 @@ function APUTab({data,onChange,cargosCalc,cargoMap,esHora,eqMap,insMap,cuadrilla
         </div>
 
       ):null)}
+
+      {showImportModal&&<ImportApuModal
+        repositorio={crearRepositorio({modo:'catalogo_global',data:data,presupuesto:null,setData:onChange,setPresupuesto:function(){}})}
+        contextoCalc={{config:config,factorPrest:factorPrest,usarFpEnApu:usarFpEnApu,esHora:esHora}}
+        onAplicar={function(resultado){onChange(Object.assign({},data,{apus:apus.concat(resultado.nuevosApus),insumos:resultado.insumos,equipos:resultado.equipos,cargos:resultado.colaboradores}))}}
+        onClose={function(){setShowImportModal(false)}}
+      />}
 
     </div>
 

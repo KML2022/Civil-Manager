@@ -2407,6 +2407,74 @@ function ProveedoresTab({data,onChange}){
 
 
 
+/* ══════ Importador Multi-APU — parser puro (Fase 2) ══════
+   Estructura de bloque en Excel (ver CIVILMANAGER_Spec_Tecnica_Import_MultiAPU_1.docx):
+   Fila 1: APU_CODIGO|<val> APU_NOMBRE|<val> UNIDAD|<val> CATEGORIA|<val>
+   Fila 2: TIPO | RECURSO | UNIDAD | CANTIDAD | RENDIMIENTO | PRECIO_UNIT | DESPERDICIO_PCT
+   Fila 3+: filas de recurso. Fila en blanco = fin de bloque. */
+function normalizarTexto(txt){return (txt||'').toString().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/\s+/g,' ').trim()}
+
+function esFilaVaciaApu(fila){if(!fila)return true;return fila.every(function(c){return c===undefined||c===null||String(c).trim()===''})}
+
+function mapTipoRecursoApu(tipo){return {INSUMO:'ins',MO:'mo',EQUIPO:'eq',TRANSPORTE:'transporte'}[tipo]}
+
+function parseFilaRecursoApu(tipo,fila,filaNum,errores){
+  var r={tipo:tipo,nombre:(fila[1]||'').toString().trim(),unidad:(fila[2]||'').toString().trim(),cantidad:safeFloat(fila[3]),rendimiento:safeFloat(fila[4]),precio:safeFloat(fila[5]),desperdicios_pct:null,fila:filaNum};
+  if(tipo==='INSUMO'){
+    var despRaw=fila[6];
+    var despValido=despRaw!==undefined&&despRaw!==null&&String(despRaw).trim()!==''&&!isNaN(parseFloat(String(despRaw).replace(',','.')));
+    if(!despValido){errores.push({fila:filaNum,msg:'Falta DESPERDICIO_PCT valido (obligatorio para filas TIPO=INSUMO)'})}
+    else{r.desperdicios_pct=safeFloat(despRaw)}
+  }
+  return r;
+}
+
+function parseApuBlocks(aoa){
+  var estado='esperando_apu',bloques=[],actual=null,errores=[];
+  for(var i=0;i<(aoa||[]).length;i++){
+    var fila=aoa[i]||[];
+    if(esFilaVaciaApu(fila)){
+      if(actual){bloques.push(actual);actual=null}
+      estado='esperando_apu';
+      continue;
+    }
+    if(estado==='esperando_apu'){
+      var marcador=(fila[0]||'').toString().trim().toUpperCase();
+      if(marcador!=='APU_CODIGO'){errores.push({fila:i+1,msg:'No se encontro marcador APU_CODIGO, verifique que uso la plantilla oficial'});continue}
+      actual={codigo:(fila[1]||'').toString().trim(),nombre:(fila[3]||'').toString().trim(),unidad:(fila[5]||'').toString().trim(),categoria:(fila[7]||'').toString().trim(),recursos_ins:[],recursos_mo:[],recursos_eq:[],recursos_transporte:[],filaInicio:i+1};
+      estado='header_recursos';
+      continue;
+    }
+    if(estado==='header_recursos'){estado='leyendo_recursos';continue}
+    if(estado==='leyendo_recursos'){
+      var tipo=(fila[0]||'').toString().trim().toUpperCase();
+      if(['INSUMO','MO','EQUIPO','TRANSPORTE'].indexOf(tipo)===-1){errores.push({fila:i+1,msg:'Tipo de recurso invalido: '+tipo});continue}
+      actual['recursos_'+mapTipoRecursoApu(tipo)].push(parseFilaRecursoApu(tipo,fila,i+1,errores));
+    }
+  }
+  if(actual)bloques.push(actual);
+  return{bloques:bloques,errores:errores};
+}
+
+function consolidarRecursosApu(bloques){
+  var mapa=new Map();
+  (bloques||[]).forEach(function(b){
+    ['recursos_ins','recursos_mo','recursos_eq','recursos_transporte'].forEach(function(sec){
+      (b[sec]||[]).forEach(function(r){
+        var key=r.tipo+'|'+normalizarTexto(r.nombre)+'|'+normalizarTexto(r.unidad);
+        if(!mapa.has(key)){
+          mapa.set(key,{tipo:r.tipo,nombre_normalizado:normalizarTexto(r.nombre),nombre_variantes:[],unidad:r.unidad,precio_excel:r.precio,precio_excel_variantes:[],apariciones:[],match:null,severidad:null,decision:null,edicion:{}});
+        }
+        var e=mapa.get(key);
+        if(e.nombre_variantes.indexOf(r.nombre)===-1)e.nombre_variantes.push(r.nombre);
+        if(e.precio_excel_variantes.indexOf(r.precio)===-1)e.precio_excel_variantes.push(r.precio);
+        e.apariciones.push({apu_codigo:b.codigo,ref:r});
+      });
+    });
+  });
+  return Array.from(mapa.values());
+}
+
 function cargoJornal(cargo,usarFP,esHa){if(!cargo)return 0;if(esHa){return usarFP?(cargo.costo_base_hora||0):(cargo.costo_total_hora||0)}return usarFP?(cargo.costo_base_dia||cargo.costo_total_dia||0):(cargo.costo_total_dia||0)}
 
 function calcAPU(a,cargosCalc,equipos,insumos,allCalc,herrPct,factorPrest,usarFP,esHa,cargoMapIn,eqMapIn,insMapIn){

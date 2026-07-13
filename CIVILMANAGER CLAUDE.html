@@ -2407,63 +2407,120 @@ function ProveedoresTab({data,onChange}){
 
 
 
-/* ══════ Importador Multi-APU — parser puro (Fase 2) ══════
-   Estructura de bloque en Excel (ver CIVILMANAGER_Spec_Tecnica_Import_MultiAPU_1.docx):
-   Fila 1: APU_CODIGO|<val> APU_NOMBRE|<val> UNIDAD|<val> CATEGORIA|<val>
-   Fila 2: TIPO | RECURSO | UNIDAD | CANTIDAD | RENDIMIENTO | PRECIO_UNIT | DESPERDICIO_PCT
-   Fila 3+: filas de recurso. Fila en blanco = fin de bloque. */
+/* ══════ Importador Multi-APU — parser puro (Fase 2, formato v2) ══════
+   Espejo estructural de exportApuExcel (ver CIVILMANAGER_Spec_Tecnica_Import_MultiAPU_2.docx):
+   Fila 1 del APU: Codigo | | | | | 'Fecha:' | valorFecha
+   Fila 2 del APU: Nombre | | | | | 'Unidad:' | valorUnidad
+   Fila en blanco, luego secciones ancla ▌ A. EQUIPO / ▌ B. MATERIALES / ▌ C. TRANSPORTE / ▌ D. PERSONAL,
+   cada una con su propia fila de encabezados de columna y sus filas de recurso, separadas por filas
+   de subtotal ("",...,"Subtotal X:",...) y filas en blanco. Tambien reconoce (y usa como contexto,
+   sin bloquear) las cabeceras de categoria "▌ NOMBRE (N APU)" y la fila de titulo del export, para
+   poder reimportar directamente un archivo generado por "Exportar Excel". */
 function normalizarTexto(txt){return (txt||'').toString().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/\s+/g,' ').trim()}
 
 function esFilaVaciaApu(fila){if(!fila)return true;return fila.every(function(c){return c===undefined||c===null||String(c).trim()===''})}
 
-function mapTipoRecursoApu(tipo){return {INSUMO:'ins',MO:'mo',EQUIPO:'eq',TRANSPORTE:'transporte'}[tipo]}
+/* Filas decorativas del export real que no son un recurso: subtotales por seccion ("Subtotal X:"
+   en col3), lineas de F.P. de personal ("Personal sin F.P.:"/"Valor Prestacional" en col4/col5,
+   sin nada en col0/col1 — a diferencia de un recurso real, que SIEMPRE trae Descripcion en col1
+   aunque el Codigo sea opcional), y la fila de TOTAL COSTO DIRECTO al cierre de cada APU. */
+function esFilaSubtotalApu(fila){
+  if(!fila)return false;
+  var c0=String(fila[0]||'').trim(),c1=String(fila[1]||'').trim();
+  if(/^TOTAL COSTO DIRECTO/i.test(c0))return true;
+  if(c0===''&&c1===''){
+    var resto=fila.slice(2).some(function(v){return v!==undefined&&v!==null&&String(v).trim()!==''});
+    return resto;
+  }
+  return false;
+}
 
-function parseFilaRecursoApu(tipo,fila,filaNum,errores){
-  var r={tipo:tipo,nombre:(fila[1]||'').toString().trim(),unidad:(fila[2]||'').toString().trim(),cantidad:safeFloat(fila[3]),rendimiento:safeFloat(fila[4]),precio:safeFloat(fila[5]),desperdicios_pct:null,fila:filaNum};
-  if(tipo==='INSUMO'){
-    var despRaw=fila[6];
+function esEncabezadoCategoriaApu(fila){var c0=(fila&&fila[0]||'').toString().trim();return/^▌\s.+\(\d+\s*APU\)$/i.test(c0)}
+
+function esTituloExportApu(fila){var c0=(fila&&fila[0]||'').toString().trim().toUpperCase();return c0.indexOf('CIVILMANAGER')===0&&c0.indexOf('ANALISIS')>=0}
+
+var SECCIONES_APU={'▌ A. EQUIPO':'recursos_eq','▌ B. MATERIALES':'recursos_ins','▌ C. TRANSPORTE':'recursos_transporte','▌ D. PERSONAL':'recursos_mo'};
+
+/* Mapeo de columnas por seccion, identico al que ya usa exportApuExcel para cada una:
+   EQUIPO:      Codigo|Descripcion|Tarifa por|Vr.Unitario|Rendimiento|-|Vr.Parcial
+   MATERIALES:  Codigo|Descripcion|UN|Vr.Unitario|Consumo|Desperdicios|Vr.Parcial
+   TRANSPORTE:  Codigo|Descripcion|Unidad|Distancia(km)|Tarifa|-|Vr.Parcial
+   PERSONAL:    Codigo|Descripcion|Cant.Pers.|Vr.por(label)|Vr.(con F.P.)|Rendimiento|Vr.Parcial */
+function parseFilaRecursoPorSeccion(seccion,fila,filaNum,errores){
+  var codigo=(fila[0]||'').toString().trim();
+  var nombre=(fila[1]||'').toString().trim();
+  var r={seccion:seccion,codigo:codigo||null,nombre:nombre,fila:filaNum,desperdicios_pct:null};
+  if(seccion==='recursos_eq'){
+    r.tipo='EQUIPO';r.unidad=(fila[2]||'').toString().trim();r.precio=safeFloat(fila[3]);r.rendimiento=safeFloat(fila[4]);r.cantidad=0;
+  }else if(seccion==='recursos_ins'){
+    r.tipo='INSUMO';r.unidad=(fila[2]||'').toString().trim();r.precio=safeFloat(fila[3]);r.cantidad=safeFloat(fila[4]);r.rendimiento=0;
+    var despRaw=fila[5];
     var despValido=despRaw!==undefined&&despRaw!==null&&String(despRaw).trim()!==''&&!isNaN(parseFloat(String(despRaw).replace(',','.')));
-    if(!despValido){errores.push({fila:filaNum,msg:'Falta DESPERDICIO_PCT valido (obligatorio para filas TIPO=INSUMO)'})}
+    if(!despValido){errores.push({fila:filaNum,msg:'Falta Desperdicios valido en MATERIALES (obligatorio en toda fila de esa seccion)'})}
     else{r.desperdicios_pct=safeFloat(despRaw)}
+  }else if(seccion==='recursos_transporte'){
+    r.tipo='TRANSPORTE';r.unidad=(fila[2]||'').toString().trim();r.cantidad=safeFloat(fila[3]);r.precio=safeFloat(fila[4]);r.rendimiento=0;
+  }else if(seccion==='recursos_mo'){
+    r.tipo='MO';r.unidad='';r.cantidad=safeFloat(fila[2])||1;r.precio=safeFloat(fila[4]);r.rendimiento=safeFloat(fila[5]);
   }
   return r;
 }
 
 function parseApuBlocks(aoa){
-  var estado='esperando_apu',bloques=[],actual=null,errores=[];
+  var estado='esperando_apu',seccionActual=null,categoriaActual='';
+  var bloques=[],actual=null,errores=[];
   for(var i=0;i<(aoa||[]).length;i++){
     var fila=aoa[i]||[];
-    if(esFilaVaciaApu(fila)){
+    if(esTituloExportApu(fila))continue;
+    if(esEncabezadoCategoriaApu(fila)){
       if(actual){bloques.push(actual);actual=null}
-      estado='esperando_apu';
+      estado='esperando_apu';seccionActual=null;
+      categoriaActual=(fila[0]||'').toString().replace(/^▌\s*/,'').replace(/\s*\(\d+\s*APU\)\s*$/i,'').trim();
       continue;
     }
+    if(esFilaSubtotalApu(fila))continue;
+    if(estado==='leyendo_recursos'&&esFilaVaciaApu(fila)){estado='en_bloque';seccionActual=null;continue}
+    if(esFilaVaciaApu(fila))continue; // blanco perdido entre bloques, ignorar
+    var primera=(fila[0]||'').toString().trim();
     if(estado==='esperando_apu'){
-      var marcador=(fila[0]||'').toString().trim().toUpperCase();
-      if(marcador!=='APU_CODIGO'){errores.push({fila:i+1,msg:'No se encontro marcador APU_CODIGO, verifique que uso la plantilla oficial'});continue}
-      actual={codigo:(fila[1]||'').toString().trim(),nombre:(fila[3]||'').toString().trim(),unidad:(fila[5]||'').toString().trim(),categoria:(fila[7]||'').toString().trim(),recursos_ins:[],recursos_mo:[],recursos_eq:[],recursos_transporte:[],filaInicio:i+1};
-      estado='header_recursos';
+      actual={codigo:primera,nombre:'',unidad:'',categoria:categoriaActual,fecha:fila[6]||null,filaInicio:i+1,recursos_ins:[],recursos_mo:[],recursos_eq:[],recursos_transporte:[]};
+      estado='leyendo_nombre';
       continue;
     }
-    if(estado==='header_recursos'){estado='leyendo_recursos';continue}
-    if(estado==='leyendo_recursos'){
-      var tipo=(fila[0]||'').toString().trim().toUpperCase();
-      if(['INSUMO','MO','EQUIPO','TRANSPORTE'].indexOf(tipo)===-1){errores.push({fila:i+1,msg:'Tipo de recurso invalido: '+tipo});continue}
-      actual['recursos_'+mapTipoRecursoApu(tipo)].push(parseFilaRecursoApu(tipo,fila,i+1,errores));
+    if(estado==='leyendo_nombre'){
+      actual.nombre=primera;actual.unidad=(fila[6]||'').toString().trim();
+      estado='en_bloque';seccionActual=null;
+      continue;
+    }
+    if(estado==='en_bloque'){
+      if(SECCIONES_APU[primera]){seccionActual=SECCIONES_APU[primera];estado='header_seccion';continue}
+      // fila no reconocida como seccion => empieza un nuevo APU
+      bloques.push(actual);
+      actual={codigo:primera,nombre:'',unidad:'',categoria:categoriaActual,fecha:fila[6]||null,filaInicio:i+1,recursos_ins:[],recursos_mo:[],recursos_eq:[],recursos_transporte:[]};
+      estado='leyendo_nombre';
+      continue;
+    }
+    if(estado==='header_seccion'){estado='leyendo_recursos';continue} // fila de encabezados de columna, se descarta
+    if(estado==='leyendo_recursos'&&seccionActual){
+      actual[seccionActual].push(parseFilaRecursoPorSeccion(seccionActual,fila,i+1,errores));
+      continue;
     }
   }
   if(actual)bloques.push(actual);
   return{bloques:bloques,errores:errores};
 }
 
+/* Si la fila trae Codigo explicito, ese codigo es la identidad del recurso (se agrupan todas las
+   apariciones con ese mismo codigo aunque el nombre/unidad tipeado varie) y se salta el motor de
+   matching por nombre/unidad/precio — se resuelve por codigo directo (ver buscarMatchPorCodigo). */
 function consolidarRecursosApu(bloques){
   var mapa=new Map();
   (bloques||[]).forEach(function(b){
     ['recursos_ins','recursos_mo','recursos_eq','recursos_transporte'].forEach(function(sec){
       (b[sec]||[]).forEach(function(r){
-        var key=r.tipo+'|'+normalizarTexto(r.nombre)+'|'+normalizarTexto(r.unidad);
+        var key=claveDeRecursoCrudo(r);
         if(!mapa.has(key)){
-          mapa.set(key,{tipo:r.tipo,nombre_normalizado:normalizarTexto(r.nombre),nombre_variantes:[],unidad:r.unidad,precio_excel:r.precio,precio_excel_variantes:[],apariciones:[],match:null,severidad:null,decision:null,edicion:{},desperdicio_valido:true});
+          mapa.set(key,{tipo:r.tipo,codigo:r.codigo||null,nombre_normalizado:normalizarTexto(r.nombre),nombre_variantes:[],unidad:r.unidad,precio_excel:r.precio,precio_excel_variantes:[],apariciones:[],match:null,severidad:null,decision:null,edicion:{},desperdicio_valido:true});
         }
         var e=mapa.get(key);
         if(e.nombre_variantes.indexOf(r.nombre)===-1)e.nombre_variantes.push(r.nombre);
@@ -2499,6 +2556,107 @@ function similitud(a,b){
    TRANSPORTE matchea contra equipos porque recursos_transporte referencia un equipo_id (el vehiculo). */
 var TIPO_RECURSO_A_CATEGORIA={INSUMO:'insumos',EQUIPO:'equipos',TRANSPORTE:'equipos',MO:'colaboradores'};
 
+/* ══════ Estilos compartidos de export/plantilla APU (exportApuExcel + descargarPlantillaApu) ══════
+   Extraidos de exportApuExcel para no duplicar la paleta de colores en dos lugares
+   (ver CIVILMANAGER_Ajuste_Plantilla_Import_Visual.docx). */
+function estilosApuExcel(){
+  var FN='Calibri';
+  function bd(hex){return[{top:{style:'thin',color:{rgb:'FF'+hex}},bottom:{style:'thin',color:{rgb:'FF'+hex}},left:{style:'thin',color:{rgb:'FF'+hex}},right:{style:'thin',color:{rgb:'FF'+hex}}}]}
+  var BL=bd('888888');
+  var BH=bd('444444');
+  function bs(extra){var base={font:{name:FN,sz:9},border:BL};return extra?Object.assign(base,extra):base}
+  return{
+    FN:FN,BL:BL,BH:BH,bs:bs,
+    S_TITLE:bs({font:{name:FN,sz:9,bold:true,color:{rgb:'FFFFFF'}},fill:{fgColor:{rgb:'1A2332'}},alignment:{horizontal:'center'},border:BH}),
+    S_CAT:bs({font:{name:FN,sz:9,bold:true,color:{rgb:'FFFFFF'}},fill:{fgColor:{rgb:'BFBFBF'}},border:BH}),
+    S_SEC:bs({font:{name:FN,sz:9,bold:true,color:{rgb:'FFFFFF'}},fill:{fgColor:{rgb:'BFBFBF'}},border:BH}),
+    S_HDR:bs({font:{name:FN,sz:9,bold:true,color:{rgb:'333333'}},fill:{fgColor:{rgb:'D9D9D9'}},alignment:{horizontal:'center'},border:BH}),
+    S_CELL:bs(),
+    S_CELL_R:bs({alignment:{horizontal:'right'},numFmt:XLS_NUM_FMT}),
+    S_CELL_RT:bs({alignment:{horizontal:'right'}}),
+    S_CELL_C:bs({alignment:{horizontal:'center'}}),
+    S_CELL_C2:bs({alignment:{horizontal:'center'},numFmt:XLS_NUM_FMT}),
+    S_CELL_4:bs({alignment:{horizontal:'center'},numFmt:'#,##0.0000'}),
+    S_HERR:bs({font:{name:FN,sz:9,italic:true,color:{rgb:'9CA3AF'}},numFmt:XLS_NUM_FMT}),
+    S_HERR_C:bs({font:{name:FN,sz:9,italic:true,color:{rgb:'9CA3AF'}},alignment:{horizontal:'center'}}),
+    S_HERR_P:bs({font:{name:FN,sz:9,italic:true,color:{rgb:'9CA3AF'}},alignment:{horizontal:'center'},numFmt:'0.00%'}),
+    S_SUB_LBL:bs({font:{name:FN,sz:9,bold:true,color:{rgb:'333333'}},alignment:{horizontal:'right'},fill:{fgColor:{rgb:'F2F2F2'}},border:BH}),
+    S_SUB_VAL:bs({font:{name:FN,sz:9,bold:true,color:{rgb:'333333'}},alignment:{horizontal:'right'},fill:{fgColor:{rgb:'F2F2F2'}},numFmt:XLS_NUM_FMT,border:BH}),
+    S_TOTAL_LBL:bs({font:{name:FN,sz:9,bold:true,color:{rgb:'333333'}},alignment:{horizontal:'right'},fill:{fgColor:{rgb:'C4BD97'}},border:BH}),
+    S_TOTAL_VAL:bs({font:{name:FN,sz:9,bold:true,color:{rgb:'333333'}},alignment:{horizontal:'right'},fill:{fgColor:{rgb:'C4BD97'}},numFmt:'#,##0',border:BH}),
+    S_DATE:bs({numFmt:'dd-mmm-yy',alignment:{horizontal:'left'}})
+  };
+}
+
+/* Recorre las filas ya construidas (aoa) y les asigna estilo segun el CONTENIDO de la fila —
+   mismos marcadores que ya usa exportApuExcel (▌ seccion, 'Codigo', 'TOTAL COSTO DIRECTO',
+   'Subtotal...', EQ-000, prefijos EQ-/IN-/MO-). No depende de datos reales de un APU: por eso
+   sirve igual para el export con datos que para la plantilla en blanco. */
+/* aoa_to_sheet no convierte strings "=..." en formulas reales — quedan como texto literal.
+   Recorre el rango de la hoja y convierte cualquier celda de texto que empiece en '=' a celda
+   de formula real (mismo paso que ya usaba exportApuExcel, factorizado para reusar tambien en
+   descargarPlantillaApu). */
+function convertirFormulasApuExcel(ws){
+  if(!ws['!ref'])return;
+  var rng=XLSX.utils.decode_range(ws['!ref']);
+  for(var R=rng.s.r;R<=rng.e.r;++R){
+    for(var C=rng.s.c;C<=rng.e.c;++C){
+      var addr=XLSX.utils.encode_cell({r:R,c:C});
+      var cell=ws[addr];
+      if(cell&&cell.t==='s'&&typeof cell.v==='string'&&cell.v.charAt(0)==='='){
+        cell.f=cell.v.substring(1);cell.t='f';
+      }
+    }
+  }
+}
+
+function aplicarEstilosApuExcel(ws,rows,ce,S){
+  rows.forEach(function(row,rIdx){
+    var c0=String(row[0]||'');
+    if(rIdx===0){row.forEach(function(_,ci){var k=ce(rIdx,ci);if(ws[k])ws[k].s=S.S_TITLE})}
+    else if(c0.indexOf('▌ ')===0&&c0.indexOf('APU')<0){row.forEach(function(_,ci){var k=ce(rIdx,ci);if(ws[k])ws[k].s=S.S_CAT})}
+    else if(c0.indexOf('▌ ')===0){row.forEach(function(_,ci){var k=ce(rIdx,ci);if(ws[k])ws[k].s=S.S_SEC})}
+    else if(c0==='Codigo'){row.forEach(function(_,ci){var k=ce(rIdx,ci);if(ws[k])ws[k].s=S.S_HDR})}
+    else if(String(row[5]||'')==='Fecha:'){
+      row.forEach(function(_,ci){var k=ce(rIdx,ci);if(!ws[k])return;
+        ws[k].s=(ci===5)?S.S_CELL_RT:(ci===6)?S.S_DATE:(ci===0)?S.S_CELL_C:S.S_CELL;
+      });
+    }
+    else if(String(row[5]||'')==='Unidad:'){
+      row.forEach(function(_,ci){var k=ce(rIdx,ci);if(!ws[k])return;
+        ws[k].s=(ci===5)?S.S_CELL_RT:(ci===6)?S.S_CELL:(ci===0)?S.S_CELL:S.S_CELL;
+      });
+    }
+    else if(c0==='EQ-000'){row.forEach(function(_,ci){var k=ce(rIdx,ci);if(!ws[k])return;ws[k].s=(ci===4)?S.S_HERR_P:(ci===3||ci===6)?S.S_HERR:(ci===0||ci===2)?S.S_HERR_C:S.S_CELL})}
+    else if(c0.indexOf('TOTAL COSTO DIRECTO')>=0){row.forEach(function(_,ci){var k=ce(rIdx,ci);if(ws[k])ws[k].s=ci===6?S.S_TOTAL_VAL:S.S_TOTAL_LBL})}
+    else if(c0.indexOf('Subtotal')>=0||String(row[3]||'').indexOf('Subtotal')>=0){
+      row.forEach(function(_,ci){var k=ce(rIdx,ci);if(ws[k])ws[k].s=ci===6?S.S_SUB_VAL:S.S_SUB_LBL});
+    }
+    else if(String(row[5]||'').indexOf('Personal sin F.P.')>=0||String(row[4]||'').indexOf('Valor Prestacional')>=0){
+      row.forEach(function(_,ci){var k=ce(rIdx,ci);if(!ws[k])return;
+        if(ci===5&&String(row[4]||'').indexOf('Valor Prestacional')>=0)ws[k].s=S.S_CELL_R;
+        else if(ci===6)ws[k].s=S.S_CELL_R;
+        else ws[k].s=S.S_CELL;
+      });
+    }
+    else if(c0.match(/^(EQ|IN|MO)-/)){
+      row.forEach(function(_,ci){var k=ce(rIdx,ci);if(!ws[k])return;
+        if(ci===6)ws[k].s=S.S_CELL_R;
+        else if(ci===2&&c0.indexOf('MO-')===0)ws[k].s=S.S_CELL_C2;
+        else if(ci===2)ws[k].s=S.S_CELL_C;
+        else if(ci===3&&c0.indexOf('MO-')===0)ws[k].s=S.S_CELL_C;
+        else if(ci===3)ws[k].s=S.S_CELL_R;
+        else if(ci===4&&(c0.indexOf('EQ-')===0||c0.indexOf('IN-')===0))ws[k].s=S.S_CELL_4;
+        else if(ci===4)ws[k].s=S.S_CELL_R;
+        else if(ci===5&&(c0.indexOf('MO-')===0))ws[k].s=S.S_CELL_4;
+        else if(ci===0)ws[k].s=S.S_CELL_C;
+        else ws[k].s=S.S_CELL;
+      });
+    }
+    else{row.forEach(function(_,ci){var k=ce(rIdx,ci);if(ws[k])ws[k].s=S.S_CELL})}
+  });
+}
+
 function nombreCatalogo(registro){return registro.nombre||registro.descripcion||''}
 function precioCatalogo(registro){
   if(registro.costo_unitario!=null)return safeFloat(registro.costo_unitario);
@@ -2520,6 +2678,18 @@ function buscarMatch(recurso,base){
   return{id:mejor.id,nombre:nombreCatalogo(mejor),unidad:mejor.unidad||recurso.unidad,precio:precioCatalogo(mejor)};
 }
 
+/* Match directo por Codigo (columna opcional de la plantilla v2): si el usuario llena el codigo de
+   catalogo en la fila, se resuelve por ese codigo exacto y NO se pasa por el motor de similitud. */
+function buscarMatchPorCodigo(recurso,base){
+  if(!recurso.codigo)return null;
+  var categoria=TIPO_RECURSO_A_CATEGORIA[recurso.tipo];
+  var candidatos=(base&&base[categoria])||[];
+  var cod=recurso.codigo.toUpperCase();
+  var encontrado=candidatos.find(function(c){return(c.codigo||'').toUpperCase()===cod});
+  if(!encontrado)return null;
+  return{id:encontrado.id,nombre:nombreCatalogo(encontrado),unidad:encontrado.unidad||recurso.unidad,precio:precioCatalogo(encontrado)};
+}
+
 function calcularSeveridad(recurso,umbralPct){
   umbralPct=umbralPct==null?15:umbralPct;
   if(recurso.tipo==='INSUMO'&&!recurso.desperdicio_valido)return'bloqueante';
@@ -2532,6 +2702,24 @@ function calcularSeveridad(recurso,umbralPct){
   if(simNombre>=80&&simNombre<99.5)return'media';
   if(simNombre>=99.5&&deltaPct<=umbralPct)return'baja';
   return'sin_match';
+}
+
+/* Resuelve match+severidad+decision de un recurso unico: si trae Codigo, resuelve por codigo directo
+   (severidad 'baja' automatica, sin pasar por similitud/umbral de precio); si no, usa el motor de
+   matching por nombre/unidad/precio existente. Usado en cada (re)calculo de recursosUnicos. */
+function resolverMatchYSeveridad(ru,base,umbralPct){
+  var n=Object.assign({},ru);
+  if(n.tipo==='INSUMO'&&!n.desperdicio_valido){n.match=n.codigo?buscarMatchPorCodigo(n,base):buscarMatch(n,base);n.severidad='bloqueante';return n}
+  if(n.codigo){
+    n.match=buscarMatchPorCodigo(n,base);
+    n.severidad=n.match?'baja':'sin_match';
+    if(n.match&&!n.decision)n.decision='vincular';
+  }else{
+    n.match=buscarMatch(n,base);
+    n.severidad=calcularSeveridad(n,umbralPct);
+    if(n.severidad==='baja'&&!n.decision)n.decision='vincular';
+  }
+  return n;
 }
 
 /* contexto = { modo:'catalogo_global'|'snapshot_proyecto', data, presupuesto, setData, setPresupuesto }
@@ -2570,7 +2758,11 @@ function crearRepositorio(contexto){
   };
 }
 
-function claveDeRU(ru){return ru.tipo+'|'+ru.nombre_normalizado+'|'+normalizarTexto(ru.unidad)}
+/* Misma logica de agrupacion que consolidarRecursosApu: por codigo si esta presente, si no por
+   tipo+nombre+unidad normalizados. Debe coincidir siempre con la clave usada alla para que
+   idPorKey (aplicarImportacion) y idDe (buildApuFromBlock) resuelvan al mismo recurso. */
+function claveDeRU(ru){return ru.codigo?('COD|'+ru.tipo+'|'+ru.codigo.toUpperCase()):(ru.tipo+'|'+ru.nombre_normalizado+'|'+normalizarTexto(ru.unidad))}
+function claveDeRecursoCrudo(r){return r.codigo?('COD|'+r.tipo+'|'+r.codigo.toUpperCase()):(r.tipo+'|'+normalizarTexto(r.nombre)+'|'+normalizarTexto(r.unidad))}
 
 /* Construye un cargo (colaborador) nuevo a partir de un costo importado (asumido CON F.P. incluido).
    El modelo real de CIVILMANAGER solo permite fijar el costo de un cargo via num_salarios_base
@@ -2589,14 +2781,14 @@ function buildCargoDesdeImport(nombreExcel,costoImportado,esHa,factorPrestGlobal
 }
 
 function buildApuFromBlock(b,idPorKey){
-  function idDe(r){return idPorKey.get(claveDeRU({tipo:r.tipo,nombre_normalizado:normalizarTexto(r.nombre),unidad:r.unidad}))}
+  function idDe(r){return idPorKey.get(claveDeRecursoCrudo(r))}
   return{
     id:uid(),codigo:b.codigo||('APU-IMP-'+uid().slice(0,6)),nombre:b.nombre,categoria:b.categoria,unidad:b.unidad||'un',
     fecha_creacion:new Date().toISOString(),
     recursos_ins:(b.recursos_ins||[]).map(function(r){return{id:uid(),insumo_id:idDe(r),consumo:r.cantidad||0,desperdicios_pct:r.desperdicios_pct!=null?r.desperdicios_pct:5}}),
     recursos_mo:(b.recursos_mo||[]).map(function(r){return{id:uid(),cargo_id:idDe(r),cant_personas:r.cantidad||1,rendimiento:r.rendimiento||0}}),
     recursos_eq:(b.recursos_eq||[]).map(function(r){return{id:uid(),equipo_id:idDe(r),rendimiento:r.rendimiento||0}}),
-    recursos_transporte:(b.recursos_transporte||[]).map(function(r){return{id:uid(),equipo_id:idDe(r),unidad:'Definir',distancia_km:r.cantidad||0,tarifa:r.precio||0}})
+    recursos_transporte:(b.recursos_transporte||[]).map(function(r){return{id:uid(),equipo_id:idDe(r),unidad:r.unidad||'Definir',distancia_km:r.cantidad||0,tarifa:r.precio||0}})
   };
 }
 
@@ -2616,6 +2808,7 @@ function aplicarImportacion(bloques,recursosUnicos,repositorio,contextoCalc){
   recursosUnicos.forEach(function(ru){
     var decision=ru.decision||(ru.severidad==='baja'?'vincular':'crear_nuevo');
     var precioFinal=ru.edicion&&ru.edicion.precio!=null?safeFloat(ru.edicion.precio):ru.precio_excel;
+    if(precioFinal===''||precioFinal==null||isNaN(precioFinal))precioFinal=ru.match?ru.match.precio:0; // Vr.Unitario opcional cuando el Codigo matchea
     var nombreFinal=(ru.edicion&&ru.edicion.nombre)||ru.nombre_variantes[0]||ru.nombre_normalizado;
     var unidadFinal=(ru.edicion&&ru.edicion.unidad)||ru.unidad;
     var id=null;
@@ -2769,12 +2962,7 @@ function useApuBlockImport(repositorio,contextoCalc){
         var aoa=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
         var parsed=parseApuBlocks(aoa);
         var base=baseMatch();
-        var consolidados=consolidarRecursosApu(parsed.bloques).map(function(ru){
-          ru.match=buscarMatch(ru,base);
-          ru.severidad=calcularSeveridad(ru,umbralPct);
-          if(ru.severidad==='baja')ru.decision='vincular';
-          return ru;
-        });
+        var consolidados=consolidarRecursosApu(parsed.bloques).map(function(ru){return resolverMatchYSeveridad(ru,base,umbralPct)});
         setBloques(parsed.bloques);setErroresParse(parsed.errores);setRecursosUnicos(consolidados);
         setNombreArchivo(file.name);setProcesando(false);setFase(3);
       }catch(err){setProcesando(false);showToast('Error leyendo el archivo: '+err.message,{type:'err'})}
@@ -2786,7 +2974,7 @@ function useApuBlockImport(repositorio,contextoCalc){
   var cambiarUmbral=function(v){
     setUmbralPct(v);
     var base=baseMatch();
-    setRecursosUnicos(function(list){return list.map(function(ru){var n=Object.assign({},ru);n.severidad=calcularSeveridad(n,v);return n})});
+    setRecursosUnicos(function(list){return list.map(function(ru){return resolverMatchYSeveridad(ru,base,v)})});
   };
 
   var editarRecurso=function(key,campo,valor){
@@ -2795,10 +2983,10 @@ function useApuBlockImport(repositorio,contextoCalc){
       return list.map(function(ru){
         if(claveDeRU(ru)!==key)return ru;
         var n=Object.assign({},ru,{edicion:Object.assign({},ru.edicion,{[campo]:valor})});
-        if(campo==='nombre'){n.nombre_normalizado=normalizarTexto(valor);n.match=buscarMatch(n,base)}
+        if(campo==='codigo'){n.codigo=(valor||'').trim()||null}
+        if(campo==='nombre'){n.nombre_normalizado=normalizarTexto(valor)}
         if(campo==='desperdicios_pct'&&n.tipo==='INSUMO'){n.desperdicio_valido=valor!==''&&valor!=null&&!isNaN(parseFloat(String(valor).replace(',','.')))}
-        n.severidad=calcularSeveridad(n,umbralPct);
-        return n;
+        return resolverMatchYSeveridad(n,base,umbralPct);
       });
     });
   };
@@ -2871,13 +3059,14 @@ function ImportApuModal({repositorio,contextoCalc,onAplicar,onClose}){
               )}
               <div className="xl-scroll" style={{maxHeight:380,overflowY:'auto',border:'1px solid var(--bdr)',borderRadius:4}}>
                 <table style={{tableLayout:'fixed',width:'100%',fontSize:10}}>
-                  <colgroup><col style={{width:60}}/><col style={{width:140}}/><col style={{width:60}}/><col style={{width:80}}/><col style={{width:170}}/><col style={{width:80}}/><col style={{width:140}}/><col style={{width:50}}/></colgroup>
+                  <colgroup><col style={{width:60}}/><col style={{width:70}}/><col style={{width:130}}/><col style={{width:60}}/><col style={{width:80}}/><col style={{width:160}}/><col style={{width:80}}/><col style={{width:130}}/><col style={{width:40}}/></colgroup>
                   <thead style={{position:'sticky',top:0,background:'var(--bg3)'}}><tr>
-                    <th>Tipo</th><th>Nombre</th><th>Unidad</th><th>Precio Excel</th><th>Match en catalogo</th><th>Severidad</th><th>Decision</th><th>#</th>
+                    <th>Tipo</th><th>Codigo</th><th>Nombre</th><th>Unidad</th><th>Precio Excel</th><th>Match en catalogo</th><th>Severidad</th><th>Decision</th><th>#</th>
                   </tr></thead>
                   <tbody>
                     {recursosOrdenados.map(function(ru){
                       var key=claveDeRU(ru);
+                      var codigoVal=ru.codigo||'';
                       var nombreVal=(ru.edicion&&ru.edicion.nombre)!=null?ru.edicion.nombre:ru.nombre_variantes[0];
                       var unidadVal=(ru.edicion&&ru.edicion.unidad)!=null?ru.edicion.unidad:ru.unidad;
                       var precioVal=(ru.edicion&&ru.edicion.precio)!=null?ru.edicion.precio:ru.precio_excel;
@@ -2885,6 +3074,7 @@ function ImportApuModal({repositorio,contextoCalc,onAplicar,onClose}){
                       return(
                         <tr key={key} style={ru.severidad==='bloqueante'||ru.severidad==='critica'?{background:'rgba(248,113,113,.06)'}:{}}>
                           <td style={{textAlign:'center'}}>{ru.tipo}</td>
+                          <td><input className="ni" placeholder="opcional" value={codigoVal} onChange={function(e){st.editarRecurso(key,'codigo',e.target.value)}} style={{fontSize:10,width:'100%',textAlign:'center'}}/></td>
                           <td><input className="ni" value={nombreVal} onChange={function(e){st.editarRecurso(key,'nombre',e.target.value)}} style={{fontSize:10,width:'100%'}}/></td>
                           <td><input className="ni" value={unidadVal} onChange={function(e){st.editarRecurso(key,'unidad',e.target.value)}} style={{fontSize:10,width:'100%',textAlign:'center'}}/></td>
                           <td><input className="ni" type="number" value={precioVal} onChange={function(e){st.editarRecurso(key,'precio',e.target.value)}} style={{fontSize:10,width:'100%',textAlign:'right'}}/>
@@ -3022,55 +3212,12 @@ function APUTab({data,onChange,cargosCalc,cargoMap,esHora,eqMap,insMap,cuadrilla
 
     var ce=function(r,c){return XLSX.utils.encode_cell({r:r,c:c})};
 
-    var FN='Calibri';
-
-    function bd(hex){return[
-
-      {top:{style:'thin',color:{rgb:'FF'+hex}},bottom:{style:'thin',color:{rgb:'FF'+hex}},left:{style:'thin',color:{rgb:'FF'+hex}},right:{style:'thin',color:{rgb:'FF'+hex}}}
-
-    ]}
-
-    var BL=bd('888888');
-
-    var BH=bd('444444');
-
-    function bs(extra){var base={font:{name:FN,sz:9},border:BL};return extra?Object.assign(base,extra):base}
-
-    var S_TITLE=bs({font:{name:FN,sz:9,bold:true,color:{rgb:'FFFFFF'}},fill:{fgColor:{rgb:'1A2332'}},alignment:{horizontal:'center'},border:BH});
-
-    var S_CAT=bs({font:{name:FN,sz:9,bold:true,color:{rgb:'FFFFFF'}},fill:{fgColor:{rgb:'BFBFBF'}},border:BH});
-
-    var S_SEC=bs({font:{name:FN,sz:9,bold:true,color:{rgb:'FFFFFF'}},fill:{fgColor:{rgb:'BFBFBF'}},border:BH});
-
-    var S_HDR=bs({font:{name:FN,sz:9,bold:true,color:{rgb:'333333'}},fill:{fgColor:{rgb:'D9D9D9'}},alignment:{horizontal:'center'},border:BH});
-
-    var S_CELL=bs();
-
-    var S_CELL_R=bs({alignment:{horizontal:'right'},numFmt:XLS_NUM_FMT});
-
-    var S_CELL_RT=bs({alignment:{horizontal:'right'}});
-
-    var S_CELL_C=bs({alignment:{horizontal:'center'}});
-
-    var S_CELL_C2=bs({alignment:{horizontal:'center'},numFmt:XLS_NUM_FMT});
-
-    var S_CELL_4=bs({alignment:{horizontal:'center'},numFmt:'#,##0.0000'});
-
-    var S_HERR=bs({font:{name:FN,sz:9,italic:true,color:{rgb:'9CA3AF'}},numFmt:XLS_NUM_FMT});
-
-    var S_HERR_C=bs({font:{name:FN,sz:9,italic:true,color:{rgb:'9CA3AF'}},alignment:{horizontal:'center'}});
-
-    var S_HERR_P=bs({font:{name:FN,sz:9,italic:true,color:{rgb:'9CA3AF'}},alignment:{horizontal:'center'},numFmt:'0.00%'});
-
-    var S_SUB_LBL=bs({font:{name:FN,sz:9,bold:true,color:{rgb:'333333'}},alignment:{horizontal:'right'},fill:{fgColor:{rgb:'F2F2F2'}},border:BH});
-
-    var S_SUB_VAL=bs({font:{name:FN,sz:9,bold:true,color:{rgb:'333333'}},alignment:{horizontal:'right'},fill:{fgColor:{rgb:'F2F2F2'}},numFmt:XLS_NUM_FMT,border:BH});
-
-    var S_TOTAL_LBL=bs({font:{name:FN,sz:9,bold:true,color:{rgb:'333333'}},alignment:{horizontal:'right'},fill:{fgColor:{rgb:'C4BD97'}},border:BH});
-
-    var S_TOTAL_VAL=bs({font:{name:FN,sz:9,bold:true,color:{rgb:'333333'}},alignment:{horizontal:'right'},fill:{fgColor:{rgb:'C4BD97'}},numFmt:'#,##0',border:BH});
-
-    var S_DATE=bs({numFmt:'dd-mmm-yy',alignment:{horizontal:'left'}});
+    var ESTAPU=estilosApuExcel();
+    var S_TITLE=ESTAPU.S_TITLE,S_CAT=ESTAPU.S_CAT,S_SEC=ESTAPU.S_SEC,S_HDR=ESTAPU.S_HDR,S_CELL=ESTAPU.S_CELL,
+        S_CELL_R=ESTAPU.S_CELL_R,S_CELL_RT=ESTAPU.S_CELL_RT,S_CELL_C=ESTAPU.S_CELL_C,S_CELL_C2=ESTAPU.S_CELL_C2,
+        S_CELL_4=ESTAPU.S_CELL_4,S_HERR=ESTAPU.S_HERR,S_HERR_C=ESTAPU.S_HERR_C,S_HERR_P=ESTAPU.S_HERR_P,
+        S_SUB_LBL=ESTAPU.S_SUB_LBL,S_SUB_VAL=ESTAPU.S_SUB_VAL,S_TOTAL_LBL=ESTAPU.S_TOTAL_LBL,
+        S_TOTAL_VAL=ESTAPU.S_TOTAL_VAL,S_DATE=ESTAPU.S_DATE;
 
     var rows=[];var merges=[];
 
@@ -3268,119 +3415,11 @@ function APUTab({data,onChange,cargosCalc,cargoMap,esHora,eqMap,insMap,cuadrilla
 
     /* Convertir strings con '=' a celdas de fórmula reales */
 
-    if(ws['!ref']){
-
-      var rng=XLSX.utils.decode_range(ws['!ref']);
-
-      for(var R=rng.s.r;R<=rng.e.r;++R){
-
-        for(var C=rng.s.c;C<=rng.e.c;++C){
-
-          var addr=XLSX.utils.encode_cell({r:R,c:C});
-
-          var cell=ws[addr];
-
-          if(cell&&cell.t==='s'&&typeof cell.v==='string'&&cell.v.charAt(0)==='='){
-
-            cell.f=cell.v.substring(1);cell.t='f';
-
-          }
-
-        }
-
-      }
-
-    }
+    convertirFormulasApuExcel(ws);
 
     /* Aplicar estilos */
 
-    rows.forEach(function(row,rIdx){
-
-      var c0=String(row[0]||'');
-
-      if(rIdx===0){row.forEach(function(_,ci){var k=ce(rIdx,ci);if(ws[k])ws[k].s=S_TITLE})}
-
-      else if(c0.indexOf('▌ ')===0&&c0.indexOf('APU')<0){row.forEach(function(_,ci){var k=ce(rIdx,ci);if(ws[k])ws[k].s=S_CAT})}
-
-      else if(c0.indexOf('▌ ')===0){row.forEach(function(_,ci){var k=ce(rIdx,ci);if(ws[k])ws[k].s=S_SEC})}
-
-      else if(c0==='Codigo'){row.forEach(function(_,ci){var k=ce(rIdx,ci);if(ws[k])ws[k].s=S_HDR})}
-
-      else if(String(row[5]||'')==='Fecha:'){
-
-        row.forEach(function(_,ci){var k=ce(rIdx,ci);if(!ws[k])return;
-
-          ws[k].s=(ci===5)?S_CELL_RT:(ci===6)?S_DATE:(ci===0)?S_CELL_C:S_CELL;
-
-        });
-
-      }
-
-      else if(String(row[5]||'')==='Unidad:'){
-
-        row.forEach(function(_,ci){var k=ce(rIdx,ci);if(!ws[k])return;
-
-          ws[k].s=(ci===5)?S_CELL_RT:(ci===6)?S_CELL:(ci===0)?S_CELL:S_CELL;
-
-        });
-
-      }
-
-      else if(c0==='EQ-000'){row.forEach(function(_,ci){var k=ce(rIdx,ci);if(!ws[k])return;ws[k].s=(ci===4)?S_HERR_P:(ci===3||ci===6)?S_HERR:(ci===0||ci===2)?S_HERR_C:S_CELL})}
-
-      else if(c0.indexOf('TOTAL COSTO DIRECTO')>=0){row.forEach(function(_,ci){var k=ce(rIdx,ci);if(ws[k])ws[k].s=ci===6?S_TOTAL_VAL:S_TOTAL_LBL})}
-
-      else if(c0.indexOf('Subtotal')>=0||String(row[3]||'').indexOf('Subtotal')>=0){
-
-        row.forEach(function(_,ci){var k=ce(rIdx,ci);if(ws[k])ws[k].s=ci===6?S_SUB_VAL:S_SUB_LBL});
-
-      }
-
-      else if(String(row[5]||'').indexOf('Personal sin F.P.')>=0||String(row[4]||'').indexOf('Valor Prestacional')>=0){
-
-        row.forEach(function(_,ci){var k=ce(rIdx,ci);if(!ws[k])return;
-
-          if(ci===5&&String(row[4]||'').indexOf('Valor Prestacional')>=0)ws[k].s=S_CELL_R;
-
-          else if(ci===6)ws[k].s=S_CELL_R;
-
-          else ws[k].s=S_CELL;
-
-        });
-
-      }
-
-      else if(c0.match(/^(EQ|IN|MO)-/)){
-
-        row.forEach(function(_,ci){var k=ce(rIdx,ci);if(!ws[k])return;
-
-          if(ci===6)ws[k].s=S_CELL_R;
-
-          else if(ci===2&&c0.indexOf('MO-')===0)ws[k].s=S_CELL_C2;
-
-          else if(ci===2)ws[k].s=S_CELL_C;
-
-          else if(ci===3&&c0.indexOf('MO-')===0)ws[k].s=S_CELL_C;
-
-          else if(ci===3)ws[k].s=S_CELL_R;
-
-          else if(ci===4&&(c0.indexOf('EQ-')===0||c0.indexOf('IN-')===0))ws[k].s=S_CELL_4;
-
-          else if(ci===4)ws[k].s=S_CELL_R;
-
-          else if(ci===5&&(c0.indexOf('MO-')===0))ws[k].s=S_CELL_4;
-
-          else if(ci===0)ws[k].s=S_CELL_C;
-
-          else ws[k].s=S_CELL;
-
-        });
-
-      }
-
-      else{row.forEach(function(_,ci){var k=ce(rIdx,ci);if(ws[k])ws[k].s=S_CELL})}
-
-    });
+    aplicarEstilosApuExcel(ws,rows,ce,ESTAPU);
 
     /* ── Hoja RESUMEN ── */
 
@@ -3419,23 +3458,64 @@ function APUTab({data,onChange,cargosCalc,cargoMap,esHora,eqMap,insMap,cuadrilla
   },[apus,apuCalcMap,abCalcList,eqMap,insMap,personMap,config,factorPrest,usarFpEnApu,esHora,categorias_apu,herrPct]);
 
   var descargarPlantillaApu=useCallback(function(){
-    var HEADER_RECURSO=['TIPO','RECURSO','UNIDAD','CANTIDAD','RENDIMIENTO','PRECIO_UNIT','DESPERDICIO_PCT'];
-    var rows=[
-      ['APU_CODIGO','APU-001','APU_NOMBRE','Excavacion manual','UNIDAD','m3','CATEGORIA','Movimiento de tierra'],
-      HEADER_RECURSO,
-      ['INSUMO','Arena lavada','m3',0.5,'',25000,8],
-      ['MO','Oficial 1a','hr','',0.10,'',''],
-      ['EQUIPO','Retroexcavadora','hr','',0.05,'',''],
-      ['TRANSPORTE','Volqueta 5m3','km','','',3500,''],
-      [],
-      ['APU_CODIGO','APU-002','APU_NOMBRE','Concreto 3000 PSI','UNIDAD','m3','CATEGORIA','Concretos'],
-      HEADER_RECURSO,
-      ['INSUMO','Cemento gris','saco',7,'',28500,5],
-      ['INSUMO','Arena lavada','m3',0.5,'',25000,8],
-      ['MO','Ayudante','hr','',1.5,'','']
-    ];
+    /* Plantilla en blanco, visualmente identica al export real (mismos estilos/bordes/colores —
+       ver CIVILMANAGER_Ajuste_Plantilla_Import_Visual.docx). Codigo es opcional por fila: si se
+       llena con un codigo real del catalogo, el importador matchea directo por codigo sin pasar
+       por nombre/unidad/precio. Filas de recurso reservadas en blanco con formula ya escrita;
+       Herramientas Menores en A. EQUIPO se deja precalculada (depende de config.herr_pct, no de
+       un dato que el usuario deba llenar) — Subtotal Personal se simplifica sin desglose de F.P.
+       linea por linea (el usuario puede editarlo despues desde el catalogo/APU si lo requiere). */
+    var N_EQ=8,N_INS=15,N_TRANS=5,N_MO=8;
+    var ce=function(r,c){return XLSX.utils.encode_cell({r:r,c:c})};
+    var rows=[];var merges=[];
+    function push(r){rows.push(r);return rows.length-1}
+    function mg(r1,c1,r2,c2){merges.push({s:{r:r1,c:c1},e:{r:r2,c:c2}})}
+
+    var rH1=push(['APU-001','','','','','Fecha:','']);
+    var rH2=push(['Descripcion del APU aqui','','','','','Unidad:','']);mg(rH2,0,rH2,4);
+    push(['','','','','','','']);
+
+    var rSecEq=push(['▌ A. EQUIPO','','','','','','']);mg(rSecEq,0,rSecEq,6);
+    push(['Codigo','Descripcion','Tarifa por:','Vr. Unitario','Rendimiento','','Vr. Parcial']);
+    var rFirstEq=rows.length;
+    if(herrPct>0){push(['EQ-000','Herramientas Menores','% M.O.',herrPct/100,'—','',0])}
+    for(var e=0;e<N_EQ;e++){var rEq=push(['','','','','','','']);rows[rEq][6]='=ROUND(N('+ce(rEq,3)+')*N('+ce(rEq,4)+'),2)'}
+    var rLastEq=rows.length-1;
+    var rSubEq=push(['','','','Subtotal Equipo:','','','=ROUND(SUM('+ce(rFirstEq,6)+':'+ce(rLastEq,6)+'),2)']);mg(rSubEq,3,rSubEq,5);
+    push(['','','','','','','']);
+
+    var rSecIns=push(['▌ B. MATERIALES','','','','','','']);mg(rSecIns,0,rSecIns,6);
+    push(['Codigo','Descripcion','UN','Vr. Unitario','Consumo','Desperdicios','Vr. Parcial']);
+    var rFirstIns=rows.length;
+    for(var m=0;m<N_INS;m++){var rIns=push(['','','','','','','']);rows[rIns][6]='=ROUND(N('+ce(rIns,3)+')*N('+ce(rIns,4)+')*(1+N('+ce(rIns,5)+')/100),2)'}
+    var rLastIns=rows.length-1;
+    var rSubIns=push(['','','','Subtotal Materiales:','','','=ROUND(SUM('+ce(rFirstIns,6)+':'+ce(rLastIns,6)+'),2)']);mg(rSubIns,3,rSubIns,5);
+    push(['','','','','','','']);
+
+    var rSecTrans=push(['▌ C. TRANSPORTE','','','','','','']);mg(rSecTrans,0,rSecTrans,6);
+    push(['Codigo','Descripcion','Unidad','Distancia (km)','Tarifa','','Vr. Parcial']);
+    var rFirstTrans=rows.length;
+    for(var t=0;t<N_TRANS;t++){var rTr=push(['','','','','','','']);rows[rTr][6]='=IF('+ce(rTr,2)+'="Global",N('+ce(rTr,4)+'),N('+ce(rTr,3)+')*N('+ce(rTr,4)+'))'}
+    var rLastTrans=rows.length-1;
+    var rSubTrans=push(['','','','Subtotal Transporte:','','','=ROUND(SUM('+ce(rFirstTrans,6)+':'+ce(rLastTrans,6)+'),2)']);mg(rSubTrans,3,rSubTrans,5);
+    push(['','','','','','','']);
+
+    var rSecMo=push(['▌ D. PERSONAL','','','','','','']);mg(rSecMo,0,rSecMo,6);
+    push(['Codigo','Descripcion','Cant.Pers.','Vr. por:',usarFpEnApu?'Vr. SIN F.P.':'Vr. CON F.P.','Rendimiento','Vr. Parcial']);
+    var rFirstMo=rows.length;
+    for(var p=0;p<N_MO;p++){var rMo=push(['','','','','','','']);rows[rMo][6]='=ROUND(N('+ce(rMo,4)+')*N('+ce(rMo,5)+')*N('+ce(rMo,2)+'),2)'}
+    var rLastMo=rows.length-1;
+    var rSubMo=push(['','','','Subtotal Personal:','','','=ROUND(SUM('+ce(rFirstMo,6)+':'+ce(rLastMo,6)+'),2)']);mg(rSubMo,3,rSubMo,5);
+    push(['','','','','','','']);
+
+    var rTotal=push(['TOTAL COSTO DIRECTO ( A+B+C+D ) Aproximado al peso :','','','','','','=ROUND('+ce(rSubEq,6)+'+'+ce(rSubIns,6)+'+'+ce(rSubTrans,6)+'+'+ce(rSubMo,6)+',0)']);mg(rTotal,0,rTotal,5);
+    push(['','','','','','','']);
+
     var ws=XLSX.utils.aoa_to_sheet(rows);
-    ws['!cols']=[{wch:12},{wch:22},{wch:10},{wch:10},{wch:12},{wch:12},{wch:16}];
+    ws['!cols']=[{wch:10},{wch:35},{wch:12},{wch:14},{wch:14},{wch:12},{wch:16}];
+    ws['!merges']=merges;
+    convertirFormulasApuExcel(ws);
+    aplicarEstilosApuExcel(ws,rows,ce,estilosApuExcel());
     var wb=XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb,ws,'Plantilla APU');
     XLSX.writeFile(wb,'Plantilla_Import_MultiAPU_CIVILMANAGER.xlsx');

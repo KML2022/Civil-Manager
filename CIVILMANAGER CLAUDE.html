@@ -3538,7 +3538,7 @@ function APUTab({data,onChange,cargosCalc,cargoMap,esHora,eqMap,insMap,cuadrilla
 
           </div>
 
-          <div className="xl-foot" style={{display:'flex',alignItems:'center',gap:6,flex:'0 0 auto'}}>
+          <div className="xl-foot" style={{display:'flex',alignItems:'center',flexWrap:'wrap',gap:6,flex:'0 0 auto',overflow:'visible',height:'auto'}}>
 
             <button className="btn" onClick={add} style={{fontSize:11,border:'1px solid var(--ok)',borderRadius:4,display:'inline-flex',alignItems:'center',gap:4}}><IconPlus/> Nuevo APU</button><button className="btn" onClick={addBasico} style={{fontSize:11,border:'1px solid var(--ac)',borderRadius:4,display:'inline-flex',alignItems:'center',gap:4,marginLeft:4}}><IconPlus/> Nuevo APU Basico</button>
 

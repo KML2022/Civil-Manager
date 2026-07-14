@@ -1243,7 +1243,128 @@ function CuadrillasTab({data,onChange,cargosCalc,cargoMap,esHora,selCuadrillaIdx
 
   var updIntConfirm=function(qi,ii,k,v){var n=countCuadApuRefs();if(n>0){setApuWarnMsg('Este cambio afectar\u00e1 a '+n+' APU. \u00bfDesea continuar?');setApuWarnFn(function(){return function(){updInt(qi,ii,k,v)}});return}updInt(qi,ii,k,v)};
 
-  var cuadExcel=useExcelImportExport({items:cuadrillas,data:data,onChange:onChange,dataKey:'cuadrillas',prefix:'CU',title:'CATALOGO DE CUADRILLAS',sheetName:'Cuadrillas',filename:'cuadrillas.xlsx',headers:['Codigo','Descripcion','Integrantes'],colWidths:[{wch:12},{wch:30},{wch:10}],mapRow:function(q){return[q.codigo||'',q.descripcion||'',(q.integrantes||[]).length]},parseRow:function(r){return[String(r[0]||'').trim(),String(r[1]||'').trim(),String(r[2]||0).trim()]},buildItem:function(r,idx,existing,genCode){return{codigo:r[0]||genCode(),id:uid(),descripcion:r[1]||'',integrantes:[]}},matchKey:'codigo'});
+  /* Export/import de Cuadrillas con detalle: cada cuadrilla se exporta seguida de su propia
+     sub-tabla de integrantes (Codigo/Descripcion/Cantidad/Costo/Vr.Parcial), con la misma
+     presentacion visual (colores/bordes) que exportApuExcel — no el conteo plano ni el texto sin
+     estilo de antes. Al reimportar, reconstruye integrantes completos por cuadrilla (match por
+     codigo si existe, si no por descripcion) — ya no vacia integrantes:[] silenciosamente. */
+  var cuadExcelFileRef=useRef(null);
+  var exportCuadrillasDetalle=function(){
+    if(cuadrillas.length===0){showToast('No hay cuadrillas para exportar',{type:'err'});return}
+    var S=estilosApuExcel();
+    var ce=function(r,c){return XLSX.utils.encode_cell({r:r,c:c})};
+    var rows=[];var merges=[];var rowStyle=[];
+    function push(r,st){rows.push(r);rowStyle.push(st);return rows.length-1}
+    function mg(r1,c1,r2,c2){merges.push({s:{r:r1,c:c1},e:{r:r2,c:c2}})}
+    var diasMes=config.dias_mes||30,horasMes=config.horas_mes||182;
+    cuadrillas.forEach(function(q){
+      var rTitle=push([(q.codigo||'')+' - '+(q.descripcion||''),'','','','','',''],'title');
+      mg(rTitle,0,rTitle,6);
+      push(['Codigo','Descripcion','Cantidad','Costo/Dia','Costo/Hora','Vr. Parcial/Dia','Vr. Parcial/HH'],'hdr');
+      var rFirst=rows.length;
+      (q.integrantes||[]).forEach(function(it){
+        var cargo=cargoMap.get(it.cargo_id);
+        var costoDia=cargo?safeFloat(cargo.costo_base_dia):0;
+        var costoHora=cargo?safeFloat(cargo.costo_base_hora):0;
+        var cant=safeFloat(it.cantidad)||1;
+        var rI=push([cargo?(cargo.codigo||''):'',cargo?(cargo.descripcion||'—'):'—',cant,esHora?'—':costoDia,costoHora,'',''],'data');
+        rows[rI][5]=esHora?'—':'=ROUND('+ce(rI,3)+'*'+ce(rI,2)+',2)';
+        rows[rI][6]='=ROUND('+ce(rI,4)+'*'+ce(rI,2)+',2)';
+      });
+      var rLast=rows.length-1;
+      var rTotal=push(['','','','','Total:',
+        esHora?'—':'=ROUND(SUM('+ce(rFirst,5)+':'+ce(rLast,5)+'),2)',
+        '=ROUND(SUM('+ce(rFirst,6)+':'+ce(rLast,6)+'),2)'],'total');
+      mg(rTotal,0,rTotal,4);
+      push(['','','','','','',''],'blank');
+    });
+    var ws=XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols']=[{wch:12},{wch:28},{wch:10},{wch:12},{wch:12},{wch:15},{wch:15}];
+    ws['!merges']=merges;
+    convertirFormulasApuExcel(ws);
+    rows.forEach(function(row,rIdx){
+      var st=rowStyle[rIdx];
+      row.forEach(function(_,ci){
+        var k=ce(rIdx,ci);if(!ws[k])return;
+        var s=st==='title'?S.S_TITLE:st==='hdr'?S.S_HDR:st==='total'?(ci>=5?S.S_TOTAL_VAL:S.S_TOTAL_LBL):st==='data'?(ci===2?S.S_CELL_C:ci>=3?S.S_CELL_R:S.S_CELL):null;
+        if(s)ws[k].s=s;
+      });
+    });
+    var wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,ws,'Cuadrillas');
+    XLSX.writeFile(wb,'cuadrillas_detalle.xlsx');
+    showToast('Cuadrillas exportadas con detalle de integrantes',{type:'ok'});
+  };
+  var parseCuadrillasBloques=function(aoa){
+    function filaVacia(fila){return!fila||fila.every(function(c){return c===undefined||c===null||String(c).trim()===''})}
+    var bloques=[],actual=null,estado='esperando_titulo';
+    for(var i=0;i<(aoa||[]).length;i++){
+      var fila=aoa[i]||[];
+      if(filaVacia(fila)){if(actual){bloques.push(actual);actual=null}estado='esperando_titulo';continue}
+      var c0=(fila[0]||'').toString().trim();
+      if(estado==='esperando_titulo'){
+        var idx=c0.indexOf(' - ');
+        actual={codigo:idx>=0?c0.slice(0,idx).trim():c0,descripcion:idx>=0?c0.slice(idx+3).trim():'',integrantes:[]};
+        estado='header';continue;
+      }
+      if(estado==='header'){estado='leyendo';continue}
+      if(estado==='leyendo'){
+        var c1=(fila[1]||'').toString().trim();
+        var esTotal=c0===''&&!c1&&String(fila[4]||'').trim()==='Total:';
+        if(esTotal)continue;
+        if(!c0&&!c1)continue;
+        actual.integrantes.push({codigo:c0,descripcion:c1,cantidad:safeFloat(fila[2])||1});
+      }
+    }
+    if(actual)bloques.push(actual);
+    return bloques;
+  };
+  var importCuadrillasDetalle=function(e){
+    var file=e.target.files[0];if(!file)return;
+    if(!file.name.match(/\.xlsx?$/i)){showToast('Solo se permiten archivos .xlsx o .xls',{type:'err'});e.target.value='';return}
+    var reader=new FileReader();
+    reader.onload=function(ev){
+      try{
+        var wb=XLSX.read(new Uint8Array(ev.target.result),{type:'array'});
+        var ws=wb.Sheets[wb.SheetNames[0]];
+        var aoa=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+        var bloques=parseCuadrillasBloques(aoa);
+        if(bloques.length===0){showToast('No se encontraron cuadrillas validas en el archivo',{type:'err'});e.target.value='';return}
+        var dNow=dataRef.current;
+        var cargosArr=dNow.cargos||[];
+        function resolverCargoId(codigo,descripcion){
+          if(codigo){
+            var matchCod=cargosArr.find(function(c){return(c.codigo||'').toLowerCase()===codigo.toLowerCase()});
+            if(matchCod)return matchCod.id;
+          }
+          if(descripcion){
+            var ndesc=norm(descripcion);
+            var match=cargosArr.find(function(c){return norm(c.descripcion||'')===ndesc});
+            if(match)return match.id;
+          }
+          return null;
+        }
+        var existing=(dNow.cuadrillas||[]).slice();
+        var creadas=0,actualizadas=0,sinMatch=0;
+        bloques.forEach(function(b){
+          var idx=existing.findIndex(function(x){return(x.codigo||'').toLowerCase()===b.codigo.toLowerCase()});
+          var integrantesFinal=b.integrantes.map(function(it){
+            var cid=resolverCargoId(it.codigo,it.descripcion);
+            if(!cid)sinMatch++;
+            return{id:uid(),cargo_id:cid||'',cantidad:it.cantidad};
+          });
+          if(idx>=0){existing[idx]=Object.assign({},existing[idx],{descripcion:b.descripcion||existing[idx].descripcion,integrantes:integrantesFinal});actualizadas++}
+          else{existing.push({id:uid(),codigo:b.codigo||genCodeFor(existing,'CU'),descripcion:b.descripcion,integrantes:integrantesFinal});creadas++}
+        });
+        onChange(Object.assign({},dNow,{cuadrillas:existing}));
+        showToast(bloques.length+' cuadrillas importadas ('+creadas+' nuevas, '+actualizadas+' actualizadas)'+(sinMatch>0?'. '+sinMatch+' integrante(s) sin match en Colaboradores':''),{type:sinMatch>0?'err':'ok',dur:4000});
+      }catch(err){showToast('Error leyendo archivo Excel: '+err.message,{type:'err'})}
+      e.target.value='';
+    };
+    reader.onerror=function(){showToast('Error leyendo el archivo',{type:'err'});e.target.value=''};
+    reader.readAsArrayBuffer(file);
+  };
+  var cuadExcel={fileRef:cuadExcelFileRef,exportExcel:exportCuadrillasDetalle,doImportSelect:importCuadrillasDetalle,previewModal:null};
 
   var selCuad=selectedIdx!==null?cuadrillas[selectedIdx]:null;
 

@@ -1286,7 +1286,7 @@ function CuadrillasTab({data,onChange,cargosCalc,cargoMap,esHora,selCuadrillaIdx
       var st=rowStyle[rIdx];
       row.forEach(function(_,ci){
         var k=ce(rIdx,ci);if(!ws[k])return;
-        var s=st==='title'?S.S_TITLE:st==='hdr'?S.S_HDR:st==='total'?(ci>=5?S.S_TOTAL_VAL:S.S_TOTAL_LBL):st==='data'?(ci===2?S.S_CELL_C:ci>=3?S.S_CELL_R:S.S_CELL):null;
+        var s=st==='title'?S.S_TITLE:st==='hdr'?S.S_HDR:st==='total'?(ci>=5?Object.assign({},S.S_TOTAL_VAL,{numFmt:XLS_NUM_FMT}):S.S_TOTAL_LBL):st==='data'?(ci===2?S.S_CELL_C2:ci>=3?S.S_CELL_R:S.S_CELL):null;
         if(s)ws[k].s=s;
       });
     });

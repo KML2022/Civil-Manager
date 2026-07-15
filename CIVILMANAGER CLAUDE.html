@@ -963,7 +963,24 @@ function useExcelImportExport({items,data,onChange,dataKey,prefix,title,sheetNam
 
   var exportExcel=function(){var rows=items.map(mapRow);setPreviewModal({type:'export',headers:headers,rows:rows})};
 
-  var doExport=function(){if(!previewModal||previewModal.type!=='export')return;var ws=XLSX.utils.aoa_to_sheet([[title],previewModal.headers].concat(previewModal.rows));ws['!cols']=colWidths;var wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,sheetName);XLSX.writeFile(wb,filename);setPreviewModal(null);showToast('Excel exportado correctamente',{type:'ok'})};
+  var doExport=function(){
+    if(!previewModal||previewModal.type!=='export')return;
+    var rows=[[title]].concat([previewModal.headers]).concat(previewModal.rows);
+    var ws=XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols']=colWidths;
+    ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:Math.max(0,previewModal.headers.length-1)}}];
+    var S=estilosApuExcel();
+    var ce=function(r,c){return XLSX.utils.encode_cell({r:r,c:c})};
+    rows.forEach(function(row,rIdx){
+      row.forEach(function(val,ci){
+        var k=ce(rIdx,ci);if(!ws[k])return;
+        if(rIdx===0)ws[k].s=S.S_TITLE;
+        else if(rIdx===1)ws[k].s=S.S_HDR;
+        else ws[k].s=typeof val==='number'?S.S_CELL_R:S.S_CELL;
+      });
+    });
+    var wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,sheetName);XLSX.writeFile(wb,filename);setPreviewModal(null);showToast('Excel exportado correctamente',{type:'ok'})
+  };
 
   var doImportSelect=function(e){var file=e.target.files[0];if(!file)return;if(!file.name.match(/\.xlsx?$/i)){showToast('Solo se permiten archivos .xlsx o .xls',{type:'err'});e.target.value='';return}var reader=new FileReader();reader.onload=function(ev){try{var d=new Uint8Array(ev.target.result);var wb=XLSX.read(d,{type:'array'});var ws=wb.Sheets[wb.SheetNames[0]];var json=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',blankrows:false});if(json.length<2){showToast('Archivo vacio o sin datos (requiere encabezado + 1 fila minimo)',{type:'err'});setPreviewModal(null);e.target.value='';return}var headerRow=-1;var threshold=Math.ceil(headers.length*0.6);for(var i=0;i<Math.min(json.length,5);i++){var row=json[i];var matches=0;for(var h=0;h<headers.length;h++){if(String(row[h]||'').trim().toLowerCase()===headers[h].toLowerCase())matches++}if(matches>=threshold){headerRow=i;break}}if(headerRow<0){showToast('No se encontraron encabezados en el archivo',{type:'err'});setPreviewModal(null);e.target.value='';return}var rows=json.slice(headerRow+1).map(parseRow);var validRows=rows.filter(function(r){return r&&r[0]&&String(r[0]).trim()});if(validRows.length===0){showToast('No se encontraron filas con datos validos',{type:'err'});setPreviewModal(null);e.target.value='';return}if(validRows.length<rows.length){showToast(rows.length-validRows.length+' filas vacias omitidas',{type:'ok',dur:2500})}setImportData(validRows);setPreviewModal({type:'import',headers:headers,rows:validRows})}catch(err){showToast('Error leyendo archivo Excel: '+err.message,{type:'err'});setPreviewModal(null)}e.target.value=''};reader.onerror=function(){showToast('Error leyendo el archivo',{type:'err'});e.target.value=''};reader.readAsArrayBuffer(file)};
 
@@ -6810,6 +6827,7 @@ function PresEntregablesPanel({pres,presupuestos,calcResumenPres,calcItemVal,cal
     if(esConsolidado){exportExcelConsolidado();return}
     if(itemsArr.length===0){showToast('El presupuesto no tiene items',{type:'err',dur:2500});return}
     var wb=XLSX.utils.book_new();
+    var ce=function(rr,cc){return XLSX.utils.encode_cell({r:rr,c:cc})};
     var rows=[];
     rows.push(['PRESUPUESTO: '+(pres.nombre||pres.codigo)]);
     rows.push(['Codigo',pres.codigo,'','Entidad contratante',pres.entidad||'-']);
@@ -6819,19 +6837,24 @@ function PresEntregablesPanel({pres,presupuestos,calcResumenPres,calcItemVal,cal
     rows.push([]);
     var hdrRowIdx=rows.length;
     rows.push(['#','Item','Capitulo','Descripcion','UN','Cantidad','APU','Vr.Unitario','Vr.Total']);
+    var rFirstItem=rows.length;
     itemsArr.forEach(function(it,i){
       var cv=calcItemVal(it);
-      rows.push([i+1,it.num_item,it.capitulo,it.descripcion,it.unidad,safeFloat(it.cantidad),cv.apu?cv.apu.codigo:'-',cv.vr_unit,cv.vr_total]);
+      var rIdx=rows.length;
+      rows.push([i+1,it.num_item,it.capitulo,it.descripcion,it.unidad,safeFloat(it.cantidad),cv.apu?cv.apu.codigo:'-',cv.vr_unit,'']);
+      rows[rIdx][8]='=ROUND('+ce(rIdx,7)+'*'+ce(rIdx,5)+',2)';
     });
+    var rLastItem=rows.length-1;
     var sumStartIdx=rows.length+1;
     rows.push([]);
-    rows.push(['','','','','','','','Costo Directo Total',r.cdTotal]);
-    rows.push(['','','','','','','','Administracion ('+r.pctA.toFixed(2)+'%)',r.adm]);
-    rows.push(['','','','','','','','Imprevistos ('+r.pctI.toFixed(2)+'%)',r.imp]);
-    rows.push(['','','','','','','','Utilidad ('+r.pctU.toFixed(2)+'%)',r.uti]);
-    rows.push(['','','','','','','','IVA sobre Utilidad ('+r.ivaPct+'%)',r.ivaUtilidad]);
-    rows.push(['','','','','','','','VALOR TOTAL CONTRATO',r.valorTotal]);
+    var rCd=rows.length;rows.push(['','','','','','','','Costo Directo Total','=ROUND(SUM('+ce(rFirstItem,8)+':'+ce(rLastItem,8)+'),2)']);
+    var rAdm=rows.length;rows.push(['','','','','','','','Administracion ('+r.pctA.toFixed(2)+'%)','=ROUND('+ce(rCd,8)+'*'+r.pctA+'/100,2)']);
+    var rImp=rows.length;rows.push(['','','','','','','','Imprevistos ('+r.pctI.toFixed(2)+'%)','=ROUND('+ce(rCd,8)+'*'+r.pctI+'/100,2)']);
+    var rUti=rows.length;rows.push(['','','','','','','','Utilidad ('+r.pctU.toFixed(2)+'%)','=ROUND('+ce(rCd,8)+'*'+r.pctU+'/100,2)']);
+    var rIva=rows.length;rows.push(['','','','','','','','IVA sobre Utilidad ('+r.ivaPct+'%)','=ROUND('+ce(rUti,8)+'*'+r.ivaPct+'/100,2)']);
+    rows.push(['','','','','','','','VALOR TOTAL CONTRATO','=ROUND('+ce(rCd,8)+'+'+ce(rAdm,8)+'+'+ce(rImp,8)+'+'+ce(rUti,8)+'+'+ce(rIva,8)+',2)']);
     var ws=XLSX.utils.aoa_to_sheet(rows);
+    convertirFormulasApuExcel(ws);
     ws['!cols']=[{wch:4},{wch:10},{wch:12},{wch:38},{wch:6},{wch:11},{wch:10},{wch:15},{wch:15}];
     ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:8}},{s:{r:3,c:1},e:{r:3,c:8}}];
     if(ws['A1'])ws['A1'].s={font:{bold:true,sz:14,color:{rgb:'1A2438'}}};
@@ -6840,12 +6863,12 @@ function PresEntregablesPanel({pres,presupuestos,calcResumenPres,calcItemVal,cal
     }
     ['A','B','C','D','E','F','G','H','I'].forEach(function(col){var k=col+(hdrRowIdx+1);if(ws[k])ws[k].s={font:XLS_HDR_FONT,fill:XLS_HDR_FILL,alignment:{horizontal:'center'}}});
     for(var ri2=hdrRowIdx+1;ri2<hdrRowIdx+1+itemsArr.length;ri2++){
-      ['H','I'].forEach(function(col){var k=col+(ri2+1);if(ws[k]){ws[k].t='n';ws[k].z=XLS_NUM_FMT;ws[k].s={alignment:{horizontal:'right'}}}});
+      ['H','I'].forEach(function(col){var k=col+(ri2+1);if(ws[k]){if(ws[k].t!=='f')ws[k].t='n';ws[k].z=XLS_NUM_FMT;ws[k].s={alignment:{horizontal:'right'}}}});
     }
     for(var rs=sumStartIdx;rs<sumStartIdx+6;rs++){
       var kh=String.fromCharCode(72)+(rs+1),ki=String.fromCharCode(73)+(rs+1);
       if(ws[kh])ws[kh].s={font:{bold:true,sz:9}};
-      if(ws[ki]){ws[ki].t='n';ws[ki].z=XLS_NUM_FMT;ws[ki].s={font:{bold:true,sz:9},alignment:{horizontal:'right'}}}
+      if(ws[ki]){if(ws[ki].t!=='f')ws[ki].t='n';ws[ki].z=XLS_NUM_FMT;ws[ki].s={font:{bold:true,sz:9},alignment:{horizontal:'right'}}}
     }
     var lastRow=sumStartIdx+5;
     ['H','I'].forEach(function(col){var k=col+(lastRow+1);if(ws[k])ws[k].s={font:{bold:true,sz:10,color:{rgb:'FFFFFF'}},fill:{fgColor:{rgb:'1A7A34'}},alignment:{horizontal:col==='I'?'right':'left'}}});
@@ -6856,13 +6879,16 @@ function PresEntregablesPanel({pres,presupuestos,calcResumenPres,calcItemVal,cal
       var cv=calcItemVal(it);
       if(!cv.apu)return;
       var c=cv.calc||{};
-      rows2.push([it.num_item,cv.apu.codigo,cv.apu.nombre,cv.apu.categoria,c.subPers||0,c.subEq||0,c.subIns||0,c.subTrans||0,c.totalDirecto||0,safeFloat(it.cantidad),cv.vr_total]);
+      var rIdx2=rows2.length;
+      rows2.push([it.num_item,cv.apu.codigo,cv.apu.nombre,cv.apu.categoria,c.subPers||0,c.subEq||0,c.subIns||0,c.subTrans||0,c.totalDirecto||0,safeFloat(it.cantidad),'']);
+      rows2[rIdx2][10]='=ROUND('+ce(rIdx2,8)+'*'+ce(rIdx2,9)+',2)';
     });
     var ws2=XLSX.utils.aoa_to_sheet(rows2);
+    convertirFormulasApuExcel(ws2);
     ws2['!cols']=[{wch:8},{wch:10},{wch:32},{wch:18},{wch:13},{wch:12},{wch:12},{wch:12},{wch:15},{wch:10},{wch:15}];
     rows2[0].forEach(function(_,ci){var k=XLSX.utils.encode_cell({r:0,c:ci});if(ws2[k])ws2[k].s={font:XLS_HDR_FONT,fill:XLS_HDR_FILL,alignment:{horizontal:'center'}}});
     for(var ri3=1;ri3<rows2.length;ri3++){
-      [4,5,6,7,8,10].forEach(function(ci){var k=XLSX.utils.encode_cell({r:ri3,c:ci});if(ws2[k]){ws2[k].t='n';ws2[k].z=XLS_NUM_FMT;ws2[k].s={alignment:{horizontal:'right'}}}});
+      [4,5,6,7,8,10].forEach(function(ci){var k=XLSX.utils.encode_cell({r:ri3,c:ci});if(ws2[k]){if(ws2[k].t!=='f')ws2[k].t='n';ws2[k].z=XLS_NUM_FMT;ws2[k].s={alignment:{horizontal:'right'}}}});
     }
     XLSX.utils.book_append_sheet(wb,ws2,'Detalle APU');
 

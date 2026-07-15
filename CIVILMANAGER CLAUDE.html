@@ -6768,6 +6768,8 @@ function PresEntregablesPanel({pres,presupuestos,calcResumenPres,calcItemVal,cal
   var hijos=(presupuestos||[]).filter(function(p){return p.parent_id===pres.id});
   var esConsolidado=hijos.length>0;
 
+  var ceCons=function(rr,cc){return XLSX.utils.encode_cell({r:rr,c:cc})};
+
   var generarHojaPresupuesto=function(p){
     var itemsArrP=p.items||[];
     var rp=calcResumenFor(p);
@@ -6778,20 +6780,43 @@ function PresEntregablesPanel({pres,presupuestos,calcResumenPres,calcItemVal,cal
     rows.push(['Objeto',p.objeto||'-']);
     rows.push(['Elaborado por',p.elaborado_por||'-','','Fecha',p.fecha_creacion||'-']);
     rows.push([]);
+    var hdrRowIdx=rows.length;
     rows.push(['#','Item','Capitulo','Descripcion','UN','Cantidad','APU','Vr.Unitario','Vr.Total']);
+    var rFirstItem=rows.length;
     itemsArrP.forEach(function(it,i){
       var cv=calcItemValFor(it,p);
-      rows.push([i+1,it.num_item,it.capitulo,it.descripcion,it.unidad,safeFloat(it.cantidad),cv.apu?cv.apu.codigo:'-',cv.vr_unit,cv.vr_total]);
+      var rIdx=rows.length;
+      rows.push([i+1,it.num_item,it.capitulo,it.descripcion,it.unidad,safeFloat(it.cantidad),cv.apu?cv.apu.codigo:'-',cv.vr_unit,'']);
+      rows[rIdx][8]='=ROUND('+ceCons(rIdx,7)+'*'+ceCons(rIdx,5)+',2)';
     });
+    var rLastItem=rows.length-1;
+    var sumStartIdx=rows.length+1;
     rows.push([]);
-    rows.push(['','','','','','','','Costo Directo Total',rp.cdTotal]);
-    rows.push(['','','','','','','','Administracion ('+rp.pctA.toFixed(2)+'%)',rp.adm]);
-    rows.push(['','','','','','','','Imprevistos ('+rp.pctI.toFixed(2)+'%)',rp.imp]);
-    rows.push(['','','','','','','','Utilidad ('+rp.pctU.toFixed(2)+'%)',rp.uti]);
-    rows.push(['','','','','','','','IVA sobre Utilidad ('+rp.ivaPct+'%)',rp.ivaUtilidad]);
-    rows.push(['','','','','','','','VALOR TOTAL CONTRATO',rp.valorTotal]);
+    var rCd=rows.length;rows.push(['','','','','','','','Costo Directo Total',itemsArrP.length?'=ROUND(SUM('+ceCons(rFirstItem,8)+':'+ceCons(rLastItem,8)+'),2)':0]);
+    var rAdm=rows.length;rows.push(['','','','','','','','Administracion ('+rp.pctA.toFixed(2)+'%)','=ROUND('+ceCons(rCd,8)+'*'+rp.pctA+'/100,2)']);
+    var rImp=rows.length;rows.push(['','','','','','','','Imprevistos ('+rp.pctI.toFixed(2)+'%)','=ROUND('+ceCons(rCd,8)+'*'+rp.pctI+'/100,2)']);
+    var rUti=rows.length;rows.push(['','','','','','','','Utilidad ('+rp.pctU.toFixed(2)+'%)','=ROUND('+ceCons(rCd,8)+'*'+rp.pctU+'/100,2)']);
+    var rIva=rows.length;rows.push(['','','','','','','','IVA sobre Utilidad ('+rp.ivaPct+'%)','=ROUND('+ceCons(rUti,8)+'*'+rp.ivaPct+'/100,2)']);
+    rows.push(['','','','','','','','VALOR TOTAL CONTRATO','=ROUND('+ceCons(rCd,8)+'+'+ceCons(rAdm,8)+'+'+ceCons(rImp,8)+'+'+ceCons(rUti,8)+'+'+ceCons(rIva,8)+',2)']);
     var ws=XLSX.utils.aoa_to_sheet(rows);
+    convertirFormulasApuExcel(ws);
     ws['!cols']=[{wch:4},{wch:10},{wch:12},{wch:38},{wch:6},{wch:11},{wch:10},{wch:15},{wch:15}];
+    ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:8}},{s:{r:3,c:1},e:{r:3,c:8}}];
+    if(ws['A1'])ws['A1'].s={font:{bold:true,sz:14,color:{rgb:'1A2438'}}};
+    for(var rr=1;rr<=4;rr++){
+      ['A','D'].forEach(function(col){var k=col+(rr+1);if(ws[k])ws[k].s={font:{bold:true,sz:9,color:{rgb:'4D8FF7'}}}});
+    }
+    ['A','B','C','D','E','F','G','H','I'].forEach(function(col){var k=col+(hdrRowIdx+1);if(ws[k])ws[k].s={font:XLS_HDR_FONT,fill:XLS_HDR_FILL,alignment:{horizontal:'center'}}});
+    for(var ri2=hdrRowIdx+1;ri2<hdrRowIdx+1+itemsArrP.length;ri2++){
+      ['H','I'].forEach(function(col){var k=col+(ri2+1);if(ws[k]){if(ws[k].t!=='f')ws[k].t='n';ws[k].z=XLS_NUM_FMT;ws[k].s={alignment:{horizontal:'right'}}}});
+    }
+    for(var rs=sumStartIdx;rs<sumStartIdx+6;rs++){
+      var kh=String.fromCharCode(72)+(rs+1),ki=String.fromCharCode(73)+(rs+1);
+      if(ws[kh])ws[kh].s={font:{bold:true,sz:9}};
+      if(ws[ki]){if(ws[ki].t!=='f')ws[ki].t='n';ws[ki].z=XLS_NUM_FMT;ws[ki].s={font:{bold:true,sz:9},alignment:{horizontal:'right'}}}
+    }
+    var lastRow=sumStartIdx+5;
+    ['H','I'].forEach(function(col){var k=col+(lastRow+1);if(ws[k])ws[k].s={font:{bold:true,sz:10,color:{rgb:'FFFFFF'}},fill:{fgColor:{rgb:'1A7A34'}},alignment:{horizontal:col==='I'?'right':'left'}}});
     return ws;
   };
 
@@ -6802,17 +6827,33 @@ function PresEntregablesPanel({pres,presupuestos,calcResumenPres,calcItemVal,cal
     resRows.push(['Entidad',pres.entidad||'-','','Contrato',pres.contrato||'-']);
     resRows.push(['Fecha',pres.fecha_creacion||'-','','Elaboro',pres.elaborado_por||'-']);
     resRows.push([]);
+    var hdrIdxRes=resRows.length;
     resRows.push(['Sub-proyecto','Nombre','Costo Directo','AIU','IVA','Valor Total']);
-    var totalCD=0,totalVT=0;
+    var rFirstSub=resRows.length;
     hijos.forEach(function(h){
       var rh=calcResumenFor(h);
-      totalCD+=rh.cdTotal;totalVT+=rh.valorTotal;
-      resRows.push([h.codigo,h.nombre||'-',rh.cdTotal,rh.aiuTotal,rh.ivaUtilidad,rh.valorTotal]);
+      var rIdx=resRows.length;
+      resRows.push([h.codigo,h.nombre||'-',rh.cdTotal,rh.aiuTotal,rh.ivaUtilidad,'']);
+      resRows[rIdx][5]='=ROUND('+ceCons(rIdx,2)+'+'+ceCons(rIdx,3)+'+'+ceCons(rIdx,4)+',2)';
     });
+    var rLastSub=resRows.length-1;
     resRows.push([]);
-    resRows.push(['','TOTALES',totalCD,'','',totalVT]);
+    var rTot=resRows.length;
+    resRows.push(['','TOTALES',hijos.length?'=ROUND(SUM('+ceCons(rFirstSub,2)+':'+ceCons(rLastSub,2)+'),2)':0,'','',hijos.length?'=ROUND(SUM('+ceCons(rFirstSub,5)+':'+ceCons(rLastSub,5)+'),2)':0]);
     var wsRes=XLSX.utils.aoa_to_sheet(resRows);
+    convertirFormulasApuExcel(wsRes);
     wsRes['!cols']=[{wch:14},{wch:26},{wch:15},{wch:15},{wch:15},{wch:15}];
+    wsRes['!merges']=[{s:{r:0,c:0},e:{r:0,c:5}}];
+    if(wsRes['A1'])wsRes['A1'].s={font:{bold:true,sz:14,color:{rgb:'1A2438'}}};
+    for(var rr2=1;rr2<=2;rr2++){
+      ['A','D'].forEach(function(col){var k=col+(rr2+1);if(wsRes[k])wsRes[k].s={font:{bold:true,sz:9,color:{rgb:'4D8FF7'}}}});
+    }
+    ['A','B','C','D','E','F'].forEach(function(col){var k=col+(hdrIdxRes+1);if(wsRes[k])wsRes[k].s={font:XLS_HDR_FONT,fill:XLS_HDR_FILL,alignment:{horizontal:'center'}}});
+    for(var ri4=rFirstSub;ri4<=rLastSub;ri4++){
+      ['C','D','E','F'].forEach(function(col){var k=col+(ri4+1);if(wsRes[k]){if(wsRes[k].t!=='f')wsRes[k].t='n';wsRes[k].z=XLS_NUM_FMT;wsRes[k].s={alignment:{horizontal:'right'}}}});
+    }
+    ['C','D','E','F'].forEach(function(col){var k=col+(rTot+1);if(wsRes[k])wsRes[k].s={font:{bold:true,sz:10,color:{rgb:'FFFFFF'}},fill:{fgColor:{rgb:'1A7A34'}},alignment:{horizontal:'right'}};if(wsRes[k]&&wsRes[k].t!=='f'){wsRes[k].t='n';wsRes[k].z=XLS_NUM_FMT}});
+    var kB=('B')+(rTot+1);if(wsRes[kB])wsRes[kB].s={font:{bold:true,sz:10,color:{rgb:'FFFFFF'}},fill:{fgColor:{rgb:'1A7A34'}}};
     XLSX.utils.book_append_sheet(wb,wsRes,'RESUMEN');
     hijos.forEach(function(h,hi){
       var wsHijo=generarHojaPresupuesto(h);
@@ -6971,14 +7012,32 @@ function PresEntregablesPanel({pres,presupuestos,calcResumenPres,calcItemVal,cal
     var wbF=XLSX.read(fo.archivo_b64,{type:'base64'});
     var wsF=wbF.Sheets[wbF.SheetNames[0]];
     var mapeoF=fo.mapeo;
+    var colU=colLetter(mapeoF.col_vr_unitario);
+    var colT=colLetter(mapeoF.col_vr_total);
+    var colC=mapeoF.col_cantidad!=null?colLetter(mapeoF.col_cantidad):null;
+    var setCelda=function(addr,v,f){
+      var prev=wsF[addr];
+      var celda={t:'n',v:v};
+      if(f)celda.f=f;
+      if(prev&&prev.s)celda.s=prev.s;
+      celda.z=(prev&&prev.z)?prev.z:'#,##0.00';
+      wsF[addr]=celda;
+    };
     (pres.items||[]).filter(function(it){return !esCapituloFinal(it)}).forEach(function(it){
       var cv=calcItemVal(it);
       var fila=it.fila_original;
-      var colU=colLetter(mapeoF.col_vr_unitario);
-      var colT=colLetter(mapeoF.col_vr_total);
-      wsF[colU+(fila+1)]={t:'n',v:cv.vr_unit};
-      wsF[colT+(fila+1)]={t:'n',v:cv.vr_total};
+      var addrU=colU+(fila+1),addrT=colT+(fila+1);
+      setCelda(addrU,cv.vr_unit);
+      if(colC){
+        setCelda(addrT,cv.vr_total,'ROUND('+addrU+'*'+colC+(fila+1)+',2)');
+      }else{
+        setCelda(addrT,cv.vr_total);
+      }
     });
+    var range=XLSX.utils.decode_range(wsF['!ref']);
+    var maxC=range.e.c;
+    range.e.c=Math.max(maxC,mapeoF.col_vr_unitario,mapeoF.col_vr_total);
+    wsF['!ref']=XLSX.utils.encode_range(range);
     var base=(fo.nombre_archivo||'formulario').replace(/\.xlsx?$/i,'');
     XLSX.writeFile(wbF,base+'_PRECIOS_'+pres.codigo+'.xlsx');
     showToast('Formulario exportado correctamente',{type:'ok',dur:2500});

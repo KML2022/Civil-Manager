@@ -970,9 +970,10 @@ function useExcelImportExport({items,data,onChange,dataKey,prefix,title,sheetNam
     ws['!cols']=colWidths;
     ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:Math.max(0,previewModal.headers.length-1)}}];
     var S=estilosApuExcel();
+    var REJILLA={top:{style:'thin',color:{rgb:'FF5B9BD5'}},bottom:{style:'thin',color:{rgb:'FF5B9BD5'}},left:{style:'thin',color:{rgb:'FF5B9BD5'}},right:{style:'thin',color:{rgb:'FF5B9BD5'}}};
     var S_CELL_WRAP=Object.assign({},S.S_CELL,{alignment:{horizontal:'left',vertical:'top',wrapText:true}});
     var S_CELL_R_WRAP=Object.assign({},S.S_CELL_R,{alignment:{horizontal:'right',vertical:'top',wrapText:true}});
-    var colWrap=(colWidths||[]).map(function(cw){return !!(cw&&cw.wch>=25)});
+    var colWrap=previewModal.headers.map(function(_,ci){return previewModal.rows.some(function(row){return typeof row[ci]!=='number'&&row[ci]!==''&&row[ci]!=null});});
     var ce=function(r,c){return XLSX.utils.encode_cell({r:r,c:c})};
     rows.forEach(function(row,rIdx){
       row.forEach(function(val,ci){
@@ -983,6 +984,7 @@ function useExcelImportExport({items,data,onChange,dataKey,prefix,title,sheetNam
           var esNum=typeof val==='number';
           ws[k].s=colWrap[ci]?(esNum?S_CELL_R_WRAP:S_CELL_WRAP):(esNum?S.S_CELL_R:S.S_CELL);
         }
+        ws[k].s=Object.assign({},ws[k].s,{border:REJILLA});
       });
     });
     ws['!rows']=rows.map(function(row,rIdx){
@@ -2717,7 +2719,7 @@ var TIPO_RECURSO_A_CATEGORIA={INSUMO:'insumos',EQUIPO:'equipos',TRANSPORTE:'equi
    (ver CIVILMANAGER_Ajuste_Plantilla_Import_Visual.docx). */
 function estilosApuExcel(){
   var FN='Calibri';
-  function bd(hex){return[{top:{style:'thin',color:{rgb:'FF'+hex}},bottom:{style:'thin',color:{rgb:'FF'+hex}},left:{style:'thin',color:{rgb:'FF'+hex}},right:{style:'thin',color:{rgb:'FF'+hex}}}]}
+  function bd(hex){return{top:{style:'thin',color:{rgb:'FF'+hex}},bottom:{style:'thin',color:{rgb:'FF'+hex}},left:{style:'thin',color:{rgb:'FF'+hex}},right:{style:'thin',color:{rgb:'FF'+hex}}}}
   var BL=bd('888888');
   var BH=bd('444444');
   function bs(extra){var base={font:{name:FN,sz:9},border:BL};return extra?Object.assign(base,extra):base}

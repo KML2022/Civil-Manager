@@ -970,14 +970,32 @@ function useExcelImportExport({items,data,onChange,dataKey,prefix,title,sheetNam
     ws['!cols']=colWidths;
     ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:Math.max(0,previewModal.headers.length-1)}}];
     var S=estilosApuExcel();
+    var S_CELL_WRAP=Object.assign({},S.S_CELL,{alignment:{horizontal:'left',vertical:'top',wrapText:true}});
+    var S_CELL_R_WRAP=Object.assign({},S.S_CELL_R,{alignment:{horizontal:'right',vertical:'top',wrapText:true}});
+    var colWrap=(colWidths||[]).map(function(cw){return !!(cw&&cw.wch>=25)});
     var ce=function(r,c){return XLSX.utils.encode_cell({r:r,c:c})};
     rows.forEach(function(row,rIdx){
       row.forEach(function(val,ci){
         var k=ce(rIdx,ci);if(!ws[k])return;
         if(rIdx===0)ws[k].s=S.S_TITLE;
         else if(rIdx===1)ws[k].s=S.S_HDR;
-        else ws[k].s=typeof val==='number'?S.S_CELL_R:S.S_CELL;
+        else{
+          var esNum=typeof val==='number';
+          ws[k].s=colWrap[ci]?(esNum?S_CELL_R_WRAP:S_CELL_WRAP):(esNum?S.S_CELL_R:S.S_CELL);
+        }
       });
+    });
+    ws['!rows']=rows.map(function(row,rIdx){
+      if(rIdx===0)return undefined;
+      var maxLineas=1;
+      row.forEach(function(val,ci){
+        if(colWrap[ci]&&val){
+          var wch=(colWidths[ci]&&colWidths[ci].wch)||20;
+          var lineas=Math.ceil(String(val).length/wch);
+          if(lineas>maxLineas)maxLineas=lineas;
+        }
+      });
+      return maxLineas>1?{hpt:Math.max(18,maxLineas*14)}:undefined;
     });
     var wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,sheetName);XLSX.writeFile(wb,filename);setPreviewModal(null);showToast('Excel exportado correctamente',{type:'ok'})
   };

@@ -573,6 +573,17 @@ function autoDetectarFilaInicio(filas){
   return 3;
 }
 
+/* Devuelve el colSpan para la celda (r,c) segun las celdas combinadas (!merges) de la hoja:
+   >1 si es el ancla del merge, 0 si esta cubierta por uno (no se renderiza), 1 si no aplica. */
+function getMergeSpan(r,c,merges){
+  for(var i=0;i<(merges||[]).length;i++){
+    var m=merges[i];
+    if(m.s.r===r&&m.s.c===c)return(m.e.c-m.s.c+1);
+    if(r>=m.s.r&&r<=m.e.r&&c>=m.s.c&&c<=m.e.c&&!(m.s.r===r&&m.s.c===c))return 0;
+  }
+  return 1;
+}
+
 function validarExportacionFormulario(pres){
   var itemsReales=(pres.items||[]).filter(function(it){return !esCapituloFinal(it)});
   var sinAPU=itemsReales.filter(function(it){return !it.tiene_apu||!it.apu_id});
@@ -6418,12 +6429,12 @@ function PresProyectosPanel({presupuestos,selPresIdx,setSelPresIdx,data,onChange
 
   return(
     <div>
-      <div className="sec-hdr" style={{border:'1px solid var(--bdr)',borderRadius:4,padding:'2px 10px',height:25,marginBottom:8,display:'flex',alignItems:'center',justifyContent:'space-between',width:1465}}>
+      <div className="sec-hdr" style={{border:'1px solid var(--bdr)',borderRadius:4,padding:'2px 10px',height:25,marginBottom:8,display:'flex',alignItems:'center',justifyContent:'space-between',width:1535}}>
         <span className="title" style={{fontSize:15,lineHeight:'19px'}}>1. CATALOGO DE PROYECTOS</span>
       </div>
-      <div className="xl-wrap" style={{width:1465}}>
+      <div className="xl-wrap" style={{width:1535}}>
         <div className="xl-scroll">
-          <table style={{tableLayout:'fixed',width:'1465px'}}>
+          <table style={{tableLayout:'fixed',width:'1535px'}}>
             <colgroup>
               <col className="col-rn" style={{width:'30px'}}/>
               <col style={{width:'70px'}}/>
@@ -6433,6 +6444,7 @@ function PresProyectosPanel({presupuestos,selPresIdx,setSelPresIdx,data,onChange
               <col style={{width:'80px'}}/>
               <col style={{width:'110px'}}/>
               <col style={{width:'110px'}}/>
+              <col style={{width:'90px'}}/>
               <col style={{width:'100px'}}/>
               <col style={{width:'65px'}}/>
               <col style={{width:'75px'}}/>
@@ -6447,6 +6459,7 @@ function PresProyectosPanel({presupuestos,selPresIdx,setSelPresIdx,data,onChange
               <th>Nombre</th>
               <th style={{whiteSpace:'normal',lineHeight:'1.2'}}>Fecha de Creacion</th>
               <th>Estado</th>
+              <th>Formulario</th>
               <th>Responsable</th>
               <th>Cliente</th>
               <th>Ciudad</th>
@@ -6457,7 +6470,7 @@ function PresProyectosPanel({presupuestos,selPresIdx,setSelPresIdx,data,onChange
               <th className="col-act">Acciones</th>
             </tr></thead>
             <tbody>
-              {flatPresupuestos.length===0&&<tr className="empty-row"><td colSpan={14}>{presupuestos.length===0?'Sin proyectos. Agregue uno con "+ Nuevo".':'Sin resultados para el filtro aplicado.'}</td></tr>}
+              {flatPresupuestos.length===0&&<tr className="empty-row"><td colSpan={15}>{presupuestos.length===0?'Sin proyectos. Agregue uno con "+ Nuevo".':'Sin resultados para el filtro aplicado.'}</td></tr>}
               {flatPresupuestos.map(function(row,fi){
                 var p=row.pres,level=row.level;
                 var i=presupuestos.indexOf(p);
@@ -6479,6 +6492,12 @@ function PresProyectosPanel({presupuestos,selPresIdx,setSelPresIdx,data,onChange
                     </td>
                     <td style={{textAlign:'center',fontSize:10}}>{fmtDate(p.fecha_creacion)}</td>
                     <td style={{textAlign:'center'}}><span onClick={function(){toggleEstado(i)}} style={{cursor:'pointer',fontSize:9,padding:'1px 6px',borderRadius:3,border:'1px solid '+estadoColor(p.estado),color:estadoColor(p.estado),fontWeight:600}}>{estadoLabel(p.estado)}</span></td>
+                    <td style={{textAlign:'center'}}>
+                      {p.formulario_original?
+                        <span onClick={function(){setSelPresIdx(i);setTab(10)}} title={p.formulario_original.nombre_archivo} style={{cursor:'pointer',fontSize:9,padding:'1px 6px',borderRadius:3,border:'1px solid '+(p.formulario_original.archivo_adjunto?'var(--ok)':'var(--warn)'),color:p.formulario_original.archivo_adjunto?'var(--ok)':'var(--warn)'}}>{p.formulario_original.archivo_adjunto?'✓ Cargado':'⚠ Sin archivo'}</span>
+                        :<span style={{fontSize:9,color:'var(--tx3)'}}>— Sin formulario</span>
+                      }
+                    </td>
                     <td>{isEdit?<input className="ni" value={p.elaborado_por||''} onChange={function(e){updField(i,'elaborado_por',e.target.value)}}/>:<span style={{padding:'0 6px'}}>{p.elaborado_por||'—'}</span>}</td>
                     <td>{isEdit?<input className="ni" value={p.entidad||''} onChange={function(e){updField(i,'entidad',e.target.value)}}/>:<span style={{padding:'0 6px'}}>{p.entidad||'—'}</span>}</td>
                     <td>{isEdit?<input className="ni" value={p.ciudad||''} onChange={function(e){updField(i,'ciudad',e.target.value)}}/>:<span style={{padding:'0 6px'}}>{p.ciudad||'—'}</span>}</td>
@@ -7198,6 +7217,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,setTab}
   var archivoRawState=useState(null);var archivoRaw=archivoRawState[0],setArchivoRaw=archivoRawState[1];
   var nombreArchivoState=useState('');var nombreArchivo=nombreArchivoState[0],setNombreArchivo=nombreArchivoState[1];
   var previewFilasState=useState([]);var previewFilas=previewFilasState[0],setPreviewFilas=previewFilasState[1];
+  var previewMergesState=useState([]);var previewMerges=previewMergesState[0],setPreviewMerges=previewMergesState[1];
   var mapeoState=useState(mapeoVacio());var mapeo=mapeoState[0],setMapeo=mapeoState[1];
   var conCodigo2State=useState(false);var conCodigo2=conCodigo2State[0],setConCodigo2=conCodigo2State[1];
   var fuenteApuState=useState('item');var fuenteApu=fuenteApuState[0],setFuenteApu=fuenteApuState[1];
@@ -7219,12 +7239,13 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,setTab}
     if(!file.name.match(/\.xlsx?$/i)){showToast('Solo se permiten archivos .xlsx o .xls',{type:'err'});e.target.value='';return}
     var reader=new FileReader();
     reader.onload=function(ev){
-      var wb=XLSX.read(new Uint8Array(ev.target.result),{type:'array'});
+      var wb=XLSX.read(new Uint8Array(ev.target.result),{type:'array',cellStyles:true});
       var ws=wb.Sheets[wb.SheetNames[0]];
       var todas=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',blankrows:true});
       setArchivoRaw(wb);
       setNombreArchivo(file.name);
-      setPreviewFilas(todas.slice(0,12));
+      setPreviewFilas(todas.slice(0,50));
+      setPreviewMerges(ws['!merges']||[]);
       var filaInicio=autoDetectarFilaInicio(todas);
       setMapeo(Object.assign(mapeoVacio(),{fila_inicio:filaInicio}));
       setConCodigo2(false);
@@ -7249,7 +7270,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,setTab}
   var mapeoValido=MAPEO_CAMPOS.every(function(c){return mapeo[c.key]!=null});
 
   var cancelarMapeo=function(){
-    setArchivoRaw(null);setPreviewFilas([]);setNombreArchivo('');setMapeo(mapeoVacio());
+    setArchivoRaw(null);setPreviewFilas([]);setPreviewMerges([]);setNombreArchivo('');setMapeo(mapeoVacio());
     setFase(pres.formulario_original?'revision':'inicio');
   };
 
@@ -7260,8 +7281,11 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,setTab}
     var colApu=fuenteApu==='codigo_1'?mapeo.col_codigo_1:fuenteApu==='codigo_2'?mapeo.col_codigo_2:mapeo.col_item;
     var mapeoFinal=Object.assign({},mapeo,{col_codigo_apu:colApu});
 
-    var b64=null;
-    try{var out=XLSX.write(archivoRaw,{type:'base64',bookType:'xlsx'});if(out.length<4000000)b64=out}catch(ex){}
+    var b64=null;var archivoDemasiadoGrande=false;
+    try{
+      var out=XLSX.write(archivoRaw,{type:'base64',bookType:'xlsx'});
+      if(out.length<4000000){b64=out}else{archivoDemasiadoGrande=true}
+    }catch(ex){archivoDemasiadoGrande=true}
 
     var items=[];
     var capituloActual='';
@@ -7298,10 +7322,12 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,setTab}
     }
 
     var n=presupuestos.slice();
-    n[selPresIdx]=Object.assign({},n[selPresIdx],{
+    var idxPres=presupuestos.indexOf(pres);
+    n[idxPres]=Object.assign({},n[idxPres],{
       items:items,
       formulario_original:{
         archivo_b64:b64,
+        archivo_adjunto:b64!=null,
         nombre_archivo:nombreArchivo,
         fecha_importacion:new Date().toISOString().slice(0,10),
         total_filas:filas.length,
@@ -7312,8 +7338,12 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,setTab}
     onChange(Object.assign({},data,{presupuestos:n}));
 
     var itemsReales=items.filter(function(it){return !esCapituloFinal(it)});
-    showToast('Importado: '+itemsReales.length+' items, '+(items.length-itemsReales.length)+' capitulos detectados',{type:'ok',dur:4000});
-    setArchivoRaw(null);setPreviewFilas([]);
+    if(archivoDemasiadoGrande){
+      showToast('Items importados. El archivo original supera 4MB y no se pudo adjuntar — la exportación de "formulario lleno" no estará disponible.',{type:'warn',dur:6000});
+    }else{
+      showToast('Importado: '+itemsReales.length+' items, '+(items.length-itemsReales.length)+' capitulos detectados. Formulario adjuntado a '+n[idxPres].codigo+'.',{type:'ok',dur:4000});
+    }
+    setArchivoRaw(null);setPreviewFilas([]);setPreviewMerges([]);
     setFase('revision');
   };
 
@@ -7352,6 +7382,23 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,setTab}
 
   if(fase==='mapeo'){
     var maxCols=Math.min(20,previewFilas.reduce(function(m,r){return Math.max(m,r.length)},1));
+    var campoMapeo=function(c,label,requerido){
+      var activo=campoActivo===c.key;
+      var mapeado=mapeo[c.key]!=null;
+      var filaEj=previewFilas[mapeo.fila_inicio];
+      var valorEjemplo=mapeado&&filaEj?String(filaEj[mapeo[c.key]]||''):'';
+      return(
+        <div key={c.key} style={{border:activo?'2px solid var(--ok)':'1px solid var(--bdr)',background:activo?'rgba(74,222,128,.08)':'transparent',borderRadius:4,padding:8}}>
+          <label onClick={function(){setCampoActivo(activo?null:c.key)}} style={{fontSize:10,color:activo?'var(--ok)':'var(--tx2)',display:'block',marginBottom:3,cursor:'pointer',fontWeight:activo?700:400}}>{label}{requerido&&<span style={{color:'var(--err)'}}> *</span>}{activo&&<span style={{color:'var(--ok)',marginLeft:4}}>{'← clic en columna'}</span>}</label>
+          {sel({value:mapeo[c.key]==null?'':mapeo[c.key],onChange:function(e){setCol(c.key,e.target.value)},children:[
+            <option key="_" value="">— Elegir —</option>
+          ].concat(Array.from({length:maxCols}).map(function(_,ci){return <option key={ci} value={ci}>{colLetter(ci)}</option>}))})}
+          {mapeado&&valorEjemplo&&
+            <div style={{fontSize:9,color:'var(--tx3)',marginTop:2}}>Columna {colLetter(mapeo[c.key])} — ej: "{valorEjemplo}"</div>
+          }
+        </div>
+      );
+    };
     return(
       <div style={{display:'flex',flexDirection:'column',gap:8}}>
         <PresBannerProyecto pres={pres} presupuestos={presupuestos} setTab={setTab}/>
@@ -7360,10 +7407,10 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,setTab}
         </div>
         <div className="xl-wrap" style={{maxHeight:220,overflow:'auto'}}>
           <table style={{fontSize:9,borderCollapse:'collapse'}}>
-            <thead><tr>
-              <th style={{padding:'2px 6px',background:'var(--bg2)'}}>#</th>
+            <thead style={{position:'sticky',top:0,zIndex:2}}><tr>
+              <th style={{padding:'2px 6px',background:'var(--bg2)',position:'sticky',top:0}}>#</th>
               {Array.from({length:maxCols}).map(function(_,ci){return(
-                <th key={ci} onClick={function(){if(campoActivo){setCol(campoActivo,ci);setCampoActivo(null)}}} title={campoActivo?'Clic para asignar columna '+colLetter(ci)+' a '+campoActivo:''} style={{padding:'2px 6px',background:campoActivo?'var(--ok)':'var(--bg2)',color:campoActivo?'#fff':'inherit',cursor:campoActivo?'crosshair':'default',fontWeight:700,userSelect:'none'}}>{colLetter(ci)}</th>
+                <th key={ci} onClick={function(){if(campoActivo){setCol(campoActivo,ci);setCampoActivo(null)}}} title={campoActivo?'Clic para asignar columna '+colLetter(ci)+' a '+campoActivo:''} style={{padding:'2px 6px',background:campoActivo?'var(--ok)':'var(--bg2)',color:campoActivo?'#fff':'inherit',cursor:campoActivo?'crosshair':'default',fontWeight:700,userSelect:'none',position:'sticky',top:0}}>{colLetter(ci)}</th>
               )})}
             </tr></thead>
             <tbody>
@@ -7371,7 +7418,11 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,setTab}
                 return(
                   <tr key={fi} style={fi===mapeo.fila_inicio?{background:'rgba(74,222,128,.1)'}:undefined}>
                     <td style={{padding:'2px 6px',color:'var(--tx3)'}}>{fi}</td>
-                    {Array.from({length:maxCols}).map(function(_,ci){return <td key={ci} style={{padding:'2px 6px',whiteSpace:'nowrap'}}>{String(fila[ci]!=null?fila[ci]:'')}</td>})}
+                    {Array.from({length:maxCols}).map(function(_,ci){
+                      var span=getMergeSpan(fi,ci,previewMerges);
+                      if(span===0)return null;
+                      return <td key={ci} colSpan={span>1?span:undefined} style={{padding:'2px 6px',whiteSpace:'nowrap',textAlign:span>1?'center':'left'}}>{String(fila[ci]!=null?fila[ci]:'')}</td>;
+                    })}
                   </tr>
                 );
               })}
@@ -7389,44 +7440,51 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,setTab}
           </div>
         }
 
-        <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10,border:'1px solid var(--bdr)',borderRadius:4,padding:12}}>
-          <div>
-            <label style={{fontSize:10,color:'var(--tx2)',display:'block',marginBottom:3}}>¿Desde qué fila empiezan los datos?</label>
-            <input type="number" className="ni" style={{width:70,fontSize:11}} value={mapeo.fila_inicio} onChange={function(e){setMapeo(Object.assign({},mapeo,{fila_inicio:parseInt(e.target.value,10)||0}))}}/>
-          </div>
-          {MAPEO_CAMPOS.map(function(c){
-            var activo=campoActivo===c.key;
-            return(
-              <div key={c.key}>
-                <label onClick={function(){setCampoActivo(activo?null:c.key)}} style={{fontSize:10,color:activo?'var(--ok)':'var(--tx2)',display:'block',marginBottom:3,cursor:'pointer',fontWeight:activo?700:400}}>{c.label}{c.requerido&&<span style={{color:'var(--err)'}}> *</span>}{activo&&<span style={{color:'var(--ok)',marginLeft:4}}>{'← clic en columna'}</span>}</label>
-                {sel({value:mapeo[c.key]==null?'':mapeo[c.key],onChange:function(e){setCol(c.key,e.target.value)},children:[
-                  <option key="_" value="">— Elegir —</option>
-                ].concat(Array.from({length:maxCols}).map(function(_,ci){return <option key={ci} value={ci}>{colLetter(ci)}</option>}))})}
-              </div>
-            );
-          })}
-          <div>
-            <label style={{fontSize:10,color:'var(--tx2)',display:'block',marginBottom:3}}><input type="checkbox" checked={conCodigo2} onChange={function(e){setConCodigo2(e.target.checked);if(!e.target.checked)setCol('col_codigo_2','')}}/> ¿Hay segunda columna de código?</label>
-            <label onClick={function(){setCampoActivo(campoActivo==='col_codigo_1'?null:'col_codigo_1')}} style={{fontSize:10,color:campoActivo==='col_codigo_1'?'var(--ok)':'var(--tx2)',display:'block',marginBottom:3,marginTop:6,cursor:'pointer',fontWeight:campoActivo==='col_codigo_1'?700:400}}>Columna — Código 1{campoActivo==='col_codigo_1'&&<span style={{color:'var(--ok)',marginLeft:4}}>{'← clic en columna'}</span>}</label>
-            {sel({value:mapeo.col_codigo_1==null?'':mapeo.col_codigo_1,onChange:function(e){setCol('col_codigo_1',e.target.value)},children:[<option key="_" value="">— Ninguna —</option>].concat(Array.from({length:maxCols}).map(function(_,ci){return <option key={ci} value={ci}>{colLetter(ci)}</option>}))})}
-          </div>
-          {conCodigo2&&
+        <div className="sec-hdr" style={{border:'1px solid var(--bdr)',borderRadius:4,padding:'6px 10px'}}>
+          <span className="title" style={{fontSize:13}}>2. Asignar columnas</span>
+        </div>
+        <div style={{border:'1px solid var(--bdr)',borderRadius:4,padding:12,display:'flex',flexDirection:'column',gap:10}}>
+          <div style={{fontSize:10,fontWeight:700,color:'var(--tx2)',textTransform:'uppercase'}}>Campos obligatorios</div>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10}}>
             <div>
-              <label onClick={function(){setCampoActivo(campoActivo==='col_codigo_2'?null:'col_codigo_2')}} style={{fontSize:10,color:campoActivo==='col_codigo_2'?'var(--ok)':'var(--tx2)',display:'block',marginBottom:3,cursor:'pointer',fontWeight:campoActivo==='col_codigo_2'?700:400}}>Columna — Código 2{campoActivo==='col_codigo_2'&&<span style={{color:'var(--ok)',marginLeft:4}}>{'← clic en columna'}</span>}</label>
-              {sel({value:mapeo.col_codigo_2==null?'':mapeo.col_codigo_2,onChange:function(e){setCol('col_codigo_2',e.target.value)},children:[<option key="_" value="">— Ninguna —</option>].concat(Array.from({length:maxCols}).map(function(_,ci){return <option key={ci} value={ci}>{colLetter(ci)}</option>}))})}
+              <label style={{fontSize:10,color:'var(--tx2)',display:'block',marginBottom:3}}>¿Desde qué fila empiezan los datos?</label>
+              <input type="number" className="ni" style={{width:70,fontSize:11}} value={mapeo.fila_inicio} onChange={function(e){setMapeo(Object.assign({},mapeo,{fila_inicio:parseInt(e.target.value,10)||0}))}}/>
             </div>
-          }
-          <div>
-            <label style={{fontSize:10,color:'var(--tx2)',display:'block',marginBottom:3}}>¿Cuál código usar para los APU?</label>
-            <select className="ni sel" style={{fontSize:11}} value={fuenteApu} onChange={function(e){setFuenteApu(e.target.value)}}>
-              <option value="item">Número de ítem</option>
-              <option value="codigo_1">Código 1</option>
-              {conCodigo2&&<option value="codigo_2">Código 2</option>}
-            </select>
+            {MAPEO_CAMPOS.map(function(c){
+              return campoMapeo(c,c.label,c.requerido);
+            })}
           </div>
-          <div>
-            <label style={{fontSize:10,color:'var(--tx2)',display:'block',marginBottom:3}}>Guardar este mapeo como...</label>
-            <input className="ni" style={{fontSize:11,width:'100%'}} placeholder="(opcional)" value={mapeo.nombre_mapeo} onChange={function(e){setMapeo(Object.assign({},mapeo,{nombre_mapeo:e.target.value}))}}/>
+          <div style={{fontSize:10,fontWeight:700,color:'var(--tx2)',textTransform:'uppercase',marginTop:6}}>Campos opcionales</div>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10}}>
+            <div style={{border:campoActivo==='col_codigo_1'?'2px solid var(--ok)':'1px solid var(--bdr)',background:campoActivo==='col_codigo_1'?'rgba(74,222,128,.08)':'transparent',borderRadius:4,padding:8}}>
+              <label style={{fontSize:10,color:'var(--tx2)',display:'block',marginBottom:3}}><input type="checkbox" checked={conCodigo2} onChange={function(e){setConCodigo2(e.target.checked);if(!e.target.checked)setCol('col_codigo_2','')}}/> ¿Hay segunda columna de código?</label>
+              <label onClick={function(){setCampoActivo(campoActivo==='col_codigo_1'?null:'col_codigo_1')}} style={{fontSize:10,color:campoActivo==='col_codigo_1'?'var(--ok)':'var(--tx2)',display:'block',marginBottom:3,marginTop:6,cursor:'pointer',fontWeight:campoActivo==='col_codigo_1'?700:400}}>Columna — Código 1{campoActivo==='col_codigo_1'&&<span style={{color:'var(--ok)',marginLeft:4}}>{'← clic en columna'}</span>}</label>
+              {sel({value:mapeo.col_codigo_1==null?'':mapeo.col_codigo_1,onChange:function(e){setCol('col_codigo_1',e.target.value)},children:[<option key="_" value="">— Ninguna —</option>].concat(Array.from({length:maxCols}).map(function(_,ci){return <option key={ci} value={ci}>{colLetter(ci)}</option>}))})}
+              {mapeo.col_codigo_1!=null&&previewFilas[mapeo.fila_inicio]&&
+                <div style={{fontSize:9,color:'var(--tx3)',marginTop:2}}>Columna {colLetter(mapeo.col_codigo_1)} — ej: "{String(previewFilas[mapeo.fila_inicio][mapeo.col_codigo_1]||'')}"</div>
+              }
+            </div>
+            {conCodigo2&&
+              <div style={{border:campoActivo==='col_codigo_2'?'2px solid var(--ok)':'1px solid var(--bdr)',background:campoActivo==='col_codigo_2'?'rgba(74,222,128,.08)':'transparent',borderRadius:4,padding:8}}>
+                <label onClick={function(){setCampoActivo(campoActivo==='col_codigo_2'?null:'col_codigo_2')}} style={{fontSize:10,color:campoActivo==='col_codigo_2'?'var(--ok)':'var(--tx2)',display:'block',marginBottom:3,cursor:'pointer',fontWeight:campoActivo==='col_codigo_2'?700:400}}>Columna — Código 2{campoActivo==='col_codigo_2'&&<span style={{color:'var(--ok)',marginLeft:4}}>{'← clic en columna'}</span>}</label>
+                {sel({value:mapeo.col_codigo_2==null?'':mapeo.col_codigo_2,onChange:function(e){setCol('col_codigo_2',e.target.value)},children:[<option key="_" value="">— Ninguna —</option>].concat(Array.from({length:maxCols}).map(function(_,ci){return <option key={ci} value={ci}>{colLetter(ci)}</option>}))})}
+                {mapeo.col_codigo_2!=null&&previewFilas[mapeo.fila_inicio]&&
+                  <div style={{fontSize:9,color:'var(--tx3)',marginTop:2}}>Columna {colLetter(mapeo.col_codigo_2)} — ej: "{String(previewFilas[mapeo.fila_inicio][mapeo.col_codigo_2]||'')}"</div>
+                }
+              </div>
+            }
+            <div style={{border:'1px solid var(--bdr)',borderRadius:4,padding:8}}>
+              <label style={{fontSize:10,color:'var(--tx2)',display:'block',marginBottom:3}}>¿Cuál código usar para los APU?</label>
+              <select className="ni sel" style={{fontSize:11}} value={fuenteApu} onChange={function(e){setFuenteApu(e.target.value)}}>
+                <option value="item">Número de ítem</option>
+                <option value="codigo_1">Código 1</option>
+                {conCodigo2&&<option value="codigo_2">Código 2</option>}
+              </select>
+            </div>
+            <div style={{border:'1px solid var(--bdr)',borderRadius:4,padding:8}}>
+              <label style={{fontSize:10,color:'var(--tx2)',display:'block',marginBottom:3}}>Guardar este mapeo como...</label>
+              <input className="ni" style={{fontSize:11,width:'100%'}} placeholder="(opcional)" value={mapeo.nombre_mapeo} onChange={function(e){setMapeo(Object.assign({},mapeo,{nombre_mapeo:e.target.value}))}}/>
+            </div>
           </div>
         </div>
 
@@ -7446,10 +7504,15 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,setTab}
   return(
     <div style={{display:'flex',flexDirection:'column',gap:8}}>
       <PresBannerProyecto pres={pres} presupuestos={presupuestos} setTab={setTab}/>
-      <div className="sec-hdr" style={{border:'1px solid var(--bdr)',borderRadius:4,padding:'6px 10px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+      <div className="sec-hdr" style={{border:'1px solid var(--bdr)',borderRadius:4,padding:'6px 10px'}}>
         <span className="title" style={{fontSize:15}}>Formulario para Presupuesto: {pres.codigo} — {pres.nombre||'(sin nombre)'}</span>
-        <span style={{fontSize:10,color:'var(--tx3)'}}>{fo?fo.nombre_archivo:''} {fo?'· '+fo.fecha_importacion:''} · {itemsReales.length} ítems · {nCapitulos} capítulos</span>
       </div>
+      {fo&&
+        <div style={{display:'flex',alignItems:'center',gap:10,padding:'6px 12px',background:fo.archivo_adjunto?'rgba(74,222,128,.07)':'rgba(230,168,0,.08)',border:'1px solid '+(fo.archivo_adjunto?'rgba(74,222,128,.25)':'rgba(230,168,0,.3)'),borderRadius:6}}>
+          <span style={{fontSize:11,fontWeight:700,color:fo.archivo_adjunto?'var(--ok)':'var(--warn)'}}>{fo.archivo_adjunto?'✓ Formulario cargado':'⚠ Ítems importados sin archivo adjunto'}</span>
+          <span style={{fontSize:10,color:'var(--tx2)'}}>{fo.nombre_archivo} — {fmtDate(fo.fecha_importacion)} — {fo.total_filas} filas · {itemsReales.length} ítems · {nCapitulos} capítulos</span>
+        </div>
+      }
       <div style={{display:'flex',gap:6}}>
         <button className="btn" onClick={function(){setTab(11)}} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--ac)',borderRadius:4,background:'rgba(77,143,247,.06)',color:'var(--ac)',cursor:'pointer'}}>{'Ir a Ítems →'}</button>
         <button className="btn" onClick={reimportar} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--bdr)',borderRadius:4,background:'none',color:'var(--tx2)',cursor:'pointer'}}>{'↩ Reimportar'}</button>

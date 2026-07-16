@@ -6527,207 +6527,6 @@ function PresProyectosPanel({presupuestos,selPresIdx,setSelPresIdx,data,onChange
   );
 }
 
-/* ══════════════════ 2. ITEMS Y CAPITULOS (sub-componente de PresupuestosTab) ══════════════════ */
-function PresItemsPanel({pres,presupuestos,selPresIdx,data,onChange,apuModal,setApuModal,apus,categorias_apu,calcItemVal,setTab,estadoLabel}){
-  if(!pres)return <PresBannerProyecto pres={pres} presupuestos={presupuestos} setTab={setTab}/>;
-  var readOnly=pres.estado!=='borrador';
-
-  var addItem=function(){
-    if(readOnly)return;
-    var arr=pres.items.slice();
-    arr.push({id:uid(),num_item:String(arr.length+1),capitulo:'',descripcion:'',unidad:'un',cantidad:1,apu_id:null,vr_unitario:0,vr_total:0,tiene_apu:false,alerta_sin_apu:false});
-    var n=presupuestos.slice();n[selPresIdx]=Object.assign({},n[selPresIdx],{items:arr});
-    onChange(Object.assign({},data,{presupuestos:n}));
-  };
-  var delItem=async function(i){
-    if(readOnly)return;if(!(await askConfirm('¿Desea eliminar "'+(pres.items[i].descripcion||'este ítem')+'"? Esta acción no se puede deshacer.')))return;
-    var arr=pres.items.filter(function(_,j){return j!==i});
-    var n=presupuestos.slice();n[selPresIdx]=Object.assign({},n[selPresIdx],{items:arr});
-    onChange(Object.assign({},data,{presupuestos:n}));
-  };
-  var updItem=function(i,k,v){
-    if(readOnly)return;
-    var arr=pres.items.slice();arr[i]=Object.assign({},arr[i]);arr[i][k]=v;
-    var n=presupuestos.slice();n[selPresIdx]=Object.assign({},n[selPresIdx],{items:arr});
-    onChange(Object.assign({},data,{presupuestos:n}));
-  };
-  var openApuModal=function(i){if(!readOnly)setApuModal({open:true,itemIdx:i,search:'',catFilter:''})};
-  var closeApuModal=function(){setApuModal({open:false,itemIdx:null,search:'',catFilter:''})};
-  var filteredApus=function(){
-    if(!apuModal.open)return[];
-    var sn=apuModal.search?norm(apuModal.search):'';
-    var cf=apuModal.catFilter;
-    var result=[];
-    for(var i=0;i<apus.length;i++){
-      var a=apus[i];
-      if(cf&&((a.categoria||'')!==cf))continue;
-      if(sn){
-        var aCod=norm(a.codigo||''),aNom=norm(a.nombre||''),aCat=norm(a.categoria||'');
-        if(aCod.indexOf(sn)<0&&aNom.indexOf(sn)<0&&aCat.indexOf(sn)<0)continue;
-      }
-      result.push(a);
-    }
-    return result;
-  };
-  var assignApu=function(aid){
-    if(apuModal.itemIdx===null||aid===undefined)return;
-    var i=apuModal.itemIdx;
-    var apuOrig=null;
-    for(var k=0;k<apus.length;k++){if(apus[k].id===aid){apuOrig=apus[k];break}}
-    if(!apuOrig)return;
-    // Clonar el APU al snapshot del presupuesto para no romper la trazabilidad si el catalogo cambia despues
-    var snap=(pres.apus_snap||[]).slice();
-    var clon=snap.find(function(a){return a.apu_origen_id===apuOrig.id});
-    if(!clon){
-      clon=Object.assign({},apuOrig,{id:uid(),apu_origen_id:apuOrig.id});
-      snap.push(clon);
-    }
-    var arr=pres.items.slice();
-    arr[i]=Object.assign({},arr[i],{apu_id:clon.id,tiene_apu:true,alerta_sin_apu:false});
-    var n=presupuestos.slice();n[selPresIdx]=Object.assign({},n[selPresIdx],{items:arr,apus_snap:snap});
-    onChange(Object.assign({},data,{presupuestos:n}));
-    closeApuModal();
-    showToast('APU asignado',{type:'ok',dur:2000});
-  };
-  var unassignApu=async function(i){
-    if(readOnly)return;if(!(await askConfirm('¿Desea quitar el APU asignado a este ítem? Esta acción no se puede deshacer.')))return;
-    var arr=pres.items.slice();arr[i]=Object.assign({},arr[i],{apu_id:null,tiene_apu:false});
-    var n=presupuestos.slice();n[selPresIdx]=Object.assign({},n[selPresIdx],{items:arr});
-    onChange(Object.assign({},data,{presupuestos:n}));
-    showToast('APU removido',{type:'ok',dur:2000});
-  };
-  var itemsArr=pres.items||[];
-  var cdTotal=0;
-  for(var i=0;i<itemsArr.length;i++){cdTotal+=calcItemVal(itemsArr[i]).vr_total}
-
-  var busqState=useState('');
-  var busq=busqState[0],setBusq=busqState[1];
-  var pageState=useState(0);
-  var page=pageState[0],setPage=pageState[1];
-  var PAGE_SIZE=50;
-
-  var itemsFiltrados=itemsArr.filter(function(it){
-    if(!busq)return true;
-    var b=norm(busq);
-    return norm(it.descripcion||'').indexOf(b)>=0||norm(it.capitulo||'').indexOf(b)>=0||norm(it.num_item||'').indexOf(b)>=0;
-  });
-  var totalPaginas=Math.max(1,Math.ceil(itemsFiltrados.length/PAGE_SIZE));
-  var itemsPagina=itemsFiltrados.slice(page*PAGE_SIZE,(page+1)*PAGE_SIZE);
-
-  return(
-    <div style={{display:'flex',flexDirection:'column',gap:8}}>
-      <PresBannerProyecto pres={pres} presupuestos={presupuestos} setTab={setTab}/>
-      <div className="sec-hdr" style={{border:'1px solid var(--bdr)',borderRadius:4,padding:'6px 10px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-        <span className="title" style={{fontSize:15}}>Items: {pres.codigo} — {pres.nombre||'(sin nombre)'}</span>
-        <span style={{fontSize:10,color:'var(--tx3)'}}>{itemsArr.length} items &middot; CD: {fmt(cdTotal)}</span>
-      </div>
-      <div style={{display:'flex',gap:6,alignItems:'center'}}>
-        {!readOnly&&<button className="btn" onClick={addItem} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--ok)',borderRadius:4,background:'rgba(74,222,128,.06)',color:'var(--ok)',cursor:'pointer'}}>+ Item</button>}
-        <button className="btn" onClick={function(){setTab(9)}} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--bdr)',borderRadius:4,background:'none',color:'var(--tx2)',cursor:'pointer'}}>{'< Proyectos'}</button>
-        <button className="btn" onClick={function(){setTab(12)}} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--ac)',borderRadius:4,background:'rgba(77,143,247,.06)',color:'var(--ac)',cursor:'pointer'}}>{'Resumen >'}</button>
-        <input className="ni" placeholder="Buscar item..." value={busq} onChange={function(e){setBusq(e.target.value);setPage(0)}} style={{width:160,height:22,fontSize:10,border:'1px solid var(--ac)',borderRadius:4,marginLeft:8}}/>
-        {readOnly&&<span style={{fontSize:10,color:'var(--warn)',marginLeft:8,padding:'2px 8px',border:'1px solid var(--warn)',borderRadius:3}}>Solo lectura (presupuesto {estadoLabel(pres.estado).toLowerCase()})</span>}
-      </div>
-      <div className="xl-wrap">
-        <div className="xl-scroll">
-          <table style={{tableLayout:'fixed',width:'100%',fontSize:10}}>
-            <colgroup>
-              <col className="cw-40"/><col className="cw-50"/><col className="cw-110"/><col className="cw-200"/><col className="cw-50"/><col className="cw-70"/><col className="cw-150"/><col className="cw-90"/><col className="cw-90"/><col className="cw-50"/>
-            </colgroup>
-            <thead><tr><th>#</th><th>Item</th><th>Capitulo</th><th>Descripcion</th><th>UN</th><th>Cant.</th><th>APU</th><th>Vr. Unit</th><th>Vr. Total</th><th className="col-act">Acc</th></tr></thead>
-            <tbody>
-              {itemsArr.length===0&&<tr className="empty-row"><td colSpan={10}>Sin items.{!readOnly&&' Agrega con "+ Item"'}</td></tr>}
-              {itemsArr.length>0&&itemsFiltrados.length===0&&<tr className="empty-row"><td colSpan={10}>Sin resultados para "{busq}".</td></tr>}
-              {itemsPagina.map(function(it){
-                var i=itemsArr.indexOf(it);
-                var c=calcItemVal(it);
-                var apu=c.apu;
-                var esCap=esCapituloFinal(it);
-                if(esCap)return(
-                  <tr key={it.id} style={{background:'#1E3A5F'}}>
-                    <td style={{textAlign:'center',color:'#fff'}}>{i+1}</td>
-                    <td style={{color:'#fff',fontWeight:700}}>{readOnly?it.num_item:<input className="ni" value={it.num_item} onChange={function(e){updItem(i,'num_item',e.target.value)}} style={{width:'100%',fontSize:10,background:'transparent',color:'#fff',fontWeight:700}}/>}</td>
-                    <td/>
-                    <td style={{color:'#fff',fontWeight:700}} colSpan={2}>{readOnly?it.descripcion:<input className="ni" value={it.descripcion} onChange={function(e){updItem(i,'descripcion',e.target.value)}} style={{width:'100%',fontSize:10,background:'transparent',color:'#fff',fontWeight:700}} placeholder="Descripcion"/>}</td>
-                    <td style={{textAlign:'center'}}><span style={{fontSize:9,padding:'1px 6px',border:'1px solid #fff',borderRadius:3,color:'#fff'}}>Capítulo</span></td>
-                    <td style={{textAlign:'right',color:'#fff'}}>-</td>
-                    <td style={{textAlign:'right',color:'#fff'}}>-</td>
-                    <td className="col-act" style={{textAlign:'center'}}>{!readOnly&&<button className="btn-del" onClick={function(){delItem(i)}} title="Eliminar" style={{background:'none',border:'none',cursor:'pointer',padding:0}}><IconDel/></button>}</td>
-                  </tr>
-                );
-                return(
-                  <tr key={it.id}>
-                    <td style={{textAlign:'center',color:'var(--tx3)'}}>{i+1}</td>
-                    <td>{readOnly?it.num_item:<input className="ni" value={it.num_item} onChange={function(e){updItem(i,'num_item',e.target.value)}} style={{width:'100%',fontSize:10}}/>}</td>
-                    <td>{readOnly?it.capitulo:<input className="ni" value={it.capitulo} onChange={function(e){updItem(i,'capitulo',e.target.value)}} style={{width:'100%',fontSize:10}} placeholder="1.1"/>}</td>
-                    <td>{readOnly?it.descripcion:<input className="ni" value={it.descripcion} onChange={function(e){updItem(i,'descripcion',e.target.value)}} style={{width:'100%',fontSize:10}} placeholder="Descripcion"/>}</td>
-                    <td>{readOnly?it.unidad:<input className="ni" value={it.unidad} onChange={function(e){updItem(i,'unidad',e.target.value)}} style={{width:'100%',fontSize:10}}/>}</td>
-                    <td>{readOnly?it.cantidad:<NumInput step=".01" inputMode="decimal" value={it.cantidad} onChange={function(v){updItem(i,'cantidad',v)}} style={{width:'100%',fontSize:10,textAlign:'right'}} decimals={4}/>}</td>
-                    <td style={{textAlign:'center'}}>
-                      {apu?(
-                        <span style={{display:'inline-flex',alignItems:'center',gap:4}}>
-                          <span style={{fontSize:9,color:'var(--ok)',fontWeight:600}}>{apu.codigo}</span>
-                          {!readOnly&&<button onClick={function(){unassignApu(i)}} title="Quitar APU" style={{background:'none',border:'none',color:'#f87171',cursor:'pointer',padding:0,fontSize:11}}>x</button>}
-                        </span>
-                      ):(
-                        !readOnly?<button onClick={function(){openApuModal(i)}} style={{fontSize:9,padding:'2px 6px',border:'1px dashed var(--ac)',borderRadius:3,background:'rgba(77,143,247,.06)',color:'var(--ac)',cursor:'pointer'}}>asignar</button>:<span style={{color:'var(--tx3)'}}>-</span>
-                      )}
-                    </td>
-                    <td style={{textAlign:'right'}}>{apu?fmt(c.vr_unit):'-'}</td>
-                    <td style={{textAlign:'right',fontWeight:600}}>{apu?fmt(c.vr_total):'-'}</td>
-                    <td className="col-act" style={{textAlign:'center'}}>{!readOnly&&<button className="btn-del" onClick={function(){delItem(i)}} title="Eliminar" style={{background:'none',border:'none',cursor:'pointer',padding:0}}><IconDel/></button>}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-        {totalPaginas>1&&(
-          <div style={{display:'flex',alignItems:'center',gap:8,padding:'6px 12px',borderTop:'1px solid var(--bdr)',fontSize:11,color:'var(--tx3)'}}>
-            <button disabled={page===0} onClick={function(){setPage(page-1)}} style={{padding:'2px 8px',fontSize:10,opacity:page===0?0.4:1,cursor:page===0?'not-allowed':'pointer'}}>{'← Anterior'}</button>
-            <span>Página {page+1} de {totalPaginas} ({itemsFiltrados.length} ítems)</span>
-            <button disabled={page>=totalPaginas-1} onClick={function(){setPage(page+1)}} style={{padding:'2px 8px',fontSize:10,opacity:page>=totalPaginas-1?0.4:1,cursor:page>=totalPaginas-1?'not-allowed':'pointer'}}>{'Siguiente →'}</button>
-          </div>
-        )}
-      </div>
-      {apuModal.open&&(
-        <div className="modal-overlay" onClick={closeApuModal}>
-          <div className="modal-box" style={{width:760}} onClick={function(e){e.stopPropagation()}}>
-            <div className="modal-hdr"><span className="title">Asignar APU al item</span><button onClick={closeApuModal} style={{background:'none',border:'none',cursor:'pointer',padding:2,color:'var(--ok)'}}><IconX/></button></div>
-            <div className="modal-body" style={{display:'flex',flexDirection:'column',gap:8}}>
-              <div style={{display:'flex',gap:6,alignItems:'center'}}>
-                <select className="ni" value={apuModal.catFilter} onChange={function(e){setApuModal(Object.assign({},apuModal,{catFilter:e.target.value}))}} style={{width:200,height:22,fontSize:11,border:'1px solid var(--ac)',borderRadius:4}}>
-                  <option value=''>Todas las categorias</option>
-                  {(categorias_apu||[]).map(function(c){return <option key={c.codigo} value={c.categoria}>{c.categoria}</option>})}
-                </select>
-                <input className="ni" placeholder="Buscar APU..." value={apuModal.search} onChange={function(e){setApuModal(Object.assign({},apuModal,{search:e.target.value}))}} style={{flex:1,height:22,fontSize:11,border:'1px solid var(--ok)',borderRadius:4}} autoFocus/>
-              </div>
-              <div className="xl-scroll" style={{maxHeight:380,overflowY:'auto',border:'1px solid var(--bdr)',borderRadius:4}}>
-                <table style={{tableLayout:'fixed',width:'100%',fontSize:10}}>
-                  <colgroup><col className="cw-90"/><col className="cw-260"/><col className="cw-190"/><col className="cw-60"/><col className="cw-80"/></colgroup>
-                  <thead style={{position:'sticky',top:0,background:'var(--bg3)'}}><tr><th>Codigo</th><th>Nombre</th><th>Categoria</th><th>UN</th><th>Accion</th></tr></thead>
-                  <tbody>
-                    {filteredApus().length===0&&<tr><td colSpan={5} style={{textAlign:'center',padding:'20px',color:'var(--tx3)'}}>Sin resultados</td></tr>}
-                    {filteredApus().map(function(a){return(
-                      <tr key={a.id}>
-                        <td style={{fontWeight:600,color:'var(--ac)'}}>{a.codigo||'-'}</td>
-                        <td>{a.nombre||'-'}</td>
-                        <td style={{color:'var(--tx2)'}}>{a.categoria||'-'}</td>
-                        <td style={{textAlign:'center'}}>{a.unidad||'-'}</td>
-                        <td style={{textAlign:'center'}}><button onClick={function(){assignApu(a.id)}} style={{fontSize:10,padding:'2px 8px',border:'1px solid var(--ok)',borderRadius:3,background:'rgba(74,222,128,.08)',color:'var(--ok)',cursor:'pointer',fontWeight:600}}>Seleccionar</button></td>
-                      </tr>
-                    )})}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 /* ══════════════════ 3. RESUMEN FINANCIERO (sub-componente de PresupuestosTab) ══════════════════ */
 function PresResumenPanel({pres,presupuestos,selPresIdx,data,onChange,calcResumenPres,setTab}){
   if(!pres)return <PresBannerProyecto pres={pres} presupuestos={presupuestos} setTab={setTab}/>;
@@ -6746,13 +6545,9 @@ function PresResumenPanel({pres,presupuestos,selPresIdx,data,onChange,calcResume
 
   return(
     <div style={{display:'flex',flexDirection:'column',gap:8}}>
-      <PresBannerProyecto pres={pres} presupuestos={presupuestos} setTab={setTab}/>
-      <div className="sec-hdr" style={{border:'1px solid var(--bdr)',borderRadius:4,padding:'6px 10px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-        <span className="title" style={{fontSize:15}}>Resumen: {pres.codigo} — {pres.nombre||'(sin nombre)'}</span>
-        <span style={{fontSize:10,color:'var(--tx3)'}}>{r.itemsArr.length} items &middot; CD: {fmt(r.cdTotal)}</span>
-      </div>
+      <TituloSubTab pres={pres} presupuestos={presupuestos} tituloSubTab="Resumen Financiero" extra={<span style={{fontSize:10,color:'var(--tx3)'}}>{r.itemsArr.length} items &middot; CD: {fmt(r.cdTotal)}</span>}/>
       <div style={{display:'flex',gap:6,alignItems:'center'}}>
-        <button className="btn" onClick={function(){setTab(11)}} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--bdr)',borderRadius:4,background:'none',color:'var(--tx2)',cursor:'pointer'}}>{'< Items'}</button>
+        <button className="btn" onClick={function(){setTab(10)}} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--bdr)',borderRadius:4,background:'none',color:'var(--tx2)',cursor:'pointer'}}>{'< Items'}</button>
         <button className="btn" onClick={function(){setTab(13)}} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--ac)',borderRadius:4,background:'rgba(77,143,247,.06)',color:'var(--ac)',cursor:'pointer'}}>{'Entregables >'}</button>
       </div>
       <div style={{display:'flex',gap:16,alignItems:'flex-start'}}>
@@ -7098,11 +6893,7 @@ function PresEntregablesPanel({pres,presupuestos,calcResumenPres,calcItemVal,cal
 
   return(
     <div style={{display:'flex',flexDirection:'column',gap:8}}>
-      <PresBannerProyecto pres={pres} presupuestos={presupuestos} setTab={setTab}/>
-      <div className="sec-hdr" style={{border:'1px solid var(--bdr)',borderRadius:4,padding:'6px 10px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-        <span className="title" style={{fontSize:15}}>Entregables: {pres.codigo} — {pres.nombre||'(sin nombre)'}</span>
-        <span style={{fontSize:10,color:'var(--tx3)'}}>{itemsArr.length} items &middot; Valor total: {fmt(r.valorTotal)}</span>
-      </div>
+      <TituloSubTab pres={pres} presupuestos={presupuestos} tituloSubTab="Entregables" extra={<span style={{fontSize:10,color:'var(--tx3)'}}>{itemsArr.length} items &middot; Valor total: {fmt(r.valorTotal)}</span>}/>
       <div style={{display:'flex',gap:6,alignItems:'center'}}>
         <button className="btn" onClick={function(){setTab(12)}} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--bdr)',borderRadius:4,background:'none',color:'var(--tx2)',cursor:'pointer'}}>{'< Resumen'}</button>
       </div>
@@ -7156,7 +6947,7 @@ function PresEntregablesPanel({pres,presupuestos,calcResumenPres,calcItemVal,cal
             </div>
             <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
               <button className="btn" onClick={function(){setPendientes(null)}} style={{fontSize:11,padding:'5px 12px',border:'1px solid var(--bdr)',borderRadius:4,background:'none',color:'var(--tx2)',cursor:'pointer'}}>Cerrar</button>
-              <button className="btn" onClick={function(){setPendientes(null);setTab(11)}} style={{fontSize:11,padding:'5px 12px',border:'1px solid var(--ac)',borderRadius:4,background:'rgba(77,143,247,.08)',color:'var(--ac)',cursor:'pointer'}}>Ir a Ítems</button>
+              <button className="btn" onClick={function(){setPendientes(null);setTab(10)}} style={{fontSize:11,padding:'5px 12px',border:'1px solid var(--ac)',borderRadius:4,background:'rgba(77,143,247,.08)',color:'var(--ac)',cursor:'pointer'}}>Ir a Ítems</button>
             </div>
           </div>
         </div>
@@ -7176,6 +6967,27 @@ var MAPEO_CAMPOS=[
 ];
 function colLetter(i){return i<26?String.fromCharCode(65+i):'A'+String.fromCharCode(65+i-26)}
 function mapeoVacio(){return{fila_inicio:0,col_item:null,col_codigo_1:null,col_codigo_2:null,col_codigo_apu:null,col_descripcion:null,col_unidad:null,col_cantidad:null,col_vr_unitario:null,col_vr_total:null,nombre_mapeo:''}}
+
+/* Banner unificado: reemplaza PresBannerProyecto + sec-hdr por elemento (usado en los 4 sub-tabs de Presupuestos
+   cuando ya hay un proyecto seleccionado). Reusa el mismo svg de carpeta y la linea de subproyecto de PresBannerProyecto. */
+function TituloSubTab({pres,presupuestos,tituloSubTab,extra}){
+  var padre=(pres.parent_id&&presupuestos)?presupuestos.find(function(p){return p.id===pres.parent_id}):null;
+  return(
+    <div className="sec-hdr" style={{border:'1px solid var(--bdr)',borderRadius:4,padding:'6px 10px'}}>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+        <span className="title" style={{fontSize:15,display:'flex',alignItems:'center',gap:6}}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--ok)" strokeWidth="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+          {pres.codigo} — {pres.nombre||'(sin nombre)'} &middot; {tituloSubTab}
+        </span>
+        <div style={{display:'flex',alignItems:'center',gap:10}}>
+          {extra}
+          <span style={{fontSize:10,color:'var(--ok)'}}>&#10003; Trabajando sobre este proyecto</span>
+        </div>
+      </div>
+      {padre&&<div style={{fontSize:10,color:'var(--tx3)',marginTop:2}}>Subproyecto de: {padre.codigo} {padre.nombre||''}</div>}
+    </div>
+  );
+}
 
 function PresBannerProyecto({pres,presupuestos,setTab}){
   if(pres){
@@ -7212,7 +7024,7 @@ function PresBannerProyecto({pres,presupuestos,setTab}){
   );
 }
 
-function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,setTab}){
+function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModal,setApuModal,apus,categorias_apu,calcItemVal,setTab,estadoLabel}){
   var faseState=useState('inicio');var fase=faseState[0],setFase=faseState[1];
   var archivoRawState=useState(null);var archivoRaw=archivoRawState[0],setArchivoRaw=archivoRawState[1];
   var nombreArchivoState=useState('');var nombreArchivo=nombreArchivoState[0],setNombreArchivo=nombreArchivoState[1];
@@ -7222,14 +7034,101 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,setTab}
   var conCodigo2State=useState(false);var conCodigo2=conCodigo2State[0],setConCodigo2=conCodigo2State[1];
   var fuenteApuState=useState('item');var fuenteApu=fuenteApuState[0],setFuenteApu=fuenteApuState[1];
   var campoActivoState=useState(null);var campoActivo=campoActivoState[0],setCampoActivo=campoActivoState[1];
+  var busqState=useState('');var busq=busqState[0],setBusq=busqState[1];
+  var pageState=useState(0);var page=pageState[0],setPage=pageState[1];
   var fileRef=useRef(null);
   var presId=pres&&pres.id;
 
   useEffect(function(){
-    setFase(pres&&pres.formulario_original?'revision':'inicio');
+    setFase(pres&&(pres.formulario_original||(pres.items||[]).length>0)?'revision':'inicio');
   },[presId]);
 
   if(!pres)return <PresBannerProyecto pres={pres} presupuestos={presupuestos} setTab={setTab}/>;
+
+  var readOnly=pres.estado!=='borrador';
+  var idxPres=presupuestos.indexOf(pres);
+
+  var addItem=function(){
+    if(readOnly)return;
+    var arr=pres.items.slice();
+    arr.push({id:uid(),num_item:String(arr.length+1),capitulo:'',descripcion:'',unidad:'un',cantidad:1,apu_id:null,vr_unitario:0,vr_total:0,tiene_apu:false,alerta_sin_apu:false});
+    var n=presupuestos.slice();n[idxPres]=Object.assign({},n[idxPres],{items:arr});
+    onChange(Object.assign({},data,{presupuestos:n}));
+  };
+  var addCapitulo=function(){
+    if(readOnly)return;
+    var arr=pres.items.slice();
+    arr.push({id:uid(),num_item:String(arr.length+1),capitulo:'',descripcion:'Nuevo capitulo',unidad:'',cantidad:0,apu_id:null,vr_unitario:0,vr_total:0,tiene_apu:false,alerta_sin_apu:false,es_capitulo_manual:true});
+    var n=presupuestos.slice();n[idxPres]=Object.assign({},n[idxPres],{items:arr});
+    onChange(Object.assign({},data,{presupuestos:n}));
+  };
+  var toggleCapituloManual=function(itemId){
+    if(readOnly)return;
+    var arr=pres.items.slice();
+    var idx=arr.findIndex(function(it){return it.id===itemId});
+    if(idx<0)return;
+    var it=arr[idx];
+    arr[idx]=Object.assign({},it,{es_capitulo_manual:!esCapituloFinal(it)});
+    var n=presupuestos.slice();n[idxPres]=Object.assign({},n[idxPres],{items:arr});
+    onChange(Object.assign({},data,{presupuestos:n}));
+  };
+  var delItem=async function(i){
+    if(readOnly)return;if(!(await askConfirm('¿Desea eliminar "'+(pres.items[i].descripcion||'este ítem')+'"? Esta acción no se puede deshacer.')))return;
+    var arr=pres.items.filter(function(_,j){return j!==i});
+    var n=presupuestos.slice();n[idxPres]=Object.assign({},n[idxPres],{items:arr});
+    onChange(Object.assign({},data,{presupuestos:n}));
+  };
+  var updItem=function(i,k,v){
+    if(readOnly)return;
+    var arr=pres.items.slice();arr[i]=Object.assign({},arr[i]);arr[i][k]=v;
+    var n=presupuestos.slice();n[idxPres]=Object.assign({},n[idxPres],{items:arr});
+    onChange(Object.assign({},data,{presupuestos:n}));
+  };
+  var openApuModal=function(i){if(!readOnly)setApuModal({open:true,itemIdx:i,search:'',catFilter:''})};
+  var closeApuModal=function(){setApuModal({open:false,itemIdx:null,search:'',catFilter:''})};
+  var filteredApus=function(){
+    if(!apuModal.open)return[];
+    var sn=apuModal.search?norm(apuModal.search):'';
+    var cf=apuModal.catFilter;
+    var result=[];
+    for(var i=0;i<apus.length;i++){
+      var a=apus[i];
+      if(cf&&((a.categoria||'')!==cf))continue;
+      if(sn){
+        var aCod=norm(a.codigo||''),aNom=norm(a.nombre||''),aCat=norm(a.categoria||'');
+        if(aCod.indexOf(sn)<0&&aNom.indexOf(sn)<0&&aCat.indexOf(sn)<0)continue;
+      }
+      result.push(a);
+    }
+    return result;
+  };
+  var assignApu=function(aid){
+    if(apuModal.itemIdx===null||aid===undefined)return;
+    var i=apuModal.itemIdx;
+    var apuOrig=null;
+    for(var k=0;k<apus.length;k++){if(apus[k].id===aid){apuOrig=apus[k];break}}
+    if(!apuOrig)return;
+    // Clonar el APU al snapshot del presupuesto para no romper la trazabilidad si el catalogo cambia despues
+    var snap=(pres.apus_snap||[]).slice();
+    var clon=snap.find(function(a){return a.apu_origen_id===apuOrig.id});
+    if(!clon){
+      clon=Object.assign({},apuOrig,{id:uid(),apu_origen_id:apuOrig.id});
+      snap.push(clon);
+    }
+    var arr=pres.items.slice();
+    arr[i]=Object.assign({},arr[i],{apu_id:clon.id,tiene_apu:true,alerta_sin_apu:false});
+    var n=presupuestos.slice();n[idxPres]=Object.assign({},n[idxPres],{items:arr,apus_snap:snap});
+    onChange(Object.assign({},data,{presupuestos:n}));
+    closeApuModal();
+    showToast('APU asignado',{type:'ok',dur:2000});
+  };
+  var unassignApu=async function(i){
+    if(readOnly)return;if(!(await askConfirm('¿Desea quitar el APU asignado a este ítem? Esta acción no se puede deshacer.')))return;
+    var arr=pres.items.slice();arr[i]=Object.assign({},arr[i],{apu_id:null,tiene_apu:false});
+    var n=presupuestos.slice();n[idxPres]=Object.assign({},n[idxPres],{items:arr});
+    onChange(Object.assign({},data,{presupuestos:n}));
+    showToast('APU removido',{type:'ok',dur:2000});
+  };
 
   var mapeosGuardados=(data.config_listas&&data.config_listas.mapeos_formulario)||[];
 
@@ -7347,16 +7246,6 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,setTab}
     setFase('revision');
   };
 
-  var toggleCapituloManual=function(itemId){
-    var arr=pres.items.slice();
-    var idx=arr.findIndex(function(it){return it.id===itemId});
-    if(idx<0)return;
-    var it=arr[idx];
-    arr[idx]=Object.assign({},it,{es_capitulo_manual:!esCapituloFinal(it)});
-    var n=presupuestos.slice();n[selPresIdx]=Object.assign({},n[selPresIdx],{items:arr});
-    onChange(Object.assign({},data,{presupuestos:n}));
-  };
-
   var reimportar=async function(){
     if(!(await askConfirm('Subir un nuevo formulario reemplazará los items actuales de este presupuesto. ¿Desea continuar?')))return;
     setFase('inicio');
@@ -7367,13 +7256,13 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,setTab}
   if(fase==='inicio'){
     return(
       <div style={{display:'flex',flexDirection:'column',gap:8}}>
-        <PresBannerProyecto pres={pres} presupuestos={presupuestos} setTab={setTab}/>
-        <div className="sec-hdr" style={{border:'1px solid var(--bdr)',borderRadius:4,padding:'6px 10px'}}>
-          <span className="title" style={{fontSize:15}}>Formulario para Presupuesto: {pres.codigo} — {pres.nombre||'(sin nombre)'}</span>
-        </div>
+        <TituloSubTab pres={pres} presupuestos={presupuestos} tituloSubTab="Formulario para Presupuesto"/>
         <div style={{padding:'34px 20px',border:'1px dashed var(--bdr)',borderRadius:4,textAlign:'center',display:'flex',flexDirection:'column',alignItems:'center',gap:12}}>
-          <div style={{fontSize:12,color:'var(--tx2)',maxWidth:480,lineHeight:1.5}}>Sube el formulario de presupuesto en Excel (.xlsx). El sistema detecta automáticamente en qué fila empiezan los ítems y cuáles filas son capítulos.</div>
-          <button className="btn" onClick={function(){fileRef.current&&fileRef.current.click()}} style={{fontSize:12,padding:'8px 16px',border:'1px solid var(--ok)',borderRadius:4,background:'rgba(74,222,128,.08)',color:'var(--ok)',cursor:'pointer'}}>📥 Subir formulario Excel</button>
+          <div style={{fontSize:12,color:'var(--tx2)',maxWidth:480,lineHeight:1.5}}>Sube el formulario de presupuesto en Excel (.xlsx) o crea los items directamente. El sistema detecta automáticamente en qué fila empiezan los ítems y cuáles filas son capítulos.</div>
+          <div style={{display:'flex',gap:10}}>
+            <button className="btn" onClick={function(){fileRef.current&&fileRef.current.click()}} style={{fontSize:12,padding:'8px 16px',border:'1px solid var(--ok)',borderRadius:4,background:'rgba(74,222,128,.08)',color:'var(--ok)',cursor:'pointer'}}>📥 Subir formulario Excel</button>
+            <button className="btn" onClick={function(){setFase('revision')}} style={{fontSize:12,padding:'8px 16px',border:'1px solid var(--ac)',borderRadius:4,background:'rgba(77,143,247,.06)',color:'var(--ac)',cursor:'pointer'}}>✏ Crear items manualmente</button>
+          </div>
           <input type="file" ref={fileRef} accept=".xlsx,.xls" style={{display:'none'}} onChange={onFileSelect}/>
         </div>
       </div>
@@ -7401,10 +7290,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,setTab}
     };
     return(
       <div style={{display:'flex',flexDirection:'column',gap:8}}>
-        <PresBannerProyecto pres={pres} presupuestos={presupuestos} setTab={setTab}/>
-        <div className="sec-hdr" style={{border:'1px solid var(--bdr)',borderRadius:4,padding:'6px 10px'}}>
-          <span className="title" style={{fontSize:15}}>Mapeo de columnas — {nombreArchivo}</span>
-        </div>
+        <TituloSubTab pres={pres} presupuestos={presupuestos} tituloSubTab={'Mapeo de columnas — '+nombreArchivo}/>
         <div className="xl-wrap" style={{maxHeight:220,overflow:'auto'}}>
           <table style={{fontSize:9,borderCollapse:'collapse'}}>
             <thead style={{position:'sticky',top:0,zIndex:2}}><tr>
@@ -7496,51 +7382,94 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,setTab}
     );
   }
 
-  /* fase === 'revision' */
+  /* fase === 'revision': tabla unica de items, sea que vengan de importar Excel o se hayan creado a mano */
   var itemsArr=pres.items||[];
   var fo=pres.formulario_original;
   var itemsReales=itemsArr.filter(function(it){return !esCapituloFinal(it)});
   var nCapitulos=itemsArr.length-itemsReales.length;
+  var cdTotal=0;
+  for(var ii=0;ii<itemsArr.length;ii++){cdTotal+=calcItemVal(itemsArr[ii]).vr_total}
+
+  var itemsFiltrados=itemsArr.filter(function(it){
+    if(!busq)return true;
+    var b=norm(busq);
+    return norm(it.descripcion||'').indexOf(b)>=0||norm(it.capitulo||'').indexOf(b)>=0||norm(it.num_item||'').indexOf(b)>=0;
+  });
+  var PAGE_SIZE=50;
+  var totalPaginas=Math.max(1,Math.ceil(itemsFiltrados.length/PAGE_SIZE));
+  var itemsPagina=itemsFiltrados.slice(page*PAGE_SIZE,(page+1)*PAGE_SIZE);
+
   return(
     <div style={{display:'flex',flexDirection:'column',gap:8}}>
-      <PresBannerProyecto pres={pres} presupuestos={presupuestos} setTab={setTab}/>
-      <div className="sec-hdr" style={{border:'1px solid var(--bdr)',borderRadius:4,padding:'6px 10px'}}>
-        <span className="title" style={{fontSize:15}}>Formulario para Presupuesto: {pres.codigo} — {pres.nombre||'(sin nombre)'}</span>
-      </div>
+      <TituloSubTab pres={pres} presupuestos={presupuestos} tituloSubTab="Formulario para Presupuesto" extra={<span style={{fontSize:10,color:'var(--tx3)'}}>{itemsArr.length} items &middot; CD: {fmt(cdTotal)}</span>}/>
       {fo&&
         <div style={{display:'flex',alignItems:'center',gap:10,padding:'6px 12px',background:fo.archivo_adjunto?'rgba(74,222,128,.07)':'rgba(230,168,0,.08)',border:'1px solid '+(fo.archivo_adjunto?'rgba(74,222,128,.25)':'rgba(230,168,0,.3)'),borderRadius:6}}>
           <span style={{fontSize:11,fontWeight:700,color:fo.archivo_adjunto?'var(--ok)':'var(--warn)'}}>{fo.archivo_adjunto?'✓ Formulario cargado':'⚠ Ítems importados sin archivo adjunto'}</span>
           <span style={{fontSize:10,color:'var(--tx2)'}}>{fo.nombre_archivo} — {fmtDate(fo.fecha_importacion)} — {fo.total_filas} filas · {itemsReales.length} ítems · {nCapitulos} capítulos</span>
         </div>
       }
-      <div style={{display:'flex',gap:6}}>
-        <button className="btn" onClick={function(){setTab(11)}} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--ac)',borderRadius:4,background:'rgba(77,143,247,.06)',color:'var(--ac)',cursor:'pointer'}}>{'Ir a Ítems →'}</button>
-        <button className="btn" onClick={reimportar} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--bdr)',borderRadius:4,background:'none',color:'var(--tx2)',cursor:'pointer'}}>{'↩ Reimportar'}</button>
+      <div style={{display:'flex',gap:6,alignItems:'center'}}>
+        {!readOnly&&<button className="btn" onClick={addItem} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--ok)',borderRadius:4,background:'rgba(74,222,128,.06)',color:'var(--ok)',cursor:'pointer'}}>+ Item</button>}
+        {!readOnly&&<button className="btn" onClick={addCapitulo} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--ok)',borderRadius:4,background:'rgba(74,222,128,.06)',color:'var(--ok)',cursor:'pointer'}}>+ Capitulo</button>}
+        <button className="btn" onClick={reimportar} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--bdr)',borderRadius:4,background:'none',color:'var(--tx2)',cursor:'pointer'}}>{'↩ '+(fo?'Reimportar':'Subir Excel')}</button>
+        <button className="btn" onClick={function(){setTab(9)}} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--bdr)',borderRadius:4,background:'none',color:'var(--tx2)',cursor:'pointer'}}>{'< Proyectos'}</button>
+        <button className="btn" onClick={function(){setTab(12)}} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--ac)',borderRadius:4,background:'rgba(77,143,247,.06)',color:'var(--ac)',cursor:'pointer'}}>{'Resumen >'}</button>
+        <input className="ni" placeholder="Buscar item..." value={busq} onChange={function(e){setBusq(e.target.value);setPage(0)}} style={{width:160,height:22,fontSize:10,border:'1px solid var(--ac)',borderRadius:4,marginLeft:8}}/>
+        {readOnly&&<span style={{fontSize:10,color:'var(--warn)',marginLeft:8,padding:'2px 8px',border:'1px solid var(--warn)',borderRadius:3}}>Solo lectura (presupuesto {estadoLabel(pres.estado).toLowerCase()})</span>}
       </div>
       <div className="xl-wrap">
-        <div className="xl-scroll">
-          <table style={{tableLayout:'fixed',width:'100%'}}>
-            <thead><tr>
-              <th style={{width:60}}>Item</th>
-              <th style={{width:100}}>Código APU</th>
-              <th>Descripción</th>
-              <th style={{width:60}}>UN</th>
-              <th style={{width:90}}>Cantidad</th>
-              <th style={{width:70}}>Tipo</th>
-            </tr></thead>
+        <div className="xl-scroll" style={{overflowX:'auto'}}>
+          <table style={{tableLayout:'fixed',width:'100%',minWidth:860,fontSize:10}}>
+            <colgroup>
+              <col className="cw-40"/><col className="cw-50"/><col className="cw-110"/><col style={{width:180}}/><col className="cw-50"/><col className="cw-70"/><col className="cw-150"/><col className="cw-90"/><col className="cw-90"/><col style={{width:80}}/>
+            </colgroup>
+            <thead><tr><th>#</th><th>Item</th><th>Capitulo</th><th>Descripcion</th><th>UN</th><th>Cant.</th><th>APU</th><th>Vr. Unit</th><th>Vr. Total</th><th className="col-act">Acciones</th></tr></thead>
             <tbody>
-              {itemsArr.length===0&&<tr className="empty-row"><td colSpan={6}>Sin datos importados.</td></tr>}
-              {itemsArr.map(function(it){
+              {itemsArr.length===0&&<tr className="empty-row"><td colSpan={10}>Sin items.{!readOnly&&' Agrega con "+ Item"'}</td></tr>}
+              {itemsArr.length>0&&itemsFiltrados.length===0&&<tr className="empty-row"><td colSpan={10}>Sin resultados para "{busq}".</td></tr>}
+              {itemsPagina.map(function(it){
+                var i=itemsArr.indexOf(it);
+                var c=calcItemVal(it);
+                var apu=c.apu;
                 var esCap=esCapituloFinal(it);
+                if(esCap)return(
+                  <tr key={it.id} style={{background:'#1E3A5F'}}>
+                    <td style={{textAlign:'center',color:'#fff'}}>{i+1}</td>
+                    <td style={{color:'#fff',fontWeight:700}}>{readOnly?it.num_item:<input className="ni" value={it.num_item} onChange={function(e){updItem(i,'num_item',e.target.value)}} style={{width:'100%',fontSize:10,background:'transparent',color:'#fff',fontWeight:700}}/>}</td>
+                    <td/>
+                    <td style={{color:'#fff',fontWeight:700,whiteSpace:'normal',wordBreak:'break-word'}} colSpan={2}>{readOnly?it.descripcion:<input className="ni" value={it.descripcion} onChange={function(e){updItem(i,'descripcion',e.target.value)}} style={{width:'100%',fontSize:10,background:'transparent',color:'#fff',fontWeight:700}} placeholder="Descripcion"/>}</td>
+                    <td style={{textAlign:'center'}}><span style={{fontSize:9,padding:'1px 6px',border:'1px solid #fff',borderRadius:3,color:'#fff'}}>Capítulo</span></td>
+                    <td style={{textAlign:'right',color:'#fff'}}>-</td>
+                    <td style={{textAlign:'right',color:'#fff'}}>-</td>
+                    <td className="col-act" style={{textAlign:'center',whiteSpace:'nowrap'}}>
+                      {!readOnly&&<button onClick={function(){toggleCapituloManual(it.id)}} title="Desmarcar como capitulo" style={{background:'none',border:'none',cursor:'pointer',padding:0,marginRight:6,color:'#fff',fontSize:11}}>⇄</button>}
+                      {!readOnly&&<button className="btn-del" onClick={function(){delItem(i)}} title="Eliminar" style={{background:'none',border:'none',cursor:'pointer',padding:0}}><IconDel/></button>}
+                    </td>
+                  </tr>
+                );
                 return(
-                  <tr key={it.id} style={esCap?{background:'#1E3A5F'}:undefined}>
-                    <td style={{padding:'2px 6px',color:esCap?'#fff':'inherit',fontWeight:esCap?700:400}}>{it.num_item}</td>
-                    <td style={{padding:'2px 6px',color:esCap?'#fff':(it.codigo_apu?'var(--ok)':'var(--err)'),fontSize:10,fontWeight:500}}>{esCap?'':(it.codigo_apu||'⚠ sin código')}</td>
-                    <td style={{padding:'2px 6px',color:esCap?'#fff':'inherit',fontWeight:esCap?700:400}}>{it.descripcion}</td>
-                    <td style={{padding:'2px 6px',textAlign:'center',color:esCap?'#fff':'inherit'}}>{it.unidad}</td>
-                    <td style={{padding:'2px 6px',textAlign:'right',color:esCap?'#fff':'inherit'}}>{esCap?'':it.cantidad}</td>
-                    <td style={{padding:'2px 6px',textAlign:'center'}}>
-                      <button onClick={function(){toggleCapituloManual(it.id)}} title="Corregir falso positivo" style={{background:'none',border:'1px solid '+(esCap?'#fff':'var(--bdr)'),borderRadius:3,cursor:'pointer',color:esCap?'#fff':'var(--tx2)',fontSize:9,padding:'1px 5px'}}>{esCap?'Capítulo ⇄':'Ítem ⇄'}</button>
+                  <tr key={it.id}>
+                    <td style={{textAlign:'center',color:'var(--tx3)'}}>{i+1}</td>
+                    <td>{readOnly?it.num_item:<input className="ni" value={it.num_item} onChange={function(e){updItem(i,'num_item',e.target.value)}} style={{width:'100%',fontSize:10}}/>}</td>
+                    <td>{readOnly?it.capitulo:<input className="ni" value={it.capitulo} onChange={function(e){updItem(i,'capitulo',e.target.value)}} style={{width:'100%',fontSize:10}} placeholder="1.1"/>}</td>
+                    <td style={{whiteSpace:'normal',wordBreak:'break-word'}}>{readOnly?it.descripcion:<input className="ni" value={it.descripcion} onChange={function(e){updItem(i,'descripcion',e.target.value)}} style={{width:'100%',fontSize:10}} placeholder="Descripcion"/>}</td>
+                    <td>{readOnly?it.unidad:<input className="ni" value={it.unidad} onChange={function(e){updItem(i,'unidad',e.target.value)}} style={{width:'100%',fontSize:10}}/>}</td>
+                    <td>{readOnly?it.cantidad:<NumInput step=".01" inputMode="decimal" value={it.cantidad} onChange={function(v){updItem(i,'cantidad',v)}} style={{width:'100%',fontSize:10,textAlign:'right'}} decimals={4}/>}</td>
+                    <td style={{textAlign:'center'}}>
+                      {apu?(
+                        <span style={{display:'inline-flex',alignItems:'center',gap:4}}>
+                          <span style={{fontSize:9,color:'var(--ok)',fontWeight:600}}>{apu.codigo}</span>
+                          {!readOnly&&<button onClick={function(){unassignApu(i)}} title="Quitar APU" style={{background:'none',border:'none',color:'#f87171',cursor:'pointer',padding:0,fontSize:11}}>x</button>}
+                        </span>
+                      ):(
+                        !readOnly?<button onClick={function(){openApuModal(i)}} style={{fontSize:9,padding:'2px 6px',border:'1px dashed var(--ac)',borderRadius:3,background:'rgba(77,143,247,.06)',color:'var(--ac)',cursor:'pointer'}}>asignar</button>:<span style={{color:'var(--tx3)'}}>-</span>
+                      )}
+                    </td>
+                    <td style={{textAlign:'right'}}>{apu?fmt(c.vr_unit):'-'}</td>
+                    <td style={{textAlign:'right',fontWeight:600}}>{apu?fmt(c.vr_total):'-'}</td>
+                    <td className="col-act" style={{textAlign:'center',whiteSpace:'nowrap'}}>
+                      {!readOnly&&<button onClick={function(){toggleCapituloManual(it.id)}} title="Marcar como capitulo" style={{background:'none',border:'none',cursor:'pointer',padding:0,marginRight:6,color:'var(--tx2)',fontSize:11}}>⇄</button>}
+                      {!readOnly&&<button className="btn-del" onClick={function(){delItem(i)}} title="Eliminar" style={{background:'none',border:'none',cursor:'pointer',padding:0}}><IconDel/></button>}
                     </td>
                   </tr>
                 );
@@ -7548,7 +7477,48 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,setTab}
             </tbody>
           </table>
         </div>
+        {totalPaginas>1&&(
+          <div style={{display:'flex',alignItems:'center',gap:8,padding:'6px 12px',borderTop:'1px solid var(--bdr)',fontSize:11,color:'var(--tx3)'}}>
+            <button disabled={page===0} onClick={function(){setPage(page-1)}} style={{padding:'2px 8px',fontSize:10,opacity:page===0?0.4:1,cursor:page===0?'not-allowed':'pointer'}}>{'← Anterior'}</button>
+            <span>Página {page+1} de {totalPaginas} ({itemsFiltrados.length} ítems)</span>
+            <button disabled={page>=totalPaginas-1} onClick={function(){setPage(page+1)}} style={{padding:'2px 8px',fontSize:10,opacity:page>=totalPaginas-1?0.4:1,cursor:page>=totalPaginas-1?'not-allowed':'pointer'}}>{'Siguiente →'}</button>
+          </div>
+        )}
       </div>
+      {apuModal.open&&(
+        <div className="modal-overlay" onClick={closeApuModal}>
+          <div className="modal-box" style={{width:760}} onClick={function(e){e.stopPropagation()}}>
+            <div className="modal-hdr"><span className="title">Asignar APU al item</span><button onClick={closeApuModal} style={{background:'none',border:'none',cursor:'pointer',padding:2,color:'var(--ok)'}}><IconX/></button></div>
+            <div className="modal-body" style={{display:'flex',flexDirection:'column',gap:8}}>
+              <div style={{display:'flex',gap:6,alignItems:'center'}}>
+                <select className="ni" value={apuModal.catFilter} onChange={function(e){setApuModal(Object.assign({},apuModal,{catFilter:e.target.value}))}} style={{width:200,height:22,fontSize:11,border:'1px solid var(--ac)',borderRadius:4}}>
+                  <option value=''>Todas las categorias</option>
+                  {(categorias_apu||[]).map(function(c){return <option key={c.codigo} value={c.categoria}>{c.categoria}</option>})}
+                </select>
+                <input className="ni" placeholder="Buscar APU..." value={apuModal.search} onChange={function(e){setApuModal(Object.assign({},apuModal,{search:e.target.value}))}} style={{flex:1,height:22,fontSize:11,border:'1px solid var(--ok)',borderRadius:4}} autoFocus/>
+              </div>
+              <div className="xl-scroll" style={{maxHeight:380,overflowY:'auto',border:'1px solid var(--bdr)',borderRadius:4}}>
+                <table style={{tableLayout:'fixed',width:'100%',fontSize:10}}>
+                  <colgroup><col className="cw-90"/><col className="cw-260"/><col className="cw-190"/><col className="cw-60"/><col className="cw-80"/></colgroup>
+                  <thead style={{position:'sticky',top:0,background:'var(--bg3)'}}><tr><th>Codigo</th><th>Nombre</th><th>Categoria</th><th>UN</th><th>Accion</th></tr></thead>
+                  <tbody>
+                    {filteredApus().length===0&&<tr><td colSpan={5} style={{textAlign:'center',padding:'20px',color:'var(--tx3)'}}>Sin resultados</td></tr>}
+                    {filteredApus().map(function(a){return(
+                      <tr key={a.id}>
+                        <td style={{fontWeight:600,color:'var(--ac)'}}>{a.codigo||'-'}</td>
+                        <td>{a.nombre||'-'}</td>
+                        <td style={{color:'var(--tx2)'}}>{a.categoria||'-'}</td>
+                        <td style={{textAlign:'center'}}>{a.unidad||'-'}</td>
+                        <td style={{textAlign:'center'}}><button onClick={function(){assignApu(a.id)}} style={{fontSize:10,padding:'2px 8px',border:'1px solid var(--ok)',borderRadius:3,background:'rgba(74,222,128,.08)',color:'var(--ok)',cursor:'pointer',fontWeight:600}}>Seleccionar</button></td>
+                      </tr>
+                    )})}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -7764,13 +7734,11 @@ function PresupuestosTab({data,onChange,cargosCalc,esHora,eqMap,insMap,factorPre
   /* ══════════════════ SWITCH ENTRE SUB-PESTAÑAS (delegado a sub-componentes) ══════════════════ */
   var PRES_NAV=[
     {tab:9,label:'1. CATALOGO DE PROYECTOS'},
-    {tab:10,label:'2. FORMULARIO PARA PRESUPUESTO'},
-    {tab:11,label:'3. ITEMS Y CAPITULOS'},
-    {tab:12,label:'4. RESUMEN FINANCIERO'},
-    {tab:13,label:'5. ENTREGABLES'}
+    {tab:10,label:'2. FORMULARIO Y ITEMS'},
+    {tab:12,label:'3. RESUMEN FINANCIERO'},
+    {tab:13,label:'4. ENTREGABLES'}
   ];
-  var presContent=tab===10?<PresFormularioPanel pres={pres} presupuestos={presupuestos} selPresIdx={selPresIdx} data={data} onChange={onChange} setTab={setTab}/>
-    :tab===11?<PresItemsPanel pres={pres} presupuestos={presupuestos} selPresIdx={selPresIdx} data={data} onChange={onChange} apuModal={apuModal} setApuModal={setApuModal} apus={apus} categorias_apu={categorias_apu} calcItemVal={calcItemVal} setTab={setTab} estadoLabel={estadoLabel}/>
+  var presContent=tab===10?<PresFormularioPanel pres={pres} presupuestos={presupuestos} selPresIdx={selPresIdx} data={data} onChange={onChange} apuModal={apuModal} setApuModal={setApuModal} apus={apus} categorias_apu={categorias_apu} calcItemVal={calcItemVal} setTab={setTab} estadoLabel={estadoLabel}/>
     :tab===12?<PresResumenPanel pres={pres} presupuestos={presupuestos} selPresIdx={selPresIdx} data={data} onChange={onChange} calcResumenPres={calcResumenPres} setTab={setTab}/>
     :tab===13?<PresEntregablesPanel pres={pres} presupuestos={presupuestos} calcResumenPres={calcResumenPres} calcItemVal={calcItemVal} calcResumenFor={calcResumenFor} calcItemValFor={calcItemValFor} setTab={setTab}/>
     :<PresProyectosPanel presupuestos={presupuestos} selPresIdx={selPresIdx} setSelPresIdx={setSelPresIdx} data={data} onChange={onChange} estadoColor={estadoColor} estadoLabel={estadoLabel} addPresupuesto={addPresupuesto} addSubProyecto={addSubProyecto} toggleEstado={toggleEstado} delPresupuesto={delPresupuesto} setTab={setTab}/>;

@@ -7256,7 +7256,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
   if(fase==='inicio'){
     return(
       <div style={{display:'flex',flexDirection:'column',gap:8}}>
-        <TituloSubTab pres={pres} presupuestos={presupuestos} tituloSubTab="Formulario para Presupuesto"/>
+        <TituloSubTab pres={pres} presupuestos={presupuestos} tituloSubTab="Formulario de Cantidades y Precios"/>
         <div style={{padding:'34px 20px',border:'1px dashed var(--bdr)',borderRadius:4,textAlign:'center',display:'flex',flexDirection:'column',alignItems:'center',gap:12}}>
           <div style={{fontSize:12,color:'var(--tx2)',maxWidth:480,lineHeight:1.5}}>Sube el formulario de presupuesto en Excel (.xlsx) o crea los items directamente. El sistema detecta automáticamente en qué fila empiezan los ítems y cuáles filas son capítulos.</div>
           <div style={{display:'flex',gap:10}}>
@@ -7400,25 +7400,27 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
   var itemsPagina=itemsFiltrados.slice(page*PAGE_SIZE,(page+1)*PAGE_SIZE);
 
   return(
-    <div style={{display:'flex',flexDirection:'column',gap:8}}>
-      <TituloSubTab pres={pres} presupuestos={presupuestos} tituloSubTab="Formulario para Presupuesto" extra={<span style={{fontSize:10,color:'var(--tx3)'}}>{itemsArr.length} items &middot; CD: {fmt(cdTotal)}</span>}/>
-      {fo&&
-        <div style={{display:'flex',alignItems:'center',gap:10,padding:'6px 12px',background:fo.archivo_adjunto?'rgba(74,222,128,.07)':'rgba(230,168,0,.08)',border:'1px solid '+(fo.archivo_adjunto?'rgba(74,222,128,.25)':'rgba(230,168,0,.3)'),borderRadius:6}}>
-          <span style={{fontSize:11,fontWeight:700,color:fo.archivo_adjunto?'var(--ok)':'var(--warn)'}}>{fo.archivo_adjunto?'✓ Formulario cargado':'⚠ Ítems importados sin archivo adjunto'}</span>
-          <span style={{fontSize:10,color:'var(--tx2)'}}>{fo.nombre_archivo} — {fmtDate(fo.fecha_importacion)} — {fo.total_filas} filas · {itemsReales.length} ítems · {nCapitulos} capítulos</span>
+    <div style={{display:'flex',flexDirection:'column',gap:8,height:'calc(100vh - 150px)',minHeight:0}}>
+      <div style={{flexShrink:0,display:'flex',flexDirection:'column',gap:8}}>
+        <TituloSubTab pres={pres} presupuestos={presupuestos} tituloSubTab="Formulario de Cantidades y Precios" extra={<span style={{fontSize:10,color:'var(--tx3)'}}>{itemsArr.length} items &middot; CD: {fmt(cdTotal)}</span>}/>
+        {fo&&
+          <div style={{display:'flex',alignItems:'center',gap:10,padding:'6px 12px',background:fo.archivo_adjunto?'rgba(74,222,128,.07)':'rgba(230,168,0,.08)',border:'1px solid '+(fo.archivo_adjunto?'rgba(74,222,128,.25)':'rgba(230,168,0,.3)'),borderRadius:6}}>
+            <span style={{fontSize:11,fontWeight:700,color:fo.archivo_adjunto?'var(--ok)':'var(--warn)'}}>{fo.archivo_adjunto?'✓ Formulario cargado':'⚠ Ítems importados sin archivo adjunto'}</span>
+            <span style={{fontSize:10,color:'var(--tx2)'}}>{fo.nombre_archivo} — {fmtDate(fo.fecha_importacion)} — {fo.total_filas} filas · {itemsReales.length} ítems · {nCapitulos} capítulos</span>
+          </div>
+        }
+        <div style={{display:'flex',gap:6,alignItems:'center'}}>
+          {!readOnly&&<button className="btn" onClick={addItem} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--ok)',borderRadius:4,background:'rgba(74,222,128,.06)',color:'var(--ok)',cursor:'pointer'}}>+ Item</button>}
+          {!readOnly&&<button className="btn" onClick={addCapitulo} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--ok)',borderRadius:4,background:'rgba(74,222,128,.06)',color:'var(--ok)',cursor:'pointer'}}>+ Capitulo</button>}
+          <button className="btn" onClick={reimportar} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--bdr)',borderRadius:4,background:'none',color:'var(--tx2)',cursor:'pointer'}}>{'↩ '+(fo?'Reimportar':'Subir Excel')}</button>
+          <button className="btn" onClick={function(){setTab(9)}} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--bdr)',borderRadius:4,background:'none',color:'var(--tx2)',cursor:'pointer'}}>{'< Proyectos'}</button>
+          <button className="btn" onClick={function(){setTab(12)}} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--ac)',borderRadius:4,background:'rgba(77,143,247,.06)',color:'var(--ac)',cursor:'pointer'}}>{'Resumen >'}</button>
+          <input className="ni" placeholder="Buscar item..." value={busq} onChange={function(e){setBusq(e.target.value);setPage(0)}} style={{width:160,height:22,fontSize:10,border:'1px solid var(--ac)',borderRadius:4,marginLeft:8}}/>
+          {readOnly&&<span style={{fontSize:10,color:'var(--warn)',marginLeft:8,padding:'2px 8px',border:'1px solid var(--warn)',borderRadius:3}}>Solo lectura (presupuesto {estadoLabel(pres.estado).toLowerCase()})</span>}
         </div>
-      }
-      <div style={{display:'flex',gap:6,alignItems:'center'}}>
-        {!readOnly&&<button className="btn" onClick={addItem} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--ok)',borderRadius:4,background:'rgba(74,222,128,.06)',color:'var(--ok)',cursor:'pointer'}}>+ Item</button>}
-        {!readOnly&&<button className="btn" onClick={addCapitulo} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--ok)',borderRadius:4,background:'rgba(74,222,128,.06)',color:'var(--ok)',cursor:'pointer'}}>+ Capitulo</button>}
-        <button className="btn" onClick={reimportar} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--bdr)',borderRadius:4,background:'none',color:'var(--tx2)',cursor:'pointer'}}>{'↩ '+(fo?'Reimportar':'Subir Excel')}</button>
-        <button className="btn" onClick={function(){setTab(9)}} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--bdr)',borderRadius:4,background:'none',color:'var(--tx2)',cursor:'pointer'}}>{'< Proyectos'}</button>
-        <button className="btn" onClick={function(){setTab(12)}} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--ac)',borderRadius:4,background:'rgba(77,143,247,.06)',color:'var(--ac)',cursor:'pointer'}}>{'Resumen >'}</button>
-        <input className="ni" placeholder="Buscar item..." value={busq} onChange={function(e){setBusq(e.target.value);setPage(0)}} style={{width:160,height:22,fontSize:10,border:'1px solid var(--ac)',borderRadius:4,marginLeft:8}}/>
-        {readOnly&&<span style={{fontSize:10,color:'var(--warn)',marginLeft:8,padding:'2px 8px',border:'1px solid var(--warn)',borderRadius:3}}>Solo lectura (presupuesto {estadoLabel(pres.estado).toLowerCase()})</span>}
       </div>
-      <div className="xl-wrap">
-        <div className="xl-scroll" style={{overflowX:'auto'}}>
+      <div className="xl-wrap" style={{flex:'1 1 0',minHeight:0,display:'flex',flexDirection:'column'}}>
+        <div className="xl-scroll" style={{overflowX:'auto',flex:'1 1 0',minHeight:0,maxHeight:'none'}}>
           <table style={{tableLayout:'fixed',width:'100%',minWidth:860,fontSize:10}}>
             <colgroup>
               <col className="cw-40"/><col className="cw-50"/><col className="cw-110"/><col style={{width:180}}/><col className="cw-50"/><col className="cw-70"/><col className="cw-150"/><col className="cw-90"/><col className="cw-90"/><col style={{width:80}}/>
@@ -7734,7 +7736,7 @@ function PresupuestosTab({data,onChange,cargosCalc,esHora,eqMap,insMap,factorPre
   /* ══════════════════ SWITCH ENTRE SUB-PESTAÑAS (delegado a sub-componentes) ══════════════════ */
   var PRES_NAV=[
     {tab:9,label:'1. CATALOGO DE PROYECTOS'},
-    {tab:10,label:'2. FORMULARIO Y ITEMS'},
+    {tab:10,label:'2. FORMULARIO DE CANTIDADES Y PRECIOS'},
     {tab:12,label:'3. RESUMEN FINANCIERO'},
     {tab:13,label:'4. ENTREGABLES'}
   ];

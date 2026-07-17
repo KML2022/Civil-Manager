@@ -7451,11 +7451,11 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
                     <td style={{textAlign:'center',color:'#fff'}}>{i+1}</td>
                     <td style={{color:'#fff',fontWeight:700}}>{isEdit?<input className="ni" value={it.num_item} onChange={function(e){updItem(i,'num_item',e.target.value)}} style={{width:'100%',fontSize:10,background:'transparent',color:'#fff',fontWeight:700}} autoFocus/>:it.num_item}</td>
                     <td style={{color:'#fff',fontWeight:700,whiteSpace:'normal',wordBreak:'break-word'}} colSpan={6}>{isEdit?<input className="ni" value={it.descripcion} onChange={function(e){updItem(i,'descripcion',e.target.value)}} style={{width:'100%',fontSize:10,background:'transparent',color:'#fff',fontWeight:700}} placeholder="Descripcion"/>:it.descripcion}</td>
-                    <td className="col-act" style={{textAlign:'center',whiteSpace:'nowrap',background:'#1E3A5F'}}>
-                      {!readOnly&&<button onClick={function(){addItemEnCapitulo(i)}} title="Agregar item en este capitulo" style={{background:'none',border:'none',cursor:'pointer',padding:0,marginRight:6,color:'#fff',fontSize:12,fontWeight:700}}>+</button>}
-                      {!readOnly&&<button onClick={function(){setEditIdx(isEdit?null:i)}} title="Editar" style={{background:'none',border:'none',cursor:'pointer',padding:0,marginRight:6,color:'#fff'}}><IconEdit/></button>}
-                      {!readOnly&&<button onClick={function(){toggleCapituloManual(it.id)}} title="Desmarcar como capitulo" style={{background:'none',border:'none',cursor:'pointer',padding:0,marginRight:6,color:'#fff',fontSize:11}}>⇄</button>}
-                      {!readOnly&&<button className="btn-del" onClick={function(){delItem(i)}} title="Eliminar" style={{background:'none',border:'none',cursor:'pointer',padding:0}}><IconDel/></button>}
+                    <td className="col-act" style={{textAlign:'center',whiteSpace:'nowrap',background:'#1E3A5F',display:'flex',alignItems:'center',justifyContent:'center',width:120,boxSizing:'border-box'}}>
+                      <span style={{width:24,display:'inline-flex',justifyContent:'center'}}>{!readOnly&&<button onClick={function(){setEditIdx(isEdit?null:i)}} title="Editar" style={{background:'none',border:'none',cursor:'pointer',padding:0,color:'#fff'}}><IconEdit/></button>}</span>
+                      <span style={{width:24,display:'inline-flex',justifyContent:'center'}}>{!readOnly&&<button onClick={function(){addItemEnCapitulo(i)}} title="Agregar item en este capitulo" style={{background:'none',border:'none',cursor:'pointer',padding:0,color:'var(--ok)',fontSize:16,fontWeight:700,lineHeight:1,verticalAlign:'middle'}}>+</button>}</span>
+                      <span style={{width:24,display:'inline-flex',justifyContent:'center'}}>{!readOnly&&<button onClick={function(){toggleCapituloManual(it.id)}} title="Desmarcar como capitulo" style={{background:'none',border:'none',cursor:'pointer',padding:0,color:'var(--ok)',fontSize:15,fontWeight:700,verticalAlign:'middle'}}>⇄</button>}</span>
+                      <span style={{width:24,display:'inline-flex',justifyContent:'center'}}>{!readOnly&&<button className="btn-del" onClick={function(){delItem(i)}} title="Eliminar" style={{background:'none',border:'none',cursor:'pointer',padding:0}}><IconDel/></button>}</span>
                     </td>
                   </tr>
                 );
@@ -7471,14 +7471,14 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
                     </td>
                     <td style={{textAlign:'right'}}>{apu?fmt(c.vr_unit):'-'}</td>
                     <td style={{textAlign:'right',fontWeight:600}}>{apu?fmt(c.vr_total):'-'}</td>
-                    <td className="col-act" style={{textAlign:'center',whiteSpace:'nowrap'}}>
-                      {!readOnly&&<button onClick={function(){setEditIdx(isEdit?null:i)}} title="Editar" style={{background:'none',border:'none',cursor:'pointer',padding:0,marginRight:6}}><IconEdit/></button>}
-                      {!readOnly&&(apu?
-                        <button onClick={function(){unassignApu(i)}} title="Quitar APU" style={{background:'none',border:'none',color:'#f87171',cursor:'pointer',padding:0,marginRight:6,fontSize:11}}>⊘</button>
-                        :<button onClick={function(){openApuModal(i)}} title="Asignar APU" style={{background:'none',border:'none',color:'var(--ac)',cursor:'pointer',padding:0,marginRight:6,fontSize:11,fontWeight:700}}>APU</button>
-                      )}
-                      {!readOnly&&<button onClick={function(){toggleCapituloManual(it.id)}} title="Marcar como capitulo" style={{background:'none',border:'none',cursor:'pointer',padding:0,marginRight:6,color:'var(--tx2)',fontSize:11}}>⇄</button>}
-                      {!readOnly&&<button className="btn-del" onClick={function(){delItem(i)}} title="Eliminar" style={{background:'none',border:'none',cursor:'pointer',padding:0}}><IconDel/></button>}
+                    <td className="col-act" style={{textAlign:'center',whiteSpace:'nowrap',display:'flex',alignItems:'center',justifyContent:'center',width:120,boxSizing:'border-box'}}>
+                      <span style={{width:24,display:'inline-flex',justifyContent:'center'}}>{!readOnly&&<button onClick={function(){setEditIdx(isEdit?null:i)}} title="Editar" style={{background:'none',border:'none',cursor:'pointer',padding:0}}><IconEdit/></button>}</span>
+                      <span style={{width:24,display:'inline-flex',justifyContent:'center'}}>{!readOnly&&(apu?
+                        <button onClick={function(){unassignApu(i)}} title="Quitar APU" style={{background:'none',border:'none',color:'#f87171',cursor:'pointer',padding:0,fontSize:15,fontWeight:700,verticalAlign:'middle'}}>⊘</button>
+                        :<button onClick={function(){openApuModal(i)}} title="Asignar APU" style={{background:'none',border:'none',color:'var(--ac)',cursor:'pointer',padding:0,fontSize:11,fontWeight:700,verticalAlign:'middle'}}>APU</button>
+                      )}</span>
+                      <span style={{width:24,display:'inline-flex',justifyContent:'center'}}>{!readOnly&&<button onClick={function(){toggleCapituloManual(it.id)}} title="Marcar como capitulo" style={{background:'none',border:'none',cursor:'pointer',padding:0,color:'var(--ok)',fontSize:15,fontWeight:700,verticalAlign:'middle'}}>⇄</button>}</span>
+                      <span style={{width:24,display:'inline-flex',justifyContent:'center'}}>{!readOnly&&<button className="btn-del" onClick={function(){delItem(i)}} title="Eliminar" style={{background:'none',border:'none',cursor:'pointer',padding:0}}><IconDel/></button>}</span>
                     </td>
                   </tr>
                 );

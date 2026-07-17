@@ -562,6 +562,17 @@ function esCapituloFinal(item){
   return item.es_capitulo;
 }
 
+/* Recalcula el campo item.capitulo (texto informativo, no editable) heredando la descripcion
+   del capitulo mas cercano hacia arriba. Se ejecuta tras cualquier cambio estructural (agregar,
+   eliminar, editar, marcar/desmarcar capitulo) para que nunca quede desincronizado. */
+function recalcCapitulos(arr){
+  var actual='';
+  return arr.map(function(it){
+    if(esCapituloFinal(it)){actual=it.descripcion||'';return Object.assign({},it,{capitulo:''})}
+    return Object.assign({},it,{capitulo:actual});
+  });
+}
+
 function autoDetectarFilaInicio(filas){
   for(var i=0;i<Math.min(15,filas.length-1);i++){
     var fila=filas[i];
@@ -7036,6 +7047,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
   var campoActivoState=useState(null);var campoActivo=campoActivoState[0],setCampoActivo=campoActivoState[1];
   var busqState=useState('');var busq=busqState[0],setBusq=busqState[1];
   var pageState=useState(0);var page=pageState[0],setPage=pageState[1];
+  var editIdxState=useState(null);var editIdx=editIdxState[0],setEditIdx=editIdxState[1];
   var fileRef=useRef(null);
   var presId=pres&&pres.id;
 
@@ -7048,19 +7060,25 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
   var readOnly=pres.estado!=='borrador';
   var idxPres=presupuestos.indexOf(pres);
 
-  var addItem=function(){
-    if(readOnly)return;
-    var arr=pres.items.slice();
-    arr.push({id:uid(),num_item:String(arr.length+1),capitulo:'',descripcion:'',unidad:'un',cantidad:1,apu_id:null,vr_unitario:0,vr_total:0,tiene_apu:false,alerta_sin_apu:false});
-    var n=presupuestos.slice();n[idxPres]=Object.assign({},n[idxPres],{items:arr});
+  var saveItems=function(arr,extra){
+    var n=presupuestos.slice();n[idxPres]=Object.assign({},n[idxPres],Object.assign({items:recalcCapitulos(arr)},extra||{}));
     onChange(Object.assign({},data,{presupuestos:n}));
   };
   var addCapitulo=function(){
     if(readOnly)return;
     var arr=pres.items.slice();
     arr.push({id:uid(),num_item:String(arr.length+1),capitulo:'',descripcion:'Nuevo capitulo',unidad:'',cantidad:0,apu_id:null,vr_unitario:0,vr_total:0,tiene_apu:false,alerta_sin_apu:false,es_capitulo_manual:true});
-    var n=presupuestos.slice();n[idxPres]=Object.assign({},n[idxPres],{items:arr});
-    onChange(Object.assign({},data,{presupuestos:n}));
+    saveItems(arr);
+    setEditIdx(arr.length-1);
+  };
+  var addItemEnCapitulo=function(capIdx){
+    if(readOnly)return;
+    var arr=pres.items.slice();
+    var insertAt=capIdx+1;
+    while(insertAt<arr.length&&!esCapituloFinal(arr[insertAt]))insertAt++;
+    arr.splice(insertAt,0,{id:uid(),num_item:'',capitulo:'',descripcion:'',unidad:'un',cantidad:1,apu_id:null,vr_unitario:0,vr_total:0,tiene_apu:false,alerta_sin_apu:false});
+    saveItems(arr);
+    setEditIdx(insertAt);
   };
   var toggleCapituloManual=function(itemId){
     if(readOnly)return;
@@ -7069,20 +7087,18 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
     if(idx<0)return;
     var it=arr[idx];
     arr[idx]=Object.assign({},it,{es_capitulo_manual:!esCapituloFinal(it)});
-    var n=presupuestos.slice();n[idxPres]=Object.assign({},n[idxPres],{items:arr});
-    onChange(Object.assign({},data,{presupuestos:n}));
+    saveItems(arr);
   };
   var delItem=async function(i){
     if(readOnly)return;if(!(await askConfirm('¿Desea eliminar "'+(pres.items[i].descripcion||'este ítem')+'"? Esta acción no se puede deshacer.')))return;
     var arr=pres.items.filter(function(_,j){return j!==i});
-    var n=presupuestos.slice();n[idxPres]=Object.assign({},n[idxPres],{items:arr});
-    onChange(Object.assign({},data,{presupuestos:n}));
+    saveItems(arr);
+    if(editIdx===i)setEditIdx(null);
   };
   var updItem=function(i,k,v){
     if(readOnly)return;
     var arr=pres.items.slice();arr[i]=Object.assign({},arr[i]);arr[i][k]=v;
-    var n=presupuestos.slice();n[idxPres]=Object.assign({},n[idxPres],{items:arr});
-    onChange(Object.assign({},data,{presupuestos:n}));
+    saveItems(arr);
   };
   var openApuModal=function(i){if(!readOnly)setApuModal({open:true,itemIdx:i,search:'',catFilter:''})};
   var closeApuModal=function(){setApuModal({open:false,itemIdx:null,search:'',catFilter:''})};
@@ -7117,16 +7133,14 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
     }
     var arr=pres.items.slice();
     arr[i]=Object.assign({},arr[i],{apu_id:clon.id,tiene_apu:true,alerta_sin_apu:false});
-    var n=presupuestos.slice();n[idxPres]=Object.assign({},n[idxPres],{items:arr,apus_snap:snap});
-    onChange(Object.assign({},data,{presupuestos:n}));
+    saveItems(arr,{apus_snap:snap});
     closeApuModal();
     showToast('APU asignado',{type:'ok',dur:2000});
   };
   var unassignApu=async function(i){
     if(readOnly)return;if(!(await askConfirm('¿Desea quitar el APU asignado a este ítem? Esta acción no se puede deshacer.')))return;
     var arr=pres.items.slice();arr[i]=Object.assign({},arr[i],{apu_id:null,tiene_apu:false});
-    var n=presupuestos.slice();n[idxPres]=Object.assign({},n[idxPres],{items:arr});
-    onChange(Object.assign({},data,{presupuestos:n}));
+    saveItems(arr);
     showToast('APU removido',{type:'ok',dur:2000});
   };
 
@@ -7410,66 +7424,59 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
           </div>
         }
         <div style={{display:'flex',gap:6,alignItems:'center'}}>
-          {!readOnly&&<button className="btn" onClick={addItem} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--ok)',borderRadius:4,background:'rgba(74,222,128,.06)',color:'var(--ok)',cursor:'pointer'}}>+ Item</button>}
           {!readOnly&&<button className="btn" onClick={addCapitulo} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--ok)',borderRadius:4,background:'rgba(74,222,128,.06)',color:'var(--ok)',cursor:'pointer'}}>+ Capitulo</button>}
           <button className="btn" onClick={reimportar} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--bdr)',borderRadius:4,background:'none',color:'var(--tx2)',cursor:'pointer'}}>{'↩ '+(fo?'Reimportar':'Subir Excel')}</button>
-          <button className="btn" onClick={function(){setTab(9)}} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--bdr)',borderRadius:4,background:'none',color:'var(--tx2)',cursor:'pointer'}}>{'< Proyectos'}</button>
-          <button className="btn" onClick={function(){setTab(12)}} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--ac)',borderRadius:4,background:'rgba(77,143,247,.06)',color:'var(--ac)',cursor:'pointer'}}>{'Resumen >'}</button>
           <input className="ni" placeholder="Buscar item..." value={busq} onChange={function(e){setBusq(e.target.value);setPage(0)}} style={{width:160,height:22,fontSize:10,border:'1px solid var(--ac)',borderRadius:4,marginLeft:8}}/>
           {readOnly&&<span style={{fontSize:10,color:'var(--warn)',marginLeft:8,padding:'2px 8px',border:'1px solid var(--warn)',borderRadius:3}}>Solo lectura (presupuesto {estadoLabel(pres.estado).toLowerCase()})</span>}
         </div>
       </div>
       <div className="xl-wrap" style={{flex:'1 1 0',minHeight:0,display:'flex',flexDirection:'column'}}>
         <div className="xl-scroll" style={{overflowX:'auto',flex:'1 1 0',minHeight:0,maxHeight:'none'}}>
-          <table style={{tableLayout:'fixed',width:'100%',minWidth:860,fontSize:10}}>
+          <table style={{tableLayout:'fixed',width:'100%',minWidth:900,fontSize:10}}>
             <colgroup>
-              <col className="cw-40"/><col className="cw-50"/><col className="cw-110"/><col style={{width:180}}/><col className="cw-50"/><col className="cw-70"/><col className="cw-150"/><col className="cw-90"/><col className="cw-90"/><col style={{width:80}}/>
+              <col className="cw-40"/><col className="cw-50"/><col style={{width:260}}/><col className="cw-50"/><col className="cw-70"/><col className="cw-150"/><col className="cw-90"/><col className="cw-90"/><col style={{width:120}}/>
             </colgroup>
-            <thead><tr><th>#</th><th>Item</th><th>Capitulo</th><th>Descripcion</th><th>UN</th><th>Cant.</th><th>APU</th><th>Vr. Unit</th><th>Vr. Total</th><th className="col-act">Acciones</th></tr></thead>
+            <thead><tr><th>#</th><th>Item</th><th>Descripcion</th><th>UN</th><th>Cant.</th><th>APU</th><th>Vr. Unit</th><th>Vr. Total</th><th className="col-act">Acciones</th></tr></thead>
             <tbody>
-              {itemsArr.length===0&&<tr className="empty-row"><td colSpan={10}>Sin items.{!readOnly&&' Agrega con "+ Item"'}</td></tr>}
-              {itemsArr.length>0&&itemsFiltrados.length===0&&<tr className="empty-row"><td colSpan={10}>Sin resultados para "{busq}".</td></tr>}
+              {itemsArr.length===0&&<tr className="empty-row"><td colSpan={9}>Sin items.{!readOnly&&' Agrega con "+ Capitulo"'}</td></tr>}
+              {itemsArr.length>0&&itemsFiltrados.length===0&&<tr className="empty-row"><td colSpan={9}>Sin resultados para "{busq}".</td></tr>}
               {itemsPagina.map(function(it){
                 var i=itemsArr.indexOf(it);
                 var c=calcItemVal(it);
                 var apu=c.apu;
                 var esCap=esCapituloFinal(it);
+                var isEdit=editIdx===i&&!readOnly;
                 if(esCap)return(
-                  <tr key={it.id} style={{background:'#1E3A5F'}}>
+                  <tr key={it.id} style={{background:'#1E3A5F'}} onBlur={function(e){if(!e.currentTarget.contains(e.relatedTarget))setEditIdx(null)}}>
                     <td style={{textAlign:'center',color:'#fff'}}>{i+1}</td>
-                    <td style={{color:'#fff',fontWeight:700}}>{readOnly?it.num_item:<input className="ni" value={it.num_item} onChange={function(e){updItem(i,'num_item',e.target.value)}} style={{width:'100%',fontSize:10,background:'transparent',color:'#fff',fontWeight:700}}/>}</td>
-                    <td/>
-                    <td style={{color:'#fff',fontWeight:700,whiteSpace:'normal',wordBreak:'break-word'}} colSpan={2}>{readOnly?it.descripcion:<input className="ni" value={it.descripcion} onChange={function(e){updItem(i,'descripcion',e.target.value)}} style={{width:'100%',fontSize:10,background:'transparent',color:'#fff',fontWeight:700}} placeholder="Descripcion"/>}</td>
-                    <td style={{textAlign:'center'}}><span style={{fontSize:9,padding:'1px 6px',border:'1px solid #fff',borderRadius:3,color:'#fff'}}>Capítulo</span></td>
-                    <td style={{textAlign:'right',color:'#fff'}}>-</td>
-                    <td style={{textAlign:'right',color:'#fff'}}>-</td>
-                    <td className="col-act" style={{textAlign:'center',whiteSpace:'nowrap'}}>
+                    <td style={{color:'#fff',fontWeight:700}}>{isEdit?<input className="ni" value={it.num_item} onChange={function(e){updItem(i,'num_item',e.target.value)}} style={{width:'100%',fontSize:10,background:'transparent',color:'#fff',fontWeight:700}} autoFocus/>:it.num_item}</td>
+                    <td style={{color:'#fff',fontWeight:700,whiteSpace:'normal',wordBreak:'break-word'}} colSpan={6}>{isEdit?<input className="ni" value={it.descripcion} onChange={function(e){updItem(i,'descripcion',e.target.value)}} style={{width:'100%',fontSize:10,background:'transparent',color:'#fff',fontWeight:700}} placeholder="Descripcion"/>:it.descripcion}</td>
+                    <td className="col-act" style={{textAlign:'center',whiteSpace:'nowrap',background:'#1E3A5F'}}>
+                      {!readOnly&&<button onClick={function(){addItemEnCapitulo(i)}} title="Agregar item en este capitulo" style={{background:'none',border:'none',cursor:'pointer',padding:0,marginRight:6,color:'#fff',fontSize:12,fontWeight:700}}>+</button>}
+                      {!readOnly&&<button onClick={function(){setEditIdx(isEdit?null:i)}} title="Editar" style={{background:'none',border:'none',cursor:'pointer',padding:0,marginRight:6,color:'#fff'}}><IconEdit/></button>}
                       {!readOnly&&<button onClick={function(){toggleCapituloManual(it.id)}} title="Desmarcar como capitulo" style={{background:'none',border:'none',cursor:'pointer',padding:0,marginRight:6,color:'#fff',fontSize:11}}>⇄</button>}
                       {!readOnly&&<button className="btn-del" onClick={function(){delItem(i)}} title="Eliminar" style={{background:'none',border:'none',cursor:'pointer',padding:0}}><IconDel/></button>}
                     </td>
                   </tr>
                 );
                 return(
-                  <tr key={it.id}>
+                  <tr key={it.id} onBlur={function(e){if(!e.currentTarget.contains(e.relatedTarget))setEditIdx(null)}}>
                     <td style={{textAlign:'center',color:'var(--tx3)'}}>{i+1}</td>
-                    <td>{readOnly?it.num_item:<input className="ni" value={it.num_item} onChange={function(e){updItem(i,'num_item',e.target.value)}} style={{width:'100%',fontSize:10}}/>}</td>
-                    <td>{readOnly?it.capitulo:<input className="ni" value={it.capitulo} onChange={function(e){updItem(i,'capitulo',e.target.value)}} style={{width:'100%',fontSize:10}} placeholder="1.1"/>}</td>
-                    <td style={{whiteSpace:'normal',wordBreak:'break-word'}}>{readOnly?it.descripcion:<input className="ni" value={it.descripcion} onChange={function(e){updItem(i,'descripcion',e.target.value)}} style={{width:'100%',fontSize:10}} placeholder="Descripcion"/>}</td>
-                    <td>{readOnly?it.unidad:<input className="ni" value={it.unidad} onChange={function(e){updItem(i,'unidad',e.target.value)}} style={{width:'100%',fontSize:10}}/>}</td>
-                    <td>{readOnly?it.cantidad:<NumInput step=".01" inputMode="decimal" value={it.cantidad} onChange={function(v){updItem(i,'cantidad',v)}} style={{width:'100%',fontSize:10,textAlign:'right'}} decimals={4}/>}</td>
+                    <td>{isEdit?<input className="ni" value={it.num_item} onChange={function(e){updItem(i,'num_item',e.target.value)}} style={{width:'100%',fontSize:10}} autoFocus/>:it.num_item}</td>
+                    <td style={{whiteSpace:'normal',wordBreak:'break-word'}}>{isEdit?<input className="ni" value={it.descripcion} onChange={function(e){updItem(i,'descripcion',e.target.value)}} style={{width:'100%',fontSize:10}} placeholder="Descripcion"/>:it.descripcion}</td>
+                    <td>{isEdit?<input className="ni" value={it.unidad} onChange={function(e){updItem(i,'unidad',e.target.value)}} style={{width:'100%',fontSize:10}}/>:it.unidad}</td>
+                    <td style={{textAlign:'right'}}>{isEdit?<NumInput step=".01" inputMode="decimal" value={it.cantidad} onChange={function(v){updItem(i,'cantidad',v)}} style={{width:'100%',fontSize:10,textAlign:'right'}} decimals={2}/>:fmt(it.cantidad)}</td>
                     <td style={{textAlign:'center'}}>
-                      {apu?(
-                        <span style={{display:'inline-flex',alignItems:'center',gap:4}}>
-                          <span style={{fontSize:9,color:'var(--ok)',fontWeight:600}}>{apu.codigo}</span>
-                          {!readOnly&&<button onClick={function(){unassignApu(i)}} title="Quitar APU" style={{background:'none',border:'none',color:'#f87171',cursor:'pointer',padding:0,fontSize:11}}>x</button>}
-                        </span>
-                      ):(
-                        !readOnly?<button onClick={function(){openApuModal(i)}} style={{fontSize:9,padding:'2px 6px',border:'1px dashed var(--ac)',borderRadius:3,background:'rgba(77,143,247,.06)',color:'var(--ac)',cursor:'pointer'}}>asignar</button>:<span style={{color:'var(--tx3)'}}>-</span>
-                      )}
+                      {apu?<span style={{fontSize:9,color:'var(--ok)',fontWeight:600}}>{apu.codigo}</span>:<span style={{fontSize:9,color:'var(--err)'}}>Sin asignar</span>}
                     </td>
                     <td style={{textAlign:'right'}}>{apu?fmt(c.vr_unit):'-'}</td>
                     <td style={{textAlign:'right',fontWeight:600}}>{apu?fmt(c.vr_total):'-'}</td>
                     <td className="col-act" style={{textAlign:'center',whiteSpace:'nowrap'}}>
+                      {!readOnly&&<button onClick={function(){setEditIdx(isEdit?null:i)}} title="Editar" style={{background:'none',border:'none',cursor:'pointer',padding:0,marginRight:6}}><IconEdit/></button>}
+                      {!readOnly&&(apu?
+                        <button onClick={function(){unassignApu(i)}} title="Quitar APU" style={{background:'none',border:'none',color:'#f87171',cursor:'pointer',padding:0,marginRight:6,fontSize:11}}>⊘</button>
+                        :<button onClick={function(){openApuModal(i)}} title="Asignar APU" style={{background:'none',border:'none',color:'var(--ac)',cursor:'pointer',padding:0,marginRight:6,fontSize:11,fontWeight:700}}>APU</button>
+                      )}
                       {!readOnly&&<button onClick={function(){toggleCapituloManual(it.id)}} title="Marcar como capitulo" style={{background:'none',border:'none',cursor:'pointer',padding:0,marginRight:6,color:'var(--tx2)',fontSize:11}}>⇄</button>}
                       {!readOnly&&<button className="btn-del" onClick={function(){delItem(i)}} title="Eliminar" style={{background:'none',border:'none',cursor:'pointer',padding:0}}><IconDel/></button>}
                     </td>

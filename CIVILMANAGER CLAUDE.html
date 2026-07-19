@@ -255,6 +255,14 @@ select.ni option{background:var(--bg3);color:var(--tx);padding:4px 8px}
 .sub-sec table tr:last-child td{border-bottom:none}
 
 .sub-sec .sub-tbl-wrap table td.col-act,.sub-sec .sub-tbl-wrap table th.col-act{border-right:1px solid var(--bdr)}
+.pv-sechdr table td{border-right:none!important}
+.pv-sechdr table td:nth-child(4){border-left:1px solid var(--tx3)!important;border-right:1px solid var(--tx3)!important}
+.apu-preview-scope td,.apu-preview-scope th{border-bottom-color:var(--tx3)!important}
+.pv-sechdr table col:nth-child(1){width:398px!important}
+.pv-sechdr table col:nth-child(2){width:80px!important}
+.pv-sechdr table col:nth-child(3){width:140px!important}
+.pv-sechdr table col:nth-child(4){width:90px!important}
+.pv-sechdr table col:nth-child(5){width:0!important}
 
 
 
@@ -3132,6 +3140,8 @@ function calcAPU(a,cargosCalc,equipos,insumos,allCalc,herrPct,factorPrest,usarFP
 
 }
 
+var PREVIEW_COLS_SPAN=[283,70,90,90,85,90]; /* DATA_COLS sin Codigo(70) ni Acciones(80); Descripcion ocupa col0+col1 */
+var PREVIEW_COLS_PLAIN=[283,70,90,90,85,90]; /* mismos anchos, Descripcion usa solo col0 (sin colSpan) */
 function ApuDetallePreview({apu,cargosCalc,personMap,eqMap,insMap,equipos,insumos,factorPrest,usarFpEnApu,esHora,herrPct,apusBasico}){
   if(!apu)return(
     <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100%',color:'var(--tx3)',fontSize:11,textAlign:'center',padding:20}}>
@@ -3140,57 +3150,178 @@ function ApuDetallePreview({apu,cargosCalc,personMap,eqMap,insMap,equipos,insumo
   );
   var abCalcList=(apusBasico||[]).map(function(b){return calcAPU(b,cargosCalc,equipos,insumos,null,herrPct,factorPrest,usarFpEnApu,esHora,personMap,eqMap,insMap)});
   var calc=calcAPU(apu,cargosCalc,equipos,insumos,abCalcList,herrPct,factorPrest,usarFpEnApu,esHora,personMap,eqMap,insMap);
-  function filaRO(cod,desc,col3,col4,col5,valor){
-    return(
-      <tr key={cod+desc}>
-        <td style={TD_C}>{cod}</td>
-        <td colSpan={2} style={{padding:'0 6px',fontSize:10}}>{desc}</td>
-        <td style={TD_C}>{col3}</td>
-        <td style={TD_R}>{col4}</td>
-        <td style={TD_R}>{col5}</td>
-        <td style={Object.assign({},TD_R,{fontWeight:600})}>{fmt(valor)}</td>
-      </tr>
-    );
-  }
+  function colgroupSpan(){return <colgroup>{PREVIEW_COLS_SPAN.map(function(w,i){return <col key={i} style={{width:w+'px'}}/>})}</colgroup>}
+  function colgroupPlain(){return <colgroup>{PREVIEW_COLS_PLAIN.map(function(w,i){return <col key={i} style={{width:w+'px'}}/>})}</colgroup>}
+  var PV_BR='1px solid var(--tx3)';
+  var TH_N={fontSize:10,borderRight:PV_BR};
+  var TH_LAST={fontSize:10,borderRight:PV_BR,borderLeft:PV_BR};
+  var TD_DESC={padding:'0 6px',fontSize:10,borderRight:PV_BR};
+  var TD_C2=Object.assign({},TD_C,{borderRight:PV_BR});
+  var TD_R2=Object.assign({},TD_R,{borderRight:PV_BR});
+  var TD_LAST_VAL=Object.assign({},TD_R,{fontWeight:600,borderRight:PV_BR,borderLeft:PV_BR});
+  var TD_LAST_VAL_B=Object.assign({},TD_R,{fontWeight:700,borderRight:PV_BR,borderLeft:PV_BR});
   return(
-    <div className="xl-scroll" style={{padding:8,height:'100%',overflowY:'auto'}}>
-      <div style={{fontSize:13,fontWeight:700,marginBottom:2}}>{apu.codigo} — {apu.nombre}</div>
-      <div style={{fontSize:10,color:'var(--tx3)',marginBottom:8}}>Unidad: {apu.unidad}</div>
-      <SecHdr cls="eq" label="A. EQUIPO" subLabel="Subtotal Equipo :" subVal={fmt(r2(calc.subEq+calc.herr))} isEditing={false}/>
-      <table style={{tableLayout:'fixed',width:'100%'}}><colgroup><col style={{width:60}}/><col style={{width:140}}/><col style={{width:140}}/><col style={{width:70}}/><col style={{width:90}}/><col style={{width:70}}/><col style={{width:100}}/></colgroup><tbody>
-        {herrPct>0&&filaRO('EQ-000','Herramientas Menores','% M.O.',herrPct+'%','—',calc.herr)}
-        {(apu.recursos_eq||[]).map(function(r){
-          var eq=eqMap.get(r.equipo_id);
-          return filaRO(eq?eq.codigo:'EQ-XX',eq?eq.nombre:'—',eq?eq.unidad:'—',fmt(eq?eq.costo_hora:0),r.rendimiento,r2((eq?eq.costo_hora:0)*safeFloat(r.rendimiento)));
-        })}
-      </tbody></table>
-      <SecHdr cls="ins" label="B. MATERIALES" subLabel="Subtotal Materiales :" subVal={fmt(calc.subIns)} isEditing={false}/>
-      <table style={{tableLayout:'fixed',width:'100%'}}><colgroup><col style={{width:60}}/><col style={{width:140}}/><col style={{width:140}}/><col style={{width:70}}/><col style={{width:90}}/><col style={{width:70}}/><col style={{width:100}}/></colgroup><tbody>
-        {(apu.recursos_ins||[]).map(function(r){
-          var ins=insMap.get(r.insumo_id);
-          var costoU=ins?(ins.origen==='Preparado en obra'?0:ins.costo_unitario):0;
-          var consumo=safeFloat(r.consumo)||1;
-          var desp=(safeFloat(r.desperdicios_pct)||5);
-          return filaRO(ins?ins.codigo:'IN-XX',ins?ins.nombre:'—',ins?ins.unidad:'—',consumo,desp+'%',r2(costoU*consumo*(1+desp/100)));
-        })}
-      </tbody></table>
-      <SecHdr cls="eq" label="C. TRANSPORTE" subLabel="Subtotal Transporte :" subVal={fmt(calc.subTrans)} isEditing={false}/>
-      <table style={{tableLayout:'fixed',width:'100%'}}><colgroup><col style={{width:60}}/><col style={{width:140}}/><col style={{width:140}}/><col style={{width:70}}/><col style={{width:90}}/><col style={{width:70}}/><col style={{width:100}}/></colgroup><tbody>
-        {(apu.recursos_transporte||[]).map(function(r){
-          var esGlobal=r.unidad==='Global';
-          return filaRO(r.codigo||'TR-XX',r.nombre||'—',r.unidad||'—',fmt(r.tarifa),esGlobal?'—':r.distancia_km,r2(esGlobal?safeFloat(r.tarifa):safeFloat(r.tarifa)*safeFloat(r.distancia_km)));
-        })}
-      </tbody></table>
-      <SecHdr cls="mo" label="D. PERSONAL" subLabel="Subtotal Personal :" subVal={fmt(calc.subPers)} isEditing={false}/>
-      <table style={{tableLayout:'fixed',width:'100%'}}><colgroup><col style={{width:60}}/><col style={{width:140}}/><col style={{width:140}}/><col style={{width:70}}/><col style={{width:90}}/><col style={{width:70}}/><col style={{width:100}}/></colgroup><tbody>
-        {(apu.recursos_mo||[]).map(function(r){
-          var cargo=personMap.get(r.cargo_id);
-          var costoUnitario=cargoJornal(cargo,usarFpEnApu,esHora);
-          return filaRO(cargo?cargo.codigo:'MO-XX',cargo?cargo.nombre:'—',cargo?(esHora?'Hr':'Dia'):'—',fmt(costoUnitario),r.rendimiento,r2(costoUnitario*safeFloat(r.cant_personas)*safeFloat(r.rendimiento)));
-        })}
-        {usarFpEnApu&&calc.vrPrest>0&&filaRO('','Factor Prestacional','% M.O.',factorPrest+'%','—',calc.vrPrest)}
-      </tbody></table>
-      <div style={{textAlign:'right',fontWeight:700,fontSize:13,padding:'10px 6px',borderTop:'2px solid var(--bdr)',marginTop:6}}>
+    <div className="apu-preview-scope" style={{display:'flex',flexDirection:'column',height:'100%',minHeight:0}}>
+      <div style={{flexShrink:0,padding:'8px 8px 0 8px'}}>
+        <div style={{fontSize:13,fontWeight:700,marginBottom:2}}>{apu.codigo} — {apu.nombre}</div>
+        <div style={{fontSize:11,marginBottom:8}}>Unidad: <span style={{fontWeight:800,color:'var(--ok)'}}>{apu.unidad}</span></div>
+      </div>
+      <div className="xl-scroll" style={{flex:1,minHeight:0,overflowY:'auto',padding:'0 8px'}}>
+      <div className="sub-sec">
+      <div className="pv-sechdr"><SecHdr cls="eq" label="A. EQUIPO" subLabel="Subtotal Equipo :" subVal={fmt(r2(calc.subEq+calc.herr))} isEditing={false}/></div>
+      <div className="sub-tbl-wrap">
+      <table style={{tableLayout:'fixed',width:'100%'}}>
+        {colgroupSpan()}
+        <thead><tr style={{background:'var(--bg2)'}}>
+          <th colSpan={2} style={TH_N}>Descripcion</th>
+          <th style={TH_N}>Tarifa por:</th>
+          <th style={TH_N}>Vr. Unitario</th>
+          <th style={TH_N}>Rendimiento</th>
+          <th style={TH_LAST}>Vr. Parcial</th>
+        </tr></thead>
+        <tbody>
+          {herrPct>0&&<tr style={{background:'#1a2332',opacity:0.9}}>
+            <td colSpan={2} style={TD_DESC}>Herramientas Menores</td>
+            <td style={TD_C2}>% M.O.</td>
+            <td style={TD_R2}>{fmt(r2(herrPct))}%</td>
+            <td style={TD_R2}>—</td>
+            <td style={TD_LAST_VAL_B}>{fmt(calc.herr)}</td>
+          </tr>}
+          {(apu.recursos_eq||[]).length===0&&herrPct<=0&&<tr className="empty-row"><td colSpan={6}>Sin equipos</td></tr>}
+          {(apu.recursos_eq||[]).map(function(r,ri){
+            var eq=eqMap.get(r.equipo_id);
+            var vrU=safeFloat(eq?eq.costo_hora:0);
+            var rend=safeFloat(r.rendimiento);
+            return(
+              <tr key={r.id||ri}>
+                <td colSpan={2} style={TD_DESC}>{eq?eq.nombre:'—'}</td>
+                <td style={TD_C2}>{eq?eq.unidad:'—'}</td>
+                <td style={TD_R2}>{fmt(vrU)}</td>
+                <td style={TD_R2}>{fmt(rend,4)}</td>
+                <td style={TD_LAST_VAL}>{fmt(r2(vrU*rend))}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      </div>
+      </div>
+
+      <div className="sub-sec">
+      <div className="pv-sechdr"><SecHdr cls="ins" label="B. MATERIALES" subLabel="Subtotal Materiales :" subVal={fmt(calc.subIns)} isEditing={false}/></div>
+      <div className="sub-tbl-wrap">
+      <table style={{tableLayout:'fixed',width:'100%'}}>
+        {colgroupPlain()}
+        <thead><tr style={{background:'var(--bg2)'}}>
+          <th style={TH_N}>Descripcion</th>
+          <th style={TH_N}>UN</th>
+          <th style={TH_N}>Vr. Unitario</th>
+          <th style={TH_N}>Consumo</th>
+          <th style={TH_N}>Desperdicios</th>
+          <th style={TH_LAST}>Vr. Parcial</th>
+        </tr></thead>
+        <tbody>
+          {(apu.recursos_ins||[]).length===0&&<tr className="empty-row"><td colSpan={6}>Sin insumos</td></tr>}
+          {(apu.recursos_ins||[]).map(function(r,ri){
+            var ins=insMap.get(r.insumo_id);
+            var costoU=ins?(ins.origen==='Preparado en obra'?0:ins.costo_unitario):0;
+            var consumo=safeFloat(r.consumo)||1;
+            var desp=(safeFloat(r.desperdicios_pct)||5);
+            return(
+              <tr key={r.id||ri}>
+                <td style={TD_DESC}>{ins?ins.nombre:'—'}</td>
+                <td style={TD_C2}>{ins?ins.unidad:'—'}</td>
+                <td style={TD_R2}>{fmt(costoU)}</td>
+                <td style={TD_R2}>{fmt(consumo,4)}</td>
+                <td style={TD_R2}>{fmt(desp,2)}%</td>
+                <td style={TD_LAST_VAL}>{fmt(r2(costoU*consumo*(1+desp/100)))}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      </div>
+      </div>
+
+      <div className="sub-sec">
+      <div className="pv-sechdr"><SecHdr cls="eq" label="C. TRANSPORTE" subLabel="Subtotal Transporte :" subVal={fmt(calc.subTrans)} isEditing={false}/></div>
+      <div className="sub-tbl-wrap">
+      <table style={{tableLayout:'fixed',width:'100%'}}>
+        {colgroupSpan()}
+        <thead><tr style={{background:'var(--bg2)'}}>
+          <th colSpan={2} style={TH_N}>Descripcion</th>
+          <th style={TH_N}>Unidad</th>
+          <th style={TH_N}>Distancia (km)</th>
+          <th style={TH_N}>Tarifa</th>
+          <th style={TH_LAST}>Vr. Parcial</th>
+        </tr></thead>
+        <tbody>
+          {(apu.recursos_transporte||[]).length===0&&<tr className="empty-row"><td colSpan={6}>Sin transporte</td></tr>}
+          {(apu.recursos_transporte||[]).map(function(r,ri){
+            var eq=eqMap.get(r.equipo_id);
+            var esGlobal=r.unidad==='Global';
+            var dist=safeFloat(r.distancia_km);
+            var tar=safeFloat(r.tarifa);
+            return(
+              <tr key={r.id||ri}>
+                <td colSpan={2} style={TD_DESC}>{r.nombre||(eq?eq.nombre:'—')}</td>
+                <td style={TD_C2}>{r.unidad||'—'}</td>
+                <td style={TD_C2}>{esGlobal?'—':fmt(dist,2)}</td>
+                <td style={TD_C2}>{fmt(tar)}</td>
+                <td style={TD_LAST_VAL}>{fmt(esGlobal?tar:r2(dist*tar))}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      </div>
+      </div>
+
+      <div className="sub-sec">
+      <div className="pv-sechdr"><SecHdr cls="mo" label="D. PERSONAL" subLabel="Subtotal Personal :" subVal={fmt(calc.subPers)} isEditing={false}/></div>
+      <div className="sub-tbl-wrap">
+      <table style={{tableLayout:'fixed',width:'100%'}}>
+        {colgroupPlain()}
+        <thead><tr style={{background:'var(--bg2)'}}>
+          <th style={TH_N}>Descripcion</th>
+          <th style={TH_N}>Cant.Pers.</th>
+          <th style={TH_N}>Vr. por:</th>
+          <th style={TH_N}>{usarFpEnApu?'Vr. SIN F.P.':'Vr. CON F.P.'}</th>
+          <th style={TH_N}>Rendimiento</th>
+          <th style={TH_LAST}>Vr. Parcial</th>
+        </tr></thead>
+        <tbody>
+          {(apu.recursos_mo||[]).length===0&&<tr className="empty-row"><td colSpan={6}>Sin personal</td></tr>}
+          {(apu.recursos_mo||[]).map(function(r,ri){
+            var cargo=personMap.get(r.cargo_id);
+            var jornal=cargoJornal(cargo,usarFpEnApu,esHora);
+            var cant=safeFloat(r.cant_personas)||1;
+            var rend=safeFloat(r.rendimiento);
+            return(
+              <tr key={r.id||ri}>
+                <td style={TD_DESC}>{cargo?(cargo.descripcion||'—'):'—'}</td>
+                <td style={TD_C2}>{fmt(cant,2)}</td>
+                <td style={TD_C2}>{esHora?'HH (Hora)':'Jornal/día'}</td>
+                <td style={TD_R2}>{fmt(jornal,2)}</td>
+                <td style={TD_R2}>{fmt(rend,4)}</td>
+                <td style={TD_LAST_VAL}>{fmt(r2(jornal*cant*rend))}</td>
+              </tr>
+            );
+          })}
+          {usarFpEnApu&&calc.vrPrest>0&&<tr>
+            <td style={TD_DESC}>Factor Prestacional</td>
+            <td style={TD_C2}>—</td>
+            <td style={TD_C2}>% M.O.</td>
+            <td style={TD_R2}>{factorPrest}%</td>
+            <td style={TD_R2}>—</td>
+            <td style={TD_LAST_VAL_B}>{fmt(calc.vrPrest)}</td>
+          </tr>}
+        </tbody>
+      </table>
+      </div>
+      </div>
+      </div>
+      <div style={{flexShrink:0,textAlign:'right',fontWeight:700,fontSize:13,padding:'10px 14px',borderTop:'2px solid var(--bdr)'}}>
         TOTAL: {fmt(calc.totalDirecto)}
       </div>
     </div>
@@ -7581,14 +7712,14 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
         var itemActual=apuModal.itemIdx!==null?itemsArr[apuModal.itemIdx]:null;
         return(
         <div className="modal-overlay" onClick={closeApuModal}>
-          <div className="modal-box" style={{width:1180,maxWidth:'95vw',height:600,display:'flex',flexDirection:'column'}} onClick={function(e){e.stopPropagation()}}>
+          <div className="modal-box" style={{width:1300,maxWidth:'96vw',height:'85vh',display:'flex',flexDirection:'column'}} onClick={function(e){e.stopPropagation()}}>
             <div className="modal-hdr">
               <span className="title">Asignar APU al item</span>
               {itemActual&&<span style={{fontSize:10,color:'var(--tx3)',marginLeft:12}}>Item {itemActual.num_item} — {itemActual.descripcion} &middot; Unidad: {itemActual.unidad} &middot; Cant: {fmt(itemActual.cantidad)}</span>}
               <button onClick={closeApuModal} style={{background:'none',border:'none',cursor:'pointer',padding:2,color:'var(--ok)'}}><IconX/></button>
             </div>
             <div className="modal-body" style={{display:'flex',gap:10,flex:1,minHeight:0}}>
-              <div style={{width:380,display:'flex',flexDirection:'column',minHeight:0,gap:8}}>
+              <div style={{width:360,flexShrink:0,display:'flex',flexDirection:'column',minHeight:0,gap:8}}>
                 <div style={{display:'flex',gap:6,alignItems:'center'}}>
                   <select className="ni" value={apuModal.catFilter} onChange={function(e){setApuModal(Object.assign({},apuModal,{catFilter:e.target.value}))}} style={{width:150,height:22,fontSize:11,border:'1px solid var(--ac)',borderRadius:4}}>
                     <option value=''>Todas las categorias</option>
@@ -7632,7 +7763,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
   );
 }
 
-function PresupuestosTab({data,onChange,cargosCalc,esHora,eqMap,insMap,factorPrest,usarFpEnApu,equipos,insumos,apusBasico,categorias_apu,tab,setTab}){
+function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,insMap,factorPrest,usarFpEnApu,equipos,insumos,apusBasico,categorias_apu,tab,setTab}){
   data=data||{};
   equipos=equipos||[];
   insumos=insumos||[];
@@ -7650,7 +7781,7 @@ function PresupuestosTab({data,onChange,cargosCalc,esHora,eqMap,insMap,factorPre
   var pres=(selFinal!==-1&&presupuestos[selFinal])?presupuestos[selFinal]:null;
   var herrPct=config.herr_pct!=null?Number(config.herr_pct):5;
 
-  var personMap=useMemo(function(){return new Map((cargosCalc||[]).map(function(c){return[c.id,c]}))},[cargosCalc]);
+  var personMap=useMemo(function(){var m=new Map((cargosCalc||[]).map(function(c){return[c.id,c]}));(cuadrillasCalc||[]).forEach(function(c){m.set(c.id,c)});return m},[cargosCalc,cuadrillasCalc]);
   var abCalcList=useMemo(function(){
     var list=[];
     (apusBasico||[]).forEach(function(a){

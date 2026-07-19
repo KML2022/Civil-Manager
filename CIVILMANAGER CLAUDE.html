@@ -10,7 +10,7 @@
 
 <title>CIVILCORE - CIVILMANAGER</title>
 
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600;700&family=Bebas+Neue&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600;700&family=Bebas+Neue&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
 
@@ -54,6 +54,11 @@ html,body{height:100%;overflow:hidden}
 
 body{background:var(--bg);color:var(--tx);font-family:'JetBrains Mono',monospace;font-size:11px;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;text-rendering:optimizeLegibility}
 table,.xl-wrap,.xl-scroll{font-variant-numeric:tabular-nums}
+/* Ejercicio de prueba: tipografia Hanken Grotesk solo en la tabla de Formulario de Cantidades y Precios */
+.tbl-hanken-test,.tbl-hanken-test th,.tbl-hanken-test td,.tbl-hanken-test input{font-family:'Hanken Grotesk',sans-serif}
+.tbl-hanken-test th{overflow:hidden;text-overflow:ellipsis;box-sizing:border-box}
+.tbl-hanken-test td{box-sizing:border-box}
+.tbl-hanken-test td:nth-child(4),.tbl-hanken-test td:nth-child(6),.tbl-hanken-test td:nth-child(7),.tbl-hanken-test td:nth-child(8){padding:0 8px}
 
 #root{height:100%;display:flex;flex-direction:column}
 
@@ -7036,6 +7041,9 @@ function PresBannerProyecto({pres,presupuestos,setTab}){
   );
 }
 
+var FORM_TABLE_MAXW=1045; /* debe igualar la suma del colgroup de la tabla de items (fase revision) */
+var SCROLLBAR_W=16; /* ancho tipico de scrollbar vertical webkit/blink; xl-scroll usa scrollbarGutter:'stable' para reservarlo siempre, asi esta resta es valida haya o no overflow vertical */
+var FORM_TABLE_INNERW=FORM_TABLE_MAXW-2-SCROLLBAR_W; /* xl-wrap tiene border 1px+1px; tabla/footer deben usar el ancho interno real, no el externo, para no forzar scroll horizontal */
 function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModal,setApuModal,apus,categorias_apu,calcItemVal,setTab,estadoLabel}){
   var faseState=useState('inicio');var fase=faseState[0],setFase=faseState[1];
   var archivoRawState=useState(null);var archivoRaw=archivoRawState[0],setArchivoRaw=archivoRawState[1];
@@ -7415,7 +7423,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
   var itemsPagina=itemsFiltrados.slice(page*PAGE_SIZE,(page+1)*PAGE_SIZE);
 
   return(
-    <div style={{display:'flex',flexDirection:'column',gap:8,height:'calc(100vh - 150px)',minHeight:0}}>
+    <div style={{maxWidth:FORM_TABLE_MAXW,display:'flex',flexDirection:'column',gap:8,height:'calc(100vh - 150px)',minHeight:0,minWidth:0}}>
       <div style={{flexShrink:0,display:'flex',flexDirection:'column',gap:8}}>
         <TituloSubTab pres={pres} presupuestos={presupuestos} tituloSubTab="Formulario de Cantidades y Precios" extra={<span style={{fontSize:10,color:'var(--tx3)'}}>{itemsArr.length} items &middot; CD: {fmt(cdTotal)}</span>}/>
         {fo&&
@@ -7431,13 +7439,13 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
           {readOnly&&<span style={{fontSize:10,color:'var(--warn)',marginLeft:8,padding:'2px 8px',border:'1px solid var(--warn)',borderRadius:3}}>Solo lectura (presupuesto {estadoLabel(pres.estado).toLowerCase()})</span>}
         </div>
       </div>
-      <div className="xl-wrap" style={{flex:'1 1 0',minHeight:0,display:'flex',flexDirection:'column'}}>
-        <div className="xl-scroll" style={{overflowX:'auto',flex:'1 1 0',minHeight:0,maxHeight:'none'}}>
-          <table style={{tableLayout:'fixed',width:710,fontSize:10}}>
+      <div className="xl-wrap" style={{flex:'1 1 0',minHeight:0,minWidth:0,display:'flex',flexDirection:'column',boxSizing:'border-box'}}>
+        <div className="xl-scroll" style={{overflowX:'auto',flex:'1 1 0',minHeight:0,minWidth:0,maxHeight:'none',scrollbarGutter:'stable'}}>
+          <table className="tbl-hanken-test" style={{tableLayout:'fixed',width:FORM_TABLE_INNERW,fontSize:10}}>
             <colgroup>
-              <col style={{width:20}}/><col style={{width:50}}/><col style={{width:300}}/><col style={{width:30}}/><col style={{width:50}}/><col style={{width:30}}/><col style={{width:60}}/><col style={{width:70}}/><col style={{width:100}}/>
+              <col style={{width:40}}/><col style={{width:55}}/><col style={{width:100}}/><col style={{width:382}}/><col style={{width:70}}/><col style={{width:80}}/><col style={{width:90}}/><col style={{width:100}}/><col style={{width:110}}/>
             </colgroup>
-            <thead><tr><th>#</th><th style={{textAlign:'center'}}>Item</th><th>Descripcion</th><th style={{textAlign:'center'}}>UN</th><th>Cant.</th><th style={{textAlign:'center'}}>APU</th><th>Vr. Unit</th><th>Vr. Total</th><th className="col-act">Acciones</th></tr></thead>
+            <thead><tr><th>#</th><th style={{textAlign:'center'}}>APU</th><th style={{textAlign:'center'}}>Item</th><th>Descripcion</th><th style={{textAlign:'center'}}>UN</th><th>Cant.</th><th>Vr. Unit</th><th>Vr. Total</th><th className="col-act">Acciones</th></tr></thead>
             <tbody>
               {itemsArr.length===0&&<tr className="empty-row"><td colSpan={9}>Sin items.{!readOnly&&' Agrega con "+ Capitulo"'}</td></tr>}
               {itemsArr.length>0&&itemsFiltrados.length===0&&<tr className="empty-row"><td colSpan={9}>Sin resultados para "{busq}".</td></tr>}
@@ -7450,36 +7458,41 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
                 if(esCap)return(
                   <tr key={it.id} style={{background:'#1E3A5F'}} onBlur={function(e){if(!e.currentTarget.contains(e.relatedTarget))setEditIdx(null)}}>
                     <td style={{textAlign:'center',color:'#fff'}}>{i+1}</td>
+                    <td/>
                     <td style={{color:'#fff',fontWeight:700,textAlign:'center'}}>{isEdit?<input className="ni" value={it.num_item} onChange={function(e){updItem(i,'num_item',e.target.value)}} style={{width:'100%',fontSize:10,background:'transparent',color:'#fff',fontWeight:700,textAlign:'center'}} autoFocus/>:it.num_item}</td>
-                    <td style={{color:'#fff',fontWeight:700,whiteSpace:'normal',wordBreak:'break-word'}} colSpan={6}>{isEdit?<input className="ni" value={it.descripcion} onChange={function(e){updItem(i,'descripcion',e.target.value)}} style={{width:'100%',fontSize:10,background:'transparent',color:'#fff',fontWeight:700}} placeholder="Descripcion"/>:it.descripcion}</td>
-                    <td className="col-act" style={{textAlign:'center',whiteSpace:'nowrap',background:'#1E3A5F',display:'flex',alignItems:'center',justifyContent:'center',width:100,boxSizing:'border-box'}}>
-                      <span style={{width:24,display:'inline-flex',justifyContent:'center'}}>{!readOnly&&<button onClick={function(){setEditIdx(isEdit?null:i)}} title="Editar" style={{background:'none',border:'none',cursor:'pointer',padding:0,color:'#fff'}}><IconEdit/></button>}</span>
-                      <span style={{width:24,display:'inline-flex',justifyContent:'center'}}>{!readOnly&&<button onClick={function(){addItemEnCapitulo(i)}} title="Agregar item en este capitulo" style={{background:'none',border:'none',cursor:'pointer',padding:0,color:'var(--ok)',fontSize:16,fontWeight:700,lineHeight:1,verticalAlign:'middle'}}>+</button>}</span>
-                      <span style={{width:24,display:'inline-flex',justifyContent:'center'}}>{!readOnly&&<button onClick={function(){toggleCapituloManual(it.id)}} title="Desmarcar como capitulo" style={{background:'none',border:'none',cursor:'pointer',padding:0,color:'var(--ok)',fontSize:15,fontWeight:700,verticalAlign:'middle'}}>⇄</button>}</span>
-                      <span style={{width:24,display:'inline-flex',justifyContent:'center'}}>{!readOnly&&<button className="btn-del" onClick={function(){delItem(i)}} title="Eliminar" style={{background:'none',border:'none',cursor:'pointer',padding:0}}><IconDel/></button>}</span>
+                    <td style={{color:'#fff',fontWeight:700,whiteSpace:'normal',wordBreak:'break-word'}} colSpan={5}>{isEdit?<input className="ni" value={it.descripcion} onChange={function(e){updItem(i,'descripcion',e.target.value)}} style={{width:'100%',fontSize:10,background:'transparent',color:'#fff',fontWeight:700}} placeholder="Descripcion"/>:it.descripcion}</td>
+                    <td className="col-act" style={{textAlign:'center',whiteSpace:'nowrap',background:'#1E3A5F',boxSizing:'border-box',height:'inherit'}}>
+                      <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100%'}}>
+                        <span style={{width:24,display:'inline-flex',justifyContent:'center'}}>{!readOnly&&<button onClick={function(){setEditIdx(isEdit?null:i)}} title="Editar" style={{background:'none',border:'none',cursor:'pointer',padding:0,color:'#fff'}}><IconEdit/></button>}</span>
+                        <span style={{width:24,display:'inline-flex',justifyContent:'center'}}>{!readOnly&&<button onClick={function(){addItemEnCapitulo(i)}} title="Agregar item en este capitulo" style={{background:'none',border:'none',cursor:'pointer',padding:0,color:'var(--ok)',fontSize:16,fontWeight:700,lineHeight:1,verticalAlign:'middle'}}>+</button>}</span>
+                        <span style={{width:24,display:'inline-flex',justifyContent:'center'}}>{!readOnly&&<button onClick={function(){toggleCapituloManual(it.id)}} title="Desmarcar como capitulo" style={{background:'none',border:'none',cursor:'pointer',padding:0,color:'var(--ok)',fontSize:15,fontWeight:700,verticalAlign:'middle'}}>⇄</button>}</span>
+                        <span style={{width:24,display:'inline-flex',justifyContent:'center'}}>{!readOnly&&<button className="btn-del" onClick={function(){delItem(i)}} title="Eliminar" style={{background:'none',border:'none',cursor:'pointer',padding:0}}><IconDel/></button>}</span>
+                      </div>
                     </td>
                   </tr>
                 );
                 return(
                   <tr key={it.id} onBlur={function(e){if(!e.currentTarget.contains(e.relatedTarget))setEditIdx(null)}}>
                     <td style={{textAlign:'center',color:'var(--tx3)'}}>{i+1}</td>
+                    <td style={{textAlign:'center'}}>
+                      {apu?<span style={{fontSize:9,color:'var(--ok)',fontWeight:600}}>{apu.codigo}</span>:<span style={{fontSize:9,color:'var(--err)'}}>Sin asignar</span>}
+                    </td>
                     <td style={{textAlign:'center'}}>{isEdit?<input className="ni" value={it.num_item} onChange={function(e){updItem(i,'num_item',e.target.value)}} style={{width:'100%',fontSize:10,textAlign:'center'}} autoFocus/>:it.num_item}</td>
                     <td style={{whiteSpace:'normal',wordBreak:'break-word'}}>{isEdit?<input className="ni" value={it.descripcion} onChange={function(e){updItem(i,'descripcion',e.target.value)}} style={{width:'100%',fontSize:10}} placeholder="Descripcion"/>:it.descripcion}</td>
                     <td style={{textAlign:'center'}}>{isEdit?<input className="ni" value={it.unidad} onChange={function(e){updItem(i,'unidad',e.target.value)}} style={{width:'100%',fontSize:10,textAlign:'center'}}/>:it.unidad}</td>
                     <td style={{textAlign:'right'}}>{isEdit?<NumInput step=".01" inputMode="decimal" value={it.cantidad} onChange={function(v){updItem(i,'cantidad',v)}} style={{width:'100%',fontSize:10,textAlign:'right'}} decimals={2}/>:fmt(it.cantidad)}</td>
-                    <td style={{textAlign:'center'}}>
-                      {apu?<span style={{fontSize:9,color:'var(--ok)',fontWeight:600}}>{apu.codigo}</span>:<span style={{fontSize:9,color:'var(--err)'}}>Sin asignar</span>}
-                    </td>
                     <td style={{textAlign:'right'}}>{apu?fmt(c.vr_unit):'-'}</td>
                     <td style={{textAlign:'right',fontWeight:600}}>{apu?fmt(c.vr_total):'-'}</td>
-                    <td className="col-act" style={{textAlign:'center',whiteSpace:'nowrap',display:'flex',alignItems:'center',justifyContent:'center',width:100,boxSizing:'border-box'}}>
-                      <span style={{width:24,display:'inline-flex',justifyContent:'center'}}>{!readOnly&&<button onClick={function(){setEditIdx(isEdit?null:i)}} title="Editar" style={{background:'none',border:'none',cursor:'pointer',padding:0}}><IconEdit/></button>}</span>
-                      <span style={{width:24,display:'inline-flex',justifyContent:'center'}}>{!readOnly&&(apu?
-                        <button onClick={function(){unassignApu(i)}} title="Quitar APU" style={{background:'none',border:'none',color:'#f87171',cursor:'pointer',padding:0,fontSize:15,fontWeight:700,verticalAlign:'middle'}}>⊘</button>
-                        :<button onClick={function(){openApuModal(i)}} title="Asignar APU" style={{background:'none',border:'none',color:'var(--ac)',cursor:'pointer',padding:0,fontSize:11,fontWeight:700,verticalAlign:'middle'}}>APU</button>
-                      )}</span>
-                      <span style={{width:24,display:'inline-flex',justifyContent:'center'}}>{!readOnly&&<button onClick={function(){toggleCapituloManual(it.id)}} title="Marcar como capitulo" style={{background:'none',border:'none',cursor:'pointer',padding:0,color:'var(--ok)',fontSize:15,fontWeight:700,verticalAlign:'middle'}}>⇄</button>}</span>
-                      <span style={{width:24,display:'inline-flex',justifyContent:'center'}}>{!readOnly&&<button className="btn-del" onClick={function(){delItem(i)}} title="Eliminar" style={{background:'none',border:'none',cursor:'pointer',padding:0}}><IconDel/></button>}</span>
+                    <td className="col-act" style={{textAlign:'center',whiteSpace:'nowrap',boxSizing:'border-box',height:'inherit'}}>
+                      <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100%'}}>
+                        <span style={{width:24,display:'inline-flex',justifyContent:'center'}}>{!readOnly&&<button onClick={function(){setEditIdx(isEdit?null:i)}} title="Editar" style={{background:'none',border:'none',cursor:'pointer',padding:0}}><IconEdit/></button>}</span>
+                        <span style={{width:24,display:'inline-flex',justifyContent:'center'}}>{!readOnly&&(apu?
+                          <button onClick={function(){unassignApu(i)}} title="Quitar APU" style={{background:'none',border:'none',color:'#f87171',cursor:'pointer',padding:0,fontSize:15,fontWeight:700,verticalAlign:'middle'}}>⊘</button>
+                          :<button onClick={function(){openApuModal(i)}} title="Asignar APU" style={{background:'none',border:'none',color:'var(--ac)',cursor:'pointer',padding:0,fontSize:11,fontWeight:700,verticalAlign:'middle'}}>APU</button>
+                        )}</span>
+                        <span style={{width:24,display:'inline-flex',justifyContent:'center'}}>{!readOnly&&<button onClick={function(){toggleCapituloManual(it.id)}} title="Marcar como capitulo" style={{background:'none',border:'none',cursor:'pointer',padding:0,color:'var(--ok)',fontSize:15,fontWeight:700,verticalAlign:'middle'}}>⇄</button>}</span>
+                        <span style={{width:24,display:'inline-flex',justifyContent:'center'}}>{!readOnly&&<button className="btn-del" onClick={function(){delItem(i)}} title="Eliminar" style={{background:'none',border:'none',cursor:'pointer',padding:0}}><IconDel/></button>}</span>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -7487,13 +7500,11 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
             </tbody>
           </table>
         </div>
-        {totalPaginas>1&&(
-          <div style={{display:'flex',alignItems:'center',gap:8,padding:'6px 12px',borderTop:'1px solid var(--bdr)',fontSize:11,color:'var(--tx3)',width:710,boxSizing:'border-box'}}>
-            <button disabled={page===0} onClick={function(){setPage(page-1)}} style={{padding:'2px 8px',fontSize:10,opacity:page===0?0.4:1,cursor:page===0?'not-allowed':'pointer'}}>{'← Anterior'}</button>
-            <span>Página {page+1} de {totalPaginas} ({itemsFiltrados.length} ítems)</span>
-            <button disabled={page>=totalPaginas-1} onClick={function(){setPage(page+1)}} style={{padding:'2px 8px',fontSize:10,opacity:page>=totalPaginas-1?0.4:1,cursor:page>=totalPaginas-1?'not-allowed':'pointer'}}>{'Siguiente →'}</button>
-          </div>
-        )}
+        <div style={{display:'flex',alignItems:'center',gap:8,padding:'6px 12px',borderTop:'1px solid var(--bdr)',fontSize:11,color:'var(--tx3)',width:FORM_TABLE_INNERW,boxSizing:'border-box'}}>
+          <button disabled={page===0} onClick={function(){setPage(page-1)}} style={{padding:'2px 8px',fontSize:10,opacity:page===0?0.4:1,cursor:page===0?'not-allowed':'pointer'}}>{'← Anterior'}</button>
+          <span>Página {page+1} de {totalPaginas} ({itemsFiltrados.length} ítems)</span>
+          <button disabled={page>=totalPaginas-1} onClick={function(){setPage(page+1)}} style={{padding:'2px 8px',fontSize:10,opacity:page>=totalPaginas-1?0.4:1,cursor:page>=totalPaginas-1?'not-allowed':'pointer'}}>{'Siguiente →'}</button>
+        </div>
       </div>
       {apuModal.open&&(
         <div className="modal-overlay" onClick={closeApuModal}>

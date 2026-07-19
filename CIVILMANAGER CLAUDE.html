@@ -3132,6 +3132,71 @@ function calcAPU(a,cargosCalc,equipos,insumos,allCalc,herrPct,factorPrest,usarFP
 
 }
 
+function ApuDetallePreview({apu,cargosCalc,personMap,eqMap,insMap,equipos,insumos,factorPrest,usarFpEnApu,esHora,herrPct,apusBasico}){
+  if(!apu)return(
+    <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100%',color:'var(--tx3)',fontSize:11,textAlign:'center',padding:20}}>
+      ← Selecciona un APU de la lista para ver su detalle completo
+    </div>
+  );
+  var abCalcList=(apusBasico||[]).map(function(b){return calcAPU(b,cargosCalc,equipos,insumos,null,herrPct,factorPrest,usarFpEnApu,esHora,personMap,eqMap,insMap)});
+  var calc=calcAPU(apu,cargosCalc,equipos,insumos,abCalcList,herrPct,factorPrest,usarFpEnApu,esHora,personMap,eqMap,insMap);
+  function filaRO(cod,desc,col3,col4,col5,valor){
+    return(
+      <tr key={cod+desc}>
+        <td style={TD_C}>{cod}</td>
+        <td colSpan={2} style={{padding:'0 6px',fontSize:10}}>{desc}</td>
+        <td style={TD_C}>{col3}</td>
+        <td style={TD_R}>{col4}</td>
+        <td style={TD_R}>{col5}</td>
+        <td style={Object.assign({},TD_R,{fontWeight:600})}>{fmt(valor)}</td>
+      </tr>
+    );
+  }
+  return(
+    <div className="xl-scroll" style={{padding:8,height:'100%',overflowY:'auto'}}>
+      <div style={{fontSize:13,fontWeight:700,marginBottom:2}}>{apu.codigo} — {apu.nombre}</div>
+      <div style={{fontSize:10,color:'var(--tx3)',marginBottom:8}}>Unidad: {apu.unidad}</div>
+      <SecHdr cls="eq" label="A. EQUIPO" subLabel="Subtotal Equipo :" subVal={fmt(r2(calc.subEq+calc.herr))} isEditing={false}/>
+      <table style={{tableLayout:'fixed',width:'100%'}}><colgroup><col style={{width:60}}/><col style={{width:140}}/><col style={{width:140}}/><col style={{width:70}}/><col style={{width:90}}/><col style={{width:70}}/><col style={{width:100}}/></colgroup><tbody>
+        {herrPct>0&&filaRO('EQ-000','Herramientas Menores','% M.O.',herrPct+'%','—',calc.herr)}
+        {(apu.recursos_eq||[]).map(function(r){
+          var eq=eqMap.get(r.equipo_id);
+          return filaRO(eq?eq.codigo:'EQ-XX',eq?eq.nombre:'—',eq?eq.unidad:'—',fmt(eq?eq.costo_hora:0),r.rendimiento,r2((eq?eq.costo_hora:0)*safeFloat(r.rendimiento)));
+        })}
+      </tbody></table>
+      <SecHdr cls="ins" label="B. MATERIALES" subLabel="Subtotal Materiales :" subVal={fmt(calc.subIns)} isEditing={false}/>
+      <table style={{tableLayout:'fixed',width:'100%'}}><colgroup><col style={{width:60}}/><col style={{width:140}}/><col style={{width:140}}/><col style={{width:70}}/><col style={{width:90}}/><col style={{width:70}}/><col style={{width:100}}/></colgroup><tbody>
+        {(apu.recursos_ins||[]).map(function(r){
+          var ins=insMap.get(r.insumo_id);
+          var costoU=ins?(ins.origen==='Preparado en obra'?0:ins.costo_unitario):0;
+          var consumo=safeFloat(r.consumo)||1;
+          var desp=(safeFloat(r.desperdicios_pct)||5);
+          return filaRO(ins?ins.codigo:'IN-XX',ins?ins.nombre:'—',ins?ins.unidad:'—',consumo,desp+'%',r2(costoU*consumo*(1+desp/100)));
+        })}
+      </tbody></table>
+      <SecHdr cls="eq" label="C. TRANSPORTE" subLabel="Subtotal Transporte :" subVal={fmt(calc.subTrans)} isEditing={false}/>
+      <table style={{tableLayout:'fixed',width:'100%'}}><colgroup><col style={{width:60}}/><col style={{width:140}}/><col style={{width:140}}/><col style={{width:70}}/><col style={{width:90}}/><col style={{width:70}}/><col style={{width:100}}/></colgroup><tbody>
+        {(apu.recursos_transporte||[]).map(function(r){
+          var esGlobal=r.unidad==='Global';
+          return filaRO(r.codigo||'TR-XX',r.nombre||'—',r.unidad||'—',fmt(r.tarifa),esGlobal?'—':r.distancia_km,r2(esGlobal?safeFloat(r.tarifa):safeFloat(r.tarifa)*safeFloat(r.distancia_km)));
+        })}
+      </tbody></table>
+      <SecHdr cls="mo" label="D. PERSONAL" subLabel="Subtotal Personal :" subVal={fmt(calc.subPers)} isEditing={false}/>
+      <table style={{tableLayout:'fixed',width:'100%'}}><colgroup><col style={{width:60}}/><col style={{width:140}}/><col style={{width:140}}/><col style={{width:70}}/><col style={{width:90}}/><col style={{width:70}}/><col style={{width:100}}/></colgroup><tbody>
+        {(apu.recursos_mo||[]).map(function(r){
+          var cargo=personMap.get(r.cargo_id);
+          var costoUnitario=cargoJornal(cargo,usarFpEnApu,esHora);
+          return filaRO(cargo?cargo.codigo:'MO-XX',cargo?cargo.nombre:'—',cargo?(esHora?'Hr':'Dia'):'—',fmt(costoUnitario),r.rendimiento,r2(costoUnitario*safeFloat(r.cant_personas)*safeFloat(r.rendimiento)));
+        })}
+        {usarFpEnApu&&calc.vrPrest>0&&filaRO('','Factor Prestacional','% M.O.',factorPrest+'%','—',calc.vrPrest)}
+      </tbody></table>
+      <div style={{textAlign:'right',fontWeight:700,fontSize:13,padding:'10px 6px',borderTop:'2px solid var(--bdr)',marginTop:6}}>
+        TOTAL: {fmt(calc.totalDirecto)}
+      </div>
+    </div>
+  );
+}
+
 
 
 
@@ -7044,7 +7109,7 @@ function PresBannerProyecto({pres,presupuestos,setTab}){
 var FORM_TABLE_MAXW=1045; /* debe igualar la suma del colgroup de la tabla de items (fase revision) */
 var SCROLLBAR_W=16; /* ancho tipico de scrollbar vertical webkit/blink; xl-scroll usa scrollbarGutter:'stable' para reservarlo siempre, asi esta resta es valida haya o no overflow vertical */
 var FORM_TABLE_INNERW=FORM_TABLE_MAXW-2-SCROLLBAR_W; /* xl-wrap tiene border 1px+1px; tabla/footer deben usar el ancho interno real, no el externo, para no forzar scroll horizontal */
-function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModal,setApuModal,apus,categorias_apu,calcItemVal,setTab,estadoLabel}){
+function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModal,setApuModal,apus,categorias_apu,calcItemVal,setTab,estadoLabel,cargosCalc,personMap,esHora,eqMap,insMap,factorPrest,usarFpEnApu,equipos,insumos,apusBasico}){
   var faseState=useState('inicio');var fase=faseState[0],setFase=faseState[1];
   var archivoRawState=useState(null);var archivoRaw=archivoRawState[0],setArchivoRaw=archivoRawState[1];
   var nombreArchivoState=useState('');var nombreArchivo=nombreArchivoState[0],setNombreArchivo=nombreArchivoState[1];
@@ -7057,6 +7122,8 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
   var busqState=useState('');var busq=busqState[0],setBusq=busqState[1];
   var pageState=useState(0);var page=pageState[0],setPage=pageState[1];
   var editIdxState=useState(null);var editIdx=editIdxState[0],setEditIdx=editIdxState[1];
+  var apuSelState=useState(null);var apuSel=apuSelState[0],setApuSel=apuSelState[1];
+  var herrPct=data.config&&data.config.herr_pct!=null?Number(data.config.herr_pct):5;
   var fileRef=useRef(null);
   var presId=pres&&pres.id;
 
@@ -7109,8 +7176,8 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
     var arr=pres.items.slice();arr[i]=Object.assign({},arr[i]);arr[i][k]=v;
     saveItems(arr);
   };
-  var openApuModal=function(i){if(!readOnly)setApuModal({open:true,itemIdx:i,search:'',catFilter:''})};
-  var closeApuModal=function(){setApuModal({open:false,itemIdx:null,search:'',catFilter:''})};
+  var openApuModal=function(i){if(!readOnly){setApuModal({open:true,itemIdx:i,search:'',catFilter:''});setApuSel(null)}};
+  var closeApuModal=function(){setApuModal({open:false,itemIdx:null,search:'',catFilter:''});setApuSel(null)};
   var filteredApus=function(){
     if(!apuModal.open)return[];
     var sn=apuModal.search?norm(apuModal.search):'';
@@ -7145,6 +7212,10 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
     saveItems(arr,{apus_snap:snap});
     closeApuModal();
     showToast('APU asignado',{type:'ok',dur:2000});
+  };
+  var confirmarAsignacion=function(){
+    if(!apuSel)return;
+    assignApu(apuSel.id);
   };
   var unassignApu=async function(i){
     if(readOnly)return;if(!(await askConfirm('¿Desea quitar el APU asignado a este ítem? Esta acción no se puede deshacer.')))return;
@@ -7506,40 +7577,57 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
           <button disabled={page>=totalPaginas-1} onClick={function(){setPage(page+1)}} style={{padding:'2px 8px',fontSize:10,opacity:page>=totalPaginas-1?0.4:1,cursor:page>=totalPaginas-1?'not-allowed':'pointer'}}>{'Siguiente →'}</button>
         </div>
       </div>
-      {apuModal.open&&(
+      {apuModal.open&&(function(){
+        var itemActual=apuModal.itemIdx!==null?itemsArr[apuModal.itemIdx]:null;
+        return(
         <div className="modal-overlay" onClick={closeApuModal}>
-          <div className="modal-box" style={{width:760}} onClick={function(e){e.stopPropagation()}}>
-            <div className="modal-hdr"><span className="title">Asignar APU al item</span><button onClick={closeApuModal} style={{background:'none',border:'none',cursor:'pointer',padding:2,color:'var(--ok)'}}><IconX/></button></div>
-            <div className="modal-body" style={{display:'flex',flexDirection:'column',gap:8}}>
-              <div style={{display:'flex',gap:6,alignItems:'center'}}>
-                <select className="ni" value={apuModal.catFilter} onChange={function(e){setApuModal(Object.assign({},apuModal,{catFilter:e.target.value}))}} style={{width:200,height:22,fontSize:11,border:'1px solid var(--ac)',borderRadius:4}}>
-                  <option value=''>Todas las categorias</option>
-                  {(categorias_apu||[]).map(function(c){return <option key={c.codigo} value={c.categoria}>{c.categoria}</option>})}
-                </select>
-                <input className="ni" placeholder="Buscar APU..." value={apuModal.search} onChange={function(e){setApuModal(Object.assign({},apuModal,{search:e.target.value}))}} style={{flex:1,height:22,fontSize:11,border:'1px solid var(--ok)',borderRadius:4}} autoFocus/>
+          <div className="modal-box" style={{width:1180,maxWidth:'95vw',height:600,display:'flex',flexDirection:'column'}} onClick={function(e){e.stopPropagation()}}>
+            <div className="modal-hdr">
+              <span className="title">Asignar APU al item</span>
+              {itemActual&&<span style={{fontSize:10,color:'var(--tx3)',marginLeft:12}}>Item {itemActual.num_item} — {itemActual.descripcion} &middot; Unidad: {itemActual.unidad} &middot; Cant: {fmt(itemActual.cantidad)}</span>}
+              <button onClick={closeApuModal} style={{background:'none',border:'none',cursor:'pointer',padding:2,color:'var(--ok)'}}><IconX/></button>
+            </div>
+            <div className="modal-body" style={{display:'flex',gap:10,flex:1,minHeight:0}}>
+              <div style={{width:380,display:'flex',flexDirection:'column',minHeight:0,gap:8}}>
+                <div style={{display:'flex',gap:6,alignItems:'center'}}>
+                  <select className="ni" value={apuModal.catFilter} onChange={function(e){setApuModal(Object.assign({},apuModal,{catFilter:e.target.value}))}} style={{width:150,height:22,fontSize:11,border:'1px solid var(--ac)',borderRadius:4}}>
+                    <option value=''>Todas las categorias</option>
+                    {(categorias_apu||[]).map(function(c){return <option key={c.codigo} value={c.categoria}>{c.categoria}</option>})}
+                  </select>
+                  <input className="ni" placeholder="Buscar APU..." value={apuModal.search} onChange={function(e){setApuModal(Object.assign({},apuModal,{search:e.target.value}))}} style={{flex:1,height:22,fontSize:11,border:'1px solid var(--ok)',borderRadius:4}} autoFocus/>
+                </div>
+                <div className="xl-scroll" style={{flex:1,overflowY:'auto',border:'1px solid var(--bdr)',borderRadius:4}}>
+                  <table style={{tableLayout:'fixed',width:'100%',fontSize:10}}>
+                    <colgroup><col className="cw-90"/><col className="cw-190"/><col className="cw-60"/></colgroup>
+                    <thead style={{position:'sticky',top:0,background:'var(--bg3)'}}><tr><th>Codigo</th><th>Nombre</th><th>UN</th></tr></thead>
+                    <tbody>
+                      {filteredApus().length===0&&<tr><td colSpan={3} style={{textAlign:'center',padding:'20px',color:'var(--tx3)'}}>Sin resultados</td></tr>}
+                      {filteredApus().map(function(a){
+                        var activo=apuSel&&apuSel.id===a.id;
+                        return(
+                          <tr key={a.id} onClick={function(){setApuSel(a)}} style={{cursor:'pointer',background:activo?'rgba(74,222,128,.10)':'transparent'}}>
+                            <td style={{fontWeight:600,color:'var(--ac)'}}>{a.codigo||'-'}</td>
+                            <td>{a.nombre||'-'}</td>
+                            <td style={{textAlign:'center'}}>{a.unidad||'-'}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-              <div className="xl-scroll" style={{maxHeight:380,overflowY:'auto',border:'1px solid var(--bdr)',borderRadius:4}}>
-                <table style={{tableLayout:'fixed',width:'100%',fontSize:10}}>
-                  <colgroup><col className="cw-90"/><col className="cw-260"/><col className="cw-190"/><col className="cw-60"/><col className="cw-80"/></colgroup>
-                  <thead style={{position:'sticky',top:0,background:'var(--bg3)'}}><tr><th>Codigo</th><th>Nombre</th><th>Categoria</th><th>UN</th><th>Accion</th></tr></thead>
-                  <tbody>
-                    {filteredApus().length===0&&<tr><td colSpan={5} style={{textAlign:'center',padding:'20px',color:'var(--tx3)'}}>Sin resultados</td></tr>}
-                    {filteredApus().map(function(a){return(
-                      <tr key={a.id}>
-                        <td style={{fontWeight:600,color:'var(--ac)'}}>{a.codigo||'-'}</td>
-                        <td>{a.nombre||'-'}</td>
-                        <td style={{color:'var(--tx2)'}}>{a.categoria||'-'}</td>
-                        <td style={{textAlign:'center'}}>{a.unidad||'-'}</td>
-                        <td style={{textAlign:'center'}}><button onClick={function(){assignApu(a.id)}} style={{fontSize:10,padding:'2px 8px',border:'1px solid var(--ok)',borderRadius:3,background:'rgba(74,222,128,.08)',color:'var(--ok)',cursor:'pointer',fontWeight:600}}>Seleccionar</button></td>
-                      </tr>
-                    )})}
-                  </tbody>
-                </table>
+              <div style={{flex:1,border:'1px solid var(--bdr)',borderRadius:4,minHeight:0}}>
+                <ApuDetallePreview apu={apuSel} cargosCalc={cargosCalc} personMap={personMap} eqMap={eqMap} insMap={insMap} equipos={equipos} insumos={insumos} factorPrest={factorPrest} usarFpEnApu={usarFpEnApu} esHora={esHora} herrPct={herrPct} apusBasico={apusBasico}/>
               </div>
+            </div>
+            <div className="modal-foot">
+              <button className="btn" onClick={closeApuModal} style={{fontSize:11,padding:'6px 14px',border:'1px solid var(--bdr)',borderRadius:4,background:'none',color:'var(--tx2)',cursor:'pointer'}}>Cancelar</button>
+              <button className="btn" disabled={!apuSel} onClick={confirmarAsignacion} style={{fontSize:11,padding:'6px 14px',border:'1px solid var(--ok)',borderRadius:4,color:apuSel?'var(--ok)':'var(--tx3)',background:apuSel?'rgba(74,222,128,.08)':'transparent',cursor:apuSel?'pointer':'not-allowed'}}>✓ Asignar este APU</button>
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
@@ -7759,7 +7847,7 @@ function PresupuestosTab({data,onChange,cargosCalc,esHora,eqMap,insMap,factorPre
     {tab:12,label:'3. RESUMEN FINANCIERO'},
     {tab:13,label:'4. ENTREGABLES'}
   ];
-  var presContent=tab===10?<PresFormularioPanel pres={pres} presupuestos={presupuestos} selPresIdx={selPresIdx} data={data} onChange={onChange} apuModal={apuModal} setApuModal={setApuModal} apus={apus} categorias_apu={categorias_apu} calcItemVal={calcItemVal} setTab={setTab} estadoLabel={estadoLabel}/>
+  var presContent=tab===10?<PresFormularioPanel pres={pres} presupuestos={presupuestos} selPresIdx={selPresIdx} data={data} onChange={onChange} apuModal={apuModal} setApuModal={setApuModal} apus={apus} categorias_apu={categorias_apu} calcItemVal={calcItemVal} setTab={setTab} estadoLabel={estadoLabel} cargosCalc={cargosCalc} personMap={personMap} esHora={esHora} eqMap={eqMap} insMap={insMap} factorPrest={factorPrest} usarFpEnApu={usarFpEnApu} equipos={equipos} insumos={insumos} apusBasico={apusBasico}/>
     :tab===12?<PresResumenPanel pres={pres} presupuestos={presupuestos} selPresIdx={selPresIdx} data={data} onChange={onChange} calcResumenPres={calcResumenPres} setTab={setTab}/>
     :tab===13?<PresEntregablesPanel pres={pres} presupuestos={presupuestos} calcResumenPres={calcResumenPres} calcItemVal={calcItemVal} calcResumenFor={calcResumenFor} calcItemValFor={calcItemValFor} setTab={setTab}/>
     :<PresProyectosPanel presupuestos={presupuestos} selPresIdx={selPresIdx} setSelPresIdx={setSelPresIdx} data={data} onChange={onChange} estadoColor={estadoColor} estadoLabel={estadoLabel} addPresupuesto={addPresupuesto} addSubProyecto={addSubProyecto} toggleEstado={toggleEstado} delPresupuesto={delPresupuesto} setTab={setTab}/>;

@@ -6841,7 +6841,7 @@ function PresResumenPanel({pres,presupuestos,selPresIdx,data,onChange,calcResume
 }
 
 /* ══════════════════ 4. EXPORTAR / ENTREGABLES (sub-componente de PresupuestosTab) ══════════════════ */
-function PresEntregablesPanel({pres,presupuestos,calcResumenPres,calcItemVal,calcResumenFor,calcItemValFor,setTab}){
+function PresEntregablesPanel({pres,presupuestos,calcResumenPres,calcItemVal,calcResumenFor,calcItemValFor,buildSnapCtx,setTab}){
   var pendientesState=useState(null);var pendientes=pendientesState[0],setPendientes=pendientesState[1];
   if(!pres)return <PresBannerProyecto pres={pres} presupuestos={presupuestos} setTab={setTab}/>;
   var r=calcResumenPres();
@@ -6864,8 +6864,9 @@ function PresEntregablesPanel({pres,presupuestos,calcResumenPres,calcItemVal,cal
     var hdrRowIdx=rows.length;
     rows.push(['#','Item','Capitulo','Descripcion','UN','Cantidad','APU','Vr.Unitario','Vr.Total']);
     var rFirstItem=rows.length;
+    var snapCtxP=buildSnapCtx(p);
     itemsArrP.forEach(function(it,i){
-      var cv=calcItemValFor(it,p);
+      var cv=calcItemValFor(it,p,snapCtxP);
       var rIdx=rows.length;
       rows.push([i+1,it.num_item,it.capitulo,it.descripcion,it.unidad,safeFloat(it.cantidad),cv.apu?cv.apu.codigo:'-',cv.vr_unit,'']);
       rows[rIdx][8]='=ROUND('+ceCons(rIdx,7)+'*'+ceCons(rIdx,5)+',2)';
@@ -7806,6 +7807,20 @@ function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,i
   var herrPct=config.herr_pct!=null?Number(config.herr_pct):5;
 
   var personMap=useMemo(function(){var m=new Map((cargosCalc||[]).map(function(c){return[c.id,c]}));(cuadrillasCalc||[]).forEach(function(c){m.set(c.id,c)});return m},[cargosCalc,cuadrillasCalc]);
+
+  /* Snapshot congelado del presupuesto: usa insumos_snap/equipos_snap/cargos_snap/factores_snap
+     cuando existen, con fallback al catalogo global para presupuestos legados sin snap poblado. */
+  var factorPrestSnap=useMemo(function(){
+    return (pres&&pres.factores_snap&&pres.factores_snap.length)?r2((pres.factores_snap||[]).reduce(function(s,f){return s+safeFloat(f.factor)},0)):factorPrest;
+  },[pres&&pres.factores_snap,factorPrest]);
+  var cargosCalcSnap=useMemo(function(){
+    return (pres&&pres.cargos_snap&&pres.cargos_snap.length)?calcCargosDesde(pres.cargos_snap,config,data.config_listas,factorPrestSnap):cargosCalc;
+  },[pres&&pres.cargos_snap,config,data.config_listas,factorPrestSnap,cargosCalc]);
+  var insumosSnapEfectivo=(pres&&pres.insumos_snap&&pres.insumos_snap.length)?pres.insumos_snap:insumos;
+  var equiposSnapEfectivo=(pres&&pres.equipos_snap&&pres.equipos_snap.length)?pres.equipos_snap:equipos;
+  var insMapSnap=useMemo(function(){return new Map(insumosSnapEfectivo.map(function(i){return[i.id,i]}))},[insumosSnapEfectivo]);
+  var eqMapSnap=useMemo(function(){return new Map(equiposSnapEfectivo.map(function(e){return[e.id,e]}))},[equiposSnapEfectivo]);
+  var personMapSnap=useMemo(function(){return new Map(cargosCalcSnap.map(function(c){return[c.id,c]}))},[cargosCalcSnap]);
   var abCalcList=useMemo(function(){
     var list=[];
     (apusBasico||[]).forEach(function(a){
@@ -7930,12 +7945,12 @@ function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,i
       for(var i=0;i<snap.length;i++){if(snap[i].id===item.apu_id){apu=snap[i];break}}
       if(!apu){for(var j=0;j<apus.length;j++){if(apus[j].id===item.apu_id){apu=apus[j];break}}}
       if(!apu){map.set(item.id,{vr_unit:0,vr_total:0,apu:null,calc:null});return}
-      var c=calcAPU(apu,cargosCalc,equipos,insumos,abCalcList,herrPct,factorPrest,usarFpEnApu,esHora,personMap,eqMap,insMap);
+      var c=calcAPU(apu,cargosCalcSnap,equiposSnapEfectivo,insumosSnapEfectivo,abCalcList,herrPct,factorPrestSnap,usarFpEnApu,esHora,personMapSnap,eqMapSnap,insMapSnap);
       var vrUnit=r2(c.totalDirecto*(1+aiuPct/100));
       map.set(item.id,{vr_unit:vrUnit,vr_total:r2(vrUnit*safeFloat(item.cantidad)),apu:apu,calc:c});
     });
     return map;
-  },[pres&&pres.items,pres&&pres.aiu_override,pres&&pres.apus_snap,apus,cargosCalc,equipos,insumos,abCalcList,herrPct,factorPrest,usarFpEnApu,esHora,personMap,eqMap,insMap,config.pct_administracion,config.pct_imprevistos,config.pct_utilidad]);
+  },[pres&&pres.items,pres&&pres.aiu_override,pres&&pres.apus_snap,apus,cargosCalcSnap,equiposSnapEfectivo,insumosSnapEfectivo,abCalcList,herrPct,factorPrestSnap,usarFpEnApu,esHora,personMapSnap,eqMapSnap,insMapSnap,config.pct_administracion,config.pct_imprevistos,config.pct_utilidad]);
 
   function calcItemVal(item){
     return itemValMap.get(item.id)||{vr_unit:0,vr_total:0,apu:null,calc:null};
@@ -7969,7 +7984,20 @@ function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,i
   function calcResumenPres(){return resumenPres}
 
   /* ── Calculo de item/resumen para un presupuesto arbitrario (usado en export consolidado de sub-proyectos) ── */
-  function calcItemValFor(item,p){
+  function buildSnapCtx(p){
+    var factorPrestSnapP=(p&&p.factores_snap&&p.factores_snap.length)?r2((p.factores_snap||[]).reduce(function(s,f){return s+safeFloat(f.factor)},0)):factorPrest;
+    var cargosCalcSnapP=(p&&p.cargos_snap&&p.cargos_snap.length)?calcCargosDesde(p.cargos_snap,config,data.config_listas,factorPrestSnapP):cargosCalc;
+    var insumosSnapP=(p&&p.insumos_snap&&p.insumos_snap.length)?p.insumos_snap:insumos;
+    var equiposSnapP=(p&&p.equipos_snap&&p.equipos_snap.length)?p.equipos_snap:equipos;
+    return{
+      factorPrestSnap:factorPrestSnapP,cargosCalcSnap:cargosCalcSnapP,insumosSnap:insumosSnapP,equiposSnap:equiposSnapP,
+      insMapSnap:new Map(insumosSnapP.map(function(i){return[i.id,i]})),
+      eqMapSnap:new Map(equiposSnapP.map(function(e){return[e.id,e]})),
+      personMapSnap:new Map(cargosCalcSnapP.map(function(c){return[c.id,c]}))
+    };
+  }
+
+  function calcItemValFor(item,p,snapCtx){
     if(!item.apu_id)return{vr_unit:0,vr_total:0,apu:null,calc:null};
     var snap=(p&&p.apus_snap)||[];
     var apu=null;
@@ -7979,15 +8007,17 @@ function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,i
     var aiuPct=(p&&p.aiu_override&&p.aiu_override.activo)?
       (safeFloat(p.aiu_override.pct_a)||0)+(safeFloat(p.aiu_override.pct_i)||0)+(safeFloat(p.aiu_override.pct_u)||0):
       (safeFloat(config.pct_administracion)||0)+(safeFloat(config.pct_imprevistos)||0)+(safeFloat(config.pct_utilidad)||0);
-    var c=calcAPU(apu,cargosCalc,equipos,insumos,abCalcList,herrPct,factorPrest,usarFpEnApu,esHora,personMap,eqMap,insMap);
+    var ctx=snapCtx||buildSnapCtx(p);
+    var c=calcAPU(apu,ctx.cargosCalcSnap,ctx.equiposSnap,ctx.insumosSnap,abCalcList,herrPct,ctx.factorPrestSnap,usarFpEnApu,esHora,ctx.personMapSnap,ctx.eqMapSnap,ctx.insMapSnap);
     var vrUnit=r2(c.totalDirecto*(1+aiuPct/100));
     return{vr_unit:vrUnit,vr_total:r2(vrUnit*safeFloat(item.cantidad)),apu:apu,calc:c};
   }
 
   function calcResumenFor(p){
     var itemsArrP=(p&&p.items)||[];
+    var snapCtxP=buildSnapCtx(p);
     var cdTotal=0;
-    for(var i=0;i<itemsArrP.length;i++){cdTotal+=calcItemValFor(itemsArrP[i],p).vr_total}
+    for(var i=0;i<itemsArrP.length;i++){cdTotal+=calcItemValFor(itemsArrP[i],p,snapCtxP).vr_total}
     var useOv=p&&p.aiu_override&&p.aiu_override.activo;
     var pctA=useOv?(safeFloat(p.aiu_override.pct_a)||0):(safeFloat(config.pct_administracion)||0);
     var pctI=useOv?(safeFloat(p.aiu_override.pct_i)||0):(safeFloat(config.pct_imprevistos)||0);
@@ -8009,7 +8039,7 @@ function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,i
   ];
   var presContent=tab===10?<PresFormularioPanel pres={pres} presupuestos={presupuestos} selPresIdx={selPresIdx} data={data} onChange={onChange} apuModal={apuModal} setApuModal={setApuModal} apus={apus} categorias_apu={categorias_apu} calcItemVal={calcItemVal} setTab={setTab} estadoLabel={estadoLabel} cargosCalc={cargosCalc} personMap={personMap} esHora={esHora} eqMap={eqMap} insMap={insMap} factorPrest={factorPrest} usarFpEnApu={usarFpEnApu} equipos={equipos} insumos={insumos} apusBasico={apusBasico}/>
     :tab===12?<PresResumenPanel pres={pres} presupuestos={presupuestos} selPresIdx={selPresIdx} data={data} onChange={onChange} calcResumenPres={calcResumenPres} setTab={setTab}/>
-    :tab===13?<PresEntregablesPanel pres={pres} presupuestos={presupuestos} calcResumenPres={calcResumenPres} calcItemVal={calcItemVal} calcResumenFor={calcResumenFor} calcItemValFor={calcItemValFor} setTab={setTab}/>
+    :tab===13?<PresEntregablesPanel pres={pres} presupuestos={presupuestos} calcResumenPres={calcResumenPres} calcItemVal={calcItemVal} calcResumenFor={calcResumenFor} calcItemValFor={calcItemValFor} buildSnapCtx={buildSnapCtx} setTab={setTab}/>
     :<PresProyectosPanel presupuestos={presupuestos} selPresIdx={selPresIdx} setSelPresIdx={setSelPresIdx} data={data} onChange={onChange} estadoColor={estadoColor} estadoLabel={estadoLabel} addPresupuesto={addPresupuesto} addSubProyecto={addSubProyecto} toggleEstado={toggleEstado} delPresupuesto={delPresupuesto} setTab={setTab}/>;
 
   return(
@@ -8027,6 +8057,24 @@ function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,i
       </div>
     </div>
   );
+}
+
+function calcCargosDesde(cargosArr,config,configListas,factorPrestValue){
+  var sb=config.salario_base||1750905;
+  var dias=config.dias_mes||30;
+  var horas=config.horas_mes||182;
+  var esHora=getPaisData(config.pais,(configListas||{}).perfiles_pais).unidad==='hora';
+  return (cargosArr||[]).map(function(c){
+    var nsb=safeFloat(c.num_salarios_base)||0;
+    var valorBasico=r2(nsb*sb);
+    var vrPrest=r2(valorBasico*(factorPrestValue/100));
+    var total=r2(valorBasico+vrPrest);
+    var costoBaseDia=r2(valorBasico/dias);
+    var costoBaseHora=esHora?valorBasico:r2(valorBasico/horas);
+    var costoTotalDia=esHora?total:r2(total/dias);
+    var costoTotalHora=esHora?total:r2(total/horas);
+    return Object.assign({},c,{costo_total_dia:costoTotalDia,costo_base_dia:costoBaseDia,costo_base_hora:costoBaseHora,costo_total_hora:costoTotalHora,valorBasico:valorBasico});
+  });
 }
 
 function App(){
@@ -8075,37 +8123,8 @@ var factorPrest=useMemo(function(){return r2(factoresPrestaciones.reduce(functio
 
   var apusBasico=useMemo(function(){return (apus||[]).filter(function(a){return a.es_basico===true})},[apus]);
     var cargosCalc=useMemo(function(){
-    var sb=config.salario_base||1750905;
-
-    var dias=config.dias_mes||30;
-
-    var horas=config.horas_mes||182;
-
-    var esHora=getPaisData(config.pais,(data.config_listas||{}).perfiles_pais).unidad==='hora';
-
-    return cargos.map(function(c){
-
-      var nsb=safeFloat(c.num_salarios_base)||0;
-
-      var valorBasico=r2(nsb*sb);
-
-      var vrPrest=r2(valorBasico*(factorPrest/100));
-
-      var total=r2(valorBasico+vrPrest);
-
-      var costoBaseDia=r2(valorBasico/dias);
-
-      var costoBaseHora=esHora?valorBasico:r2(valorBasico/horas);
-
-      var costoTotalDia=esHora?total:r2(total/dias);
-
-      var costoTotalHora=esHora?total:r2(total/horas);
-
-      return Object.assign({},c,{costo_total_dia:costoTotalDia,costo_base_dia:costoBaseDia,costo_base_hora:costoBaseHora,costo_total_hora:costoTotalHora,valorBasico:valorBasico});
-
-    });
-
-  },[cargos,factorPrest,config.salario_base,config.dias_mes,config.horas_mes,config.pais]);
+    return calcCargosDesde(cargos,config,data.config_listas,factorPrest);
+  },[cargos,factorPrest,config.salario_base,config.dias_mes,config.horas_mes,config.pais,data.config_listas]);
 
 
 

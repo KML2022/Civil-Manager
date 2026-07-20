@@ -7207,14 +7207,13 @@ function TituloSubTab({pres,presupuestos,tituloSubTab,extra}){
   var padre=(pres.parent_id&&presupuestos)?presupuestos.find(function(p){return p.id===pres.parent_id}):null;
   return(
     <div className="sec-hdr" style={{border:'1px solid var(--bdr)',borderRadius:4,padding:'6px 10px'}}>
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',flex:1,minWidth:0}}>
         <span className="title" style={{fontSize:15,display:'flex',alignItems:'center',gap:6}}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--ok)" strokeWidth="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
           {pres.codigo} — {pres.nombre||'(sin nombre)'} &middot; {tituloSubTab}
         </span>
         <div style={{display:'flex',alignItems:'center',gap:10}}>
           {extra}
-          <span style={{fontSize:10,color:'var(--ok)'}}>&#10003; Trabajando sobre este proyecto</span>
         </div>
       </div>
       {padre&&<div style={{fontSize:10,color:'var(--tx3)',marginTop:2}}>Subproyecto de: {padre.codigo} {padre.nombre||''}</div>}
@@ -7495,6 +7494,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
   };
 
   var reimportar=async function(){
+    if(readOnly)return;
     if(!(await askConfirm('Subir un nuevo formulario reemplazará los items actuales de este presupuesto. ¿Desea continuar?')))return;
     setFase('inicio');
   };
@@ -7650,16 +7650,10 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
   return(
     <div style={{maxWidth:FORM_TABLE_MAXW,display:'flex',flexDirection:'column',gap:8,height:'calc(100vh - 150px)',minHeight:0,minWidth:0}}>
       <div style={{flexShrink:0,display:'flex',flexDirection:'column',gap:8}}>
-        <TituloSubTab pres={pres} presupuestos={presupuestos} tituloSubTab="Formulario de Cantidades y Precios" extra={<span style={{fontSize:10,color:'var(--tx3)'}}>{itemsArr.length} items &middot; CD: {fmt(cdTotal)}</span>}/>
-        {fo&&
-          <div style={{display:'flex',alignItems:'center',gap:10,padding:'6px 12px',background:fo.archivo_adjunto?'rgba(74,222,128,.07)':'rgba(230,168,0,.08)',border:'1px solid '+(fo.archivo_adjunto?'rgba(74,222,128,.25)':'rgba(230,168,0,.3)'),borderRadius:6}}>
-            <span style={{fontSize:11,fontWeight:700,color:fo.archivo_adjunto?'var(--ok)':'var(--warn)'}}>{fo.archivo_adjunto?'✓ Formulario cargado':'⚠ Ítems importados sin archivo adjunto'}</span>
-            <span style={{fontSize:10,color:'var(--tx2)'}}>{fo.nombre_archivo} — {fmtDate(fo.fecha_importacion)} — {fo.total_filas} filas · {itemsReales.length} ítems · {nCapitulos} capítulos</span>
-          </div>
-        }
+        <TituloSubTab pres={pres} presupuestos={presupuestos} tituloSubTab="Formulario de Cantidades y Precios" extra={<span style={{fontSize:14,fontWeight:700,color:'var(--tx)',textAlign:'right'}}>CD: {fmt(cdTotal)}</span>}/>
         <div style={{display:'flex',gap:6,alignItems:'center'}}>
           {!readOnly&&<button className="btn" onClick={addCapitulo} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--ok)',borderRadius:4,background:'rgba(74,222,128,.06)',color:'var(--ok)',cursor:'pointer'}}>+ Capitulo</button>}
-          <button className="btn" onClick={reimportar} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--bdr)',borderRadius:4,background:'none',color:'var(--tx2)',cursor:'pointer'}}>{'↩ '+(fo?'Reimportar':'Subir Excel')}</button>
+          {!readOnly&&<button className="btn" onClick={reimportar} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--bdr)',borderRadius:4,background:'none',color:'var(--tx2)',cursor:'pointer'}}>{'↩ '+(fo?'Reimportar':'Subir Excel')}</button>}
           <input className="ni" placeholder="Buscar item..." value={busq} onChange={function(e){setBusq(e.target.value);setPage(0)}} style={{width:160,height:22,fontSize:10,border:'1px solid var(--ac)',borderRadius:4,marginLeft:8}}/>
           {readOnly&&<span style={{fontSize:10,color:'var(--warn)',marginLeft:8,padding:'2px 8px',border:'1px solid var(--warn)',borderRadius:3}}>Solo lectura (presupuesto {estadoLabel(pres.estado).toLowerCase()})</span>}
         </div>
@@ -7731,6 +7725,12 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
           <button disabled={page>=totalPaginas-1} onClick={function(){setPage(page+1)}} style={{padding:'2px 8px',fontSize:10,opacity:page>=totalPaginas-1?0.4:1,cursor:page>=totalPaginas-1?'not-allowed':'pointer'}}>{'Siguiente →'}</button>
         </div>
       </div>
+      {fo&&
+        <div style={{flexShrink:0,display:'flex',alignItems:'center',gap:10,padding:'6px 12px',background:fo.archivo_adjunto?'rgba(74,222,128,.07)':'rgba(230,168,0,.08)',border:'1px solid '+(fo.archivo_adjunto?'rgba(74,222,128,.25)':'rgba(230,168,0,.3)'),borderRadius:6}}>
+          <span style={{fontSize:11,fontWeight:700,color:fo.archivo_adjunto?'var(--ok)':'var(--warn)'}}>{fo.archivo_adjunto?'✓ Formulario cargado':'⚠ Ítems importados sin archivo adjunto'}</span>
+          <span style={{fontSize:10,color:'var(--tx2)'}}>{fo.nombre_archivo} — {fmtDate(fo.fecha_importacion)} — {fo.total_filas} filas · {itemsReales.length} ítems · {nCapitulos} capítulos</span>
+        </div>
+      }
       {apuModal.open&&(function(){
         var itemActual=apuModal.itemIdx!==null?itemsArr[apuModal.itemIdx]:null;
         return(
@@ -7867,10 +7867,15 @@ function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,i
     if(idx===null||idx===undefined||!presupuestos[idx])return;
     var pres0=presupuestos[idx];
     var hijos=presupuestos.filter(function(p){return p.parent_id===pres0.id});
+    var esCerrado=pres0.estado==='cerrado';
+    var advertenciaCerrado=esCerrado?' Este presupuesto está CERRADO — probablemente ya fue aprobado o entregado.':'';
     var msg=hijos.length>0
-      ?'¿Desea eliminar el presupuesto "'+(pres0.nombre||pres0.codigo)+'"? Tiene '+hijos.length+' sub-proyecto(s) que también se eliminarán en cascada. Esta acción no se puede deshacer.'
-      :'¿Desea eliminar el presupuesto "'+(pres0.nombre||pres0.codigo)+'"? Esta acción no se puede deshacer.';
+      ?'¿Desea eliminar el presupuesto "'+(pres0.nombre||pres0.codigo)+'"?'+advertenciaCerrado+' Tiene '+hijos.length+' sub-proyecto(s) que también se eliminarán en cascada. Esta acción no se puede deshacer.'
+      :'¿Desea eliminar el presupuesto "'+(pres0.nombre||pres0.codigo)+'"?'+advertenciaCerrado+' Esta acción no se puede deshacer.';
     if(!(await askConfirm(msg)))return;
+    if(esCerrado){
+      if(!(await askConfirm('Confirmación final: vas a eliminar permanentemente un presupuesto CERRADO. Esta acción no se puede deshacer. ¿Continuar?')))return;
+    }
     var idsEliminar={};idsEliminar[pres0.id]=true;hijos.forEach(function(h){idsEliminar[h.id]=true});
     var arr=presupuestos.filter(function(p){return !idsEliminar[p.id]});
     onChange(Object.assign({},data,{presupuestos:arr}));

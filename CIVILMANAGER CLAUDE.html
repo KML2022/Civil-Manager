@@ -7257,7 +7257,7 @@ function PresBannerProyecto({pres,presupuestos,setTab}){
   );
 }
 
-var FORM_TABLE_MAXW=1045; /* debe igualar la suma del colgroup de la tabla de items (fase revision) */
+var FORM_TABLE_MAXW=1055; /* debe igualar la suma del colgroup de la tabla de items (fase revision) */
 var SCROLLBAR_W=16; /* ancho tipico de scrollbar vertical webkit/blink; xl-scroll usa scrollbarGutter:'stable' para reservarlo siempre, asi esta resta es valida haya o no overflow vertical */
 var FORM_TABLE_INNERW=FORM_TABLE_MAXW-2-SCROLLBAR_W; /* xl-wrap tiene border 1px+1px; tabla/footer deben usar el ancho interno real, no el externo, para no forzar scroll horizontal */
 function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModal,setApuModal,apus,categorias_apu,calcItemVal,setTab,estadoLabel,cargosCalc,personMap,esHora,eqMap,insMap,factorPrest,usarFpEnApu,equipos,insumos,apusBasico}){
@@ -7668,7 +7668,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
         <div className="xl-scroll" style={{overflowX:'auto',flex:'1 1 0',minHeight:0,minWidth:0,maxHeight:'none',scrollbarGutter:'stable'}}>
           <table className="tbl-hanken-test" style={{tableLayout:'fixed',width:FORM_TABLE_INNERW,fontSize:10}}>
             <colgroup>
-              <col style={{width:40}}/><col style={{width:55}}/><col style={{width:100}}/><col style={{width:382}}/><col style={{width:70}}/><col style={{width:80}}/><col style={{width:90}}/><col style={{width:100}}/><col style={{width:110}}/>
+              <col style={{width:40}}/><col style={{width:65}}/><col style={{width:100}}/><col style={{width:382}}/><col style={{width:70}}/><col style={{width:80}}/><col style={{width:90}}/><col style={{width:100}}/><col style={{width:110}}/>
             </colgroup>
             <thead><tr><th>#</th><th style={{textAlign:'center'}}>APU</th><th style={{textAlign:'center'}}>Item</th><th>Descripcion</th><th style={{textAlign:'center'}}>UN</th><th>Cant.</th><th>Vr. Unit</th><th>Vr. Total</th><th className="col-act">Acciones</th></tr></thead>
             <tbody>
@@ -7735,7 +7735,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
         var itemActual=apuModal.itemIdx!==null?itemsArr[apuModal.itemIdx]:null;
         return(
         <div className="modal-overlay" onClick={closeApuModal}>
-          <div className="modal-box" style={{width:1530,maxWidth:'97vw',height:'85vh',display:'flex',flexDirection:'column'}} onClick={function(e){e.stopPropagation()}}>
+          <div className="modal-box" style={{width:1530,maxWidth:'97vw',maxHeight:'85vh',display:'flex',flexDirection:'column'}} onClick={function(e){e.stopPropagation()}}>
             <div className="modal-hdr">
               <span className="title">Asignar APU al item</span>
               {itemActual&&<span style={{fontSize:12,fontWeight:700,color:'var(--tx)',marginLeft:12}}>Item {itemActual.num_item} — {itemActual.descripcion} <span style={{fontSize:11,fontWeight:600,color:'var(--tx2)'}}>&middot; Unidad: {itemActual.unidad} &middot; Cant: {fmt(itemActual.cantidad)}</span></span>}

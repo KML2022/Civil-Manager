@@ -3422,16 +3422,16 @@ function useApuBlockImport(repositorio,contextoCalc){
     procesarArchivo:procesarArchivo,editarRecurso:editarRecurso,setDecision:setDecision,hayBloqueos:hayBloqueos,confirmar:confirmar};
 }
 
-function ImportApuModal({repositorio,contextoCalc,onAplicar,onClose}){
+function ImportApuModal({repositorio,contextoCalc,onAplicar,onClose,origenProyecto,modoDestino,setModoDestino}){
   var st=useApuBlockImport(repositorio,contextoCalc);
   var recursosOrdenados=st.recursosUnicos.slice().sort(function(a,b){return SEVERIDAD_ORDEN[a.severidad]-SEVERIDAD_ORDEN[b.severidad]});
   var numAuto=st.recursosUnicos.filter(function(ru){return ru.severidad==='baja'}).length;
   var numPendientes=st.recursosUnicos.length-numAuto;
+  var faltaElegirDestino=!!origenProyecto&&!modoDestino;
 
   var handleConfirmar=function(){
     var resultado=st.confirmar();
     onAplicar(resultado);
-    showToast(resultado.nuevosApus.length+' APU importados correctamente',{type:'ok'});
     onClose();
   };
 
@@ -3447,6 +3447,21 @@ function ImportApuModal({repositorio,contextoCalc,onAplicar,onClose}){
           {st.fase===1&&(
             <div style={{display:'flex',flexDirection:'column',gap:16}}>
               <div style={{fontSize:12,color:'var(--tx2)'}}>Importa varios APU de una sola vez desde un archivo Excel con la estructura de la plantilla oficial (botón "Descargar plantilla APU"). Los recursos (insumos, mano de obra, equipos, transporte) se comparan contra el catálogo general para detectar coincidencias.</div>
+              {origenProyecto&&(
+                <div>
+                  <label style={{fontSize:11,color:'var(--tx3)',display:'block',marginBottom:6}}>¿A dónde se guardan los APU e insumos/equipos/cargos que se importen?</label>
+                  <div style={{display:'flex',gap:6}}>
+                    <button onClick={function(){setModoDestino('solo_proyecto')}} style={{fontSize:11,padding:'8px 14px',border:'1px solid '+(modoDestino==='solo_proyecto'?'var(--ok)':'var(--bdr)'),borderRadius:4,background:modoDestino==='solo_proyecto'?'rgba(74,222,128,.1)':'transparent',color:modoDestino==='solo_proyecto'?'var(--ok)':'var(--tx2)',cursor:'pointer',textAlign:'left',flex:1}}>
+                      🔒 Solo para este proyecto<br/>
+                      <span style={{fontSize:10,color:'var(--tx3)'}}>Queda aislado en {origenProyecto.codigo}, no afecta el catálogo general.</span>
+                    </button>
+                    <button onClick={function(){setModoDestino('ambos')}} style={{fontSize:11,padding:'8px 14px',border:'1px solid '+(modoDestino==='ambos'?'var(--ok)':'var(--bdr)'),borderRadius:4,background:modoDestino==='ambos'?'rgba(74,222,128,.1)':'transparent',color:modoDestino==='ambos'?'var(--ok)':'var(--tx2)',cursor:'pointer',textAlign:'left',flex:1}}>
+                      🌐 También a la base general<br/>
+                      <span style={{fontSize:10,color:'var(--tx3)'}}>Se agrega al catálogo global y queda disponible para futuros proyectos.</span>
+                    </button>
+                  </div>
+                </div>
+              )}
               <div>
                 <label style={{fontSize:11,color:'var(--tx3)',display:'block',marginBottom:6}}>¿Qué variación de precio aceptás para autoasignar automáticamente un recurso cuyo nombre y unidad coinciden exactamente con el catálogo?</label>
                 <div style={{display:'flex',gap:6}}>
@@ -3456,10 +3471,11 @@ function ImportApuModal({repositorio,contextoCalc,onAplicar,onClose}){
                 </div>
               </div>
               <div>
-                <label className="btn" style={{fontSize:11,padding:'8px 16px',border:'1px solid var(--ok)',borderRadius:4,background:'rgba(74,222,128,.08)',color:'var(--ok)',cursor:'pointer',display:'inline-flex',alignItems:'center',gap:6}}>
+                <label className="btn" style={{fontSize:11,padding:'8px 16px',border:'1px solid var(--ok)',borderRadius:4,background:faltaElegirDestino?'var(--bg3)':'rgba(74,222,128,.08)',color:faltaElegirDestino?'var(--tx3)':'var(--ok)',cursor:faltaElegirDestino?'not-allowed':'pointer',display:'inline-flex',alignItems:'center',gap:6,opacity:faltaElegirDestino?0.6:1}}>
                   <IconExport/> {st.procesando?'Procesando...':'Subir archivo Excel'}
-                  <input type="file" accept=".xlsx,.xls" style={{display:'none'}} disabled={st.procesando} onChange={function(e){var f=e.target.files&&e.target.files[0];if(f)st.procesarArchivo(f)}}/>
+                  <input type="file" accept=".xlsx,.xls" style={{display:'none'}} disabled={st.procesando||faltaElegirDestino} onChange={function(e){var f=e.target.files&&e.target.files[0];if(f)st.procesarArchivo(f)}}/>
                 </label>
+                {faltaElegirDestino&&<div style={{fontSize:10,color:'var(--warn)',marginTop:4}}>Elegí un destino antes de subir el archivo.</div>}
               </div>
             </div>
           )}
@@ -3527,7 +3543,11 @@ function ImportApuModal({repositorio,contextoCalc,onAplicar,onClose}){
                 <div>{st.bloques.length} APU a crear</div>
                 <div>{st.recursosUnicos.length} recursos únicos ({numAuto} autoasignados, {numPendientes} con decisión manual)</div>
               </div>
-              <div style={{fontSize:11,padding:'8px 10px',border:'1px solid var(--bdr)',borderRadius:4,color:'var(--tx2)'}}>🌐 Estos datos se guardarán en el catálogo general (disponible para todos los proyectos).</div>
+              <div style={{fontSize:11,padding:'8px 10px',border:'1px solid var(--bdr)',borderRadius:4,color:'var(--tx2)'}}>
+                {!origenProyecto&&'🌐 Estos datos se guardarán en el catálogo general (disponible para todos los proyectos).'}
+                {origenProyecto&&modoDestino==='ambos'&&'🌐 Estos APU se guardarán en el catálogo general Y en este proyecto.'}
+                {origenProyecto&&modoDestino==='solo_proyecto'&&'🔒 Estos APU quedarán aislados en este proyecto — no se modificará el catálogo general.'}
+              </div>
               <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
                 <button className="btn" onClick={function(){st.setFase(3)}} style={{fontSize:11,padding:'6px 14px',border:'1px solid var(--bdr)',borderRadius:4,background:'none',color:'var(--tx2)',cursor:'pointer'}}>{'← Volver a Revisión'}</button>
                 <button className="btn" onClick={handleConfirmar} style={{fontSize:11,padding:'6px 14px',border:'1px solid var(--ok)',borderRadius:4,background:'rgba(74,222,128,.08)',color:'var(--ok)',cursor:'pointer'}}>Confirmar e importar</button>
@@ -7260,7 +7280,7 @@ function PresBannerProyecto({pres,presupuestos,setTab}){
 var FORM_TABLE_MAXW=1055; /* debe igualar la suma del colgroup de la tabla de items (fase revision) */
 var SCROLLBAR_W=16; /* ancho tipico de scrollbar vertical webkit/blink; xl-scroll usa scrollbarGutter:'stable' para reservarlo siempre, asi esta resta es valida haya o no overflow vertical */
 var FORM_TABLE_INNERW=FORM_TABLE_MAXW-2-SCROLLBAR_W; /* xl-wrap tiene border 1px+1px; tabla/footer deben usar el ancho interno real, no el externo, para no forzar scroll horizontal */
-function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModal,setApuModal,apus,categorias_apu,calcItemVal,setTab,estadoLabel,cargosCalc,personMap,esHora,eqMap,insMap,factorPrest,usarFpEnApu,equipos,insumos,apusBasico}){
+function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModal,setApuModal,apus,categorias_apu,calcItemVal,setTab,estadoLabel,cargosCalc,personMap,esHora,eqMap,insMap,factorPrest,factorPrestSnap,usarFpEnApu,equipos,insumos,apusBasico}){
   var faseState=useState('inicio');var fase=faseState[0],setFase=faseState[1];
   var archivoRawState=useState(null);var archivoRaw=archivoRawState[0],setArchivoRaw=archivoRawState[1];
   var nombreArchivoState=useState('');var nombreArchivo=nombreArchivoState[0],setNombreArchivo=nombreArchivoState[1];
@@ -7274,6 +7294,8 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
   var pageState=useState(0);var page=pageState[0],setPage=pageState[1];
   var editIdxState=useState(null);var editIdx=editIdxState[0],setEditIdx=editIdxState[1];
   var apuSelState=useState(null);var apuSel=apuSelState[0],setApuSel=apuSelState[1];
+  var showImportApuPresState=useState(false);var showImportApuPres=showImportApuPresState[0],setShowImportApuPres=showImportApuPresState[1];
+  var modoDestinoState=useState(null);var modoDestino=modoDestinoState[0],setModoDestino=modoDestinoState[1];
   var herrPct=data.config&&data.config.herr_pct!=null?Number(data.config.herr_pct):5;
   var fileRef=useRef(null);
   var presId=pres&&pres.id;
@@ -7655,6 +7677,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
         <div style={{display:'flex',gap:6,alignItems:'center'}}>
           {!readOnly&&<button className="btn" onClick={addCapitulo} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--ok)',borderRadius:4,background:'rgba(74,222,128,.06)',color:'var(--ok)',cursor:'pointer'}}>+ Capitulo</button>}
           {!readOnly&&<button className="btn" onClick={reimportar} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--bdr)',borderRadius:4,background:'none',color:'var(--tx2)',cursor:'pointer'}}>{'↩ '+(fo?'Reimportar':'Subir Excel')}</button>}
+          {!readOnly&&<button className="btn" onClick={function(){setShowImportApuPres(true)}} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--ac)',borderRadius:4,background:'rgba(77,143,247,.08)',color:'var(--ac)',cursor:'pointer'}}>📥 Importar APU (Excel)</button>}
           <input className="ni" placeholder="Buscar item..." value={busq} onChange={function(e){setBusq(e.target.value);setPage(0)}} style={{width:160,height:22,fontSize:10,border:'1px solid var(--ac)',borderRadius:4,marginLeft:8}}/>
           {readOnly&&<span style={{fontSize:10,color:'var(--warn)',marginLeft:8,padding:'2px 8px',border:'1px solid var(--warn)',borderRadius:3}}>Solo lectura (presupuesto {estadoLabel(pres.estado).toLowerCase()})</span>}
         </div>
@@ -7732,6 +7755,52 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
           <span style={{fontSize:10,color:'var(--tx2)'}}>{fo.nombre_archivo} — {fmtDate(fo.fecha_importacion)} — {fo.total_filas} filas · {itemsReales.length} ítems · {nCapitulos} capítulos</span>
         </div>
       }
+      {showImportApuPres&&(function(){
+        var config=data.config||{};
+        var lenInsumosOrig=(pres.insumos_snap||[]).length;
+        var lenEquiposOrig=(pres.equipos_snap||[]).length;
+        var lenCargosOrig=(pres.cargos_snap||[]).length;
+        return(
+          <ImportApuModal
+            origenProyecto={pres}
+            modoDestino={modoDestino}
+            setModoDestino={setModoDestino}
+            repositorio={crearRepositorio({modo:'snapshot_proyecto',data:data,presupuesto:pres,
+              setData:onChange,setPresupuesto:function(nuevoPres){
+                var n=presupuestos.slice();n[idxPres]=nuevoPres;onChange(Object.assign({},data,{presupuestos:n}));
+              }})}
+            contextoCalc={{config:config,factorPrest:factorPrestSnap,usarFpEnApu:usarFpEnApu,esHora:esHora}}
+            onAplicar={function(resultado){
+              var n=presupuestos.slice();
+              n[idxPres]=Object.assign({},pres,{
+                apus_snap:(pres.apus_snap||[]).concat(resultado.nuevosApus),
+                insumos_snap:resultado.insumos,equipos_snap:resultado.equipos,cargos_snap:resultado.colaboradores
+              });
+              if(modoDestino==='ambos'){
+                var insumosNuevos=resultado.insumos.slice(lenInsumosOrig);
+                var equiposNuevos=resultado.equipos.slice(lenEquiposOrig);
+                var cargosNuevos=resultado.colaboradores.slice(lenCargosOrig);
+                var idOrigenAGlobal=new Map();
+                var apusClonadosGlobal=resultado.nuevosApus.map(function(a){
+                  var nuevoId=uid();idOrigenAGlobal.set(a.id,nuevoId);
+                  return Object.assign({},a,{id:nuevoId,apu_origen_id:null});
+                });
+                onChange(Object.assign({},data,{
+                  apus:(data.apus||[]).concat(apusClonadosGlobal),
+                  insumos:(data.insumos||[]).concat(insumosNuevos),
+                  equipos:(data.equipos||[]).concat(equiposNuevos),
+                  cargos:(data.cargos||[]).concat(cargosNuevos),
+                  presupuestos:n
+                }));
+              }else{
+                onChange(Object.assign({},data,{presupuestos:n}));
+              }
+              showToast(resultado.nuevosApus.length+' APU importados'+(modoDestino==='ambos'?' (proyecto + catálogo general)':' (solo este proyecto)'),{type:'ok'});
+              setShowImportApuPres(false);setModoDestino(null);
+            }}
+            onClose={function(){setShowImportApuPres(false);setModoDestino(null)}}/>
+        );
+      })()}
       {apuModal.open&&(function(){
         var itemActual=apuModal.itemIdx!==null?itemsArr[apuModal.itemIdx]:null;
         return(
@@ -8037,7 +8106,7 @@ function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,i
     {tab:12,label:'3. RESUMEN FINANCIERO'},
     {tab:13,label:'4. ENTREGABLES'}
   ];
-  var presContent=tab===10?<PresFormularioPanel pres={pres} presupuestos={presupuestos} selPresIdx={selPresIdx} data={data} onChange={onChange} apuModal={apuModal} setApuModal={setApuModal} apus={apus} categorias_apu={categorias_apu} calcItemVal={calcItemVal} setTab={setTab} estadoLabel={estadoLabel} cargosCalc={cargosCalc} personMap={personMap} esHora={esHora} eqMap={eqMap} insMap={insMap} factorPrest={factorPrest} usarFpEnApu={usarFpEnApu} equipos={equipos} insumos={insumos} apusBasico={apusBasico}/>
+  var presContent=tab===10?<PresFormularioPanel pres={pres} presupuestos={presupuestos} selPresIdx={selPresIdx} data={data} onChange={onChange} apuModal={apuModal} setApuModal={setApuModal} apus={apus} categorias_apu={categorias_apu} calcItemVal={calcItemVal} setTab={setTab} estadoLabel={estadoLabel} cargosCalc={cargosCalc} personMap={personMap} esHora={esHora} eqMap={eqMap} insMap={insMap} factorPrest={factorPrest} factorPrestSnap={factorPrestSnap} usarFpEnApu={usarFpEnApu} equipos={equipos} insumos={insumos} apusBasico={apusBasico}/>
     :tab===12?<PresResumenPanel pres={pres} presupuestos={presupuestos} selPresIdx={selPresIdx} data={data} onChange={onChange} calcResumenPres={calcResumenPres} setTab={setTab}/>
     :tab===13?<PresEntregablesPanel pres={pres} presupuestos={presupuestos} calcResumenPres={calcResumenPres} calcItemVal={calcItemVal} calcResumenFor={calcResumenFor} calcItemValFor={calcItemValFor} buildSnapCtx={buildSnapCtx} setTab={setTab}/>
     :<PresProyectosPanel presupuestos={presupuestos} selPresIdx={selPresIdx} setSelPresIdx={setSelPresIdx} data={data} onChange={onChange} estadoColor={estadoColor} estadoLabel={estadoLabel} addPresupuesto={addPresupuesto} addSubProyecto={addSubProyecto} toggleEstado={toggleEstado} delPresupuesto={delPresupuesto} setTab={setTab}/>;

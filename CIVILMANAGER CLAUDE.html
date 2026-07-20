@@ -766,7 +766,7 @@ function usePersist(init){
 
   var hadData=useRef(false);
 
-  useEffect(function(){idbLoad().then(function(d){if(d){var cl=d.config_listas;if(cl&&cl.tipos_equipo&&cl.tipos_equipo.length>0&&typeof cl.tipos_equipo[0]==='string'){var mapTE={};TIPO_EQUIPO.forEach(function(t){mapTE[t.nombre]=t});var maxTE=0;TIPO_EQUIPO.forEach(function(t){var m=(t.codigo||'').match(/TE-(\d+)/);if(m)maxTE=Math.max(maxTE,parseInt(m[1]))});d=Object.assign({},d,{config_listas:Object.assign({},cl,{tipos_equipo:cl.tipos_equipo.map(function(s){if(mapTE[s])return mapTE[s];maxTE++;return{codigo:'TE-'+String(maxTE).padStart(2,'0'),nombre:s,desc:''}})})})}if(cl&&cl.origenes&&cl.origenes.length>0&&typeof cl.origenes[0]==='string'){var mapO={};ORIGENES.forEach(function(o){mapO[o.nombre.toLowerCase()]=o});var mapOl=cl.origenes_labels||{};var maxOR=0;ORIGENES.forEach(function(o){var m=(o.codigo||'').match(/OR-(\d+)/);if(m)maxOR=Math.max(maxOR,parseInt(m[1]))});var newOrigs=cl.origenes.map(function(s){var sl=s.toLowerCase();if(mapO[sl])return mapO[sl];var label=mapOl[s]||s;maxOR++;return{codigo:'OR-'+String(maxOR).padStart(2,'0'),nombre:label,desc:''}});var origNameMap={};cl.origenes.forEach(function(s,i){origNameMap[s]=newOrigs[i].nombre});d=Object.assign({},d,{config_listas:Object.assign({},cl,{origenes:newOrigs}),insumos:(d.insumos||[]).map(function(ins){if(origNameMap[ins.origen])return Object.assign({},ins,{origen:origNameMap[ins.origen]});return ins})});delete d.config_listas.origenes_labels}if(cl&&cl.unidades_transporte&&cl.unidades_transporte.length>0&&typeof cl.unidades_transporte[0]==='string'){var mapUT={};TRANSP_UNIDADES.forEach(function(u){mapUT[u.nombre.toLowerCase()]=u});var maxUT=0;TRANSP_UNIDADES.forEach(function(u){var m=(u.codigo||'').match(/UT-(\d+)/);if(m)maxUT=Math.max(maxUT,parseInt(m[1]))});var migrated=cl.unidades_transporte.map(function(s){var sl=s.toLowerCase();if(mapUT[sl])return mapUT[sl];maxUT++;return{codigo:'UT-'+String(maxUT).padStart(2,'0'),nombre:s,desc:''}}).filter(function(u){return u.nombre!=='Definir'});TRANSP_UNIDADES.forEach(function(u){if(!migrated.some(function(m){return m.nombre===u.nombre})){migrated.push({codigo:u.codigo,nombre:u.nombre,desc:u.desc})}});var knownNombres=TRANSP_UNIDADES.map(function(u){return u.nombre});var knownItems=migrated.filter(function(m){return knownNombres.indexOf(m.nombre)>=0});var customItems=migrated.filter(function(m){return knownNombres.indexOf(m.nombre)<0});migrated=knownItems.concat(customItems);d=Object.assign({},d,{config_listas:Object.assign({},cl,{unidades_transporte:migrated})})}else if(cl&&cl.unidades_transporte&&cl.unidades_transporte.length>0&&typeof cl.unidades_transporte[0]==='object'){var utArr=cl.unidades_transporte;var utHasDefinir=utArr.some(function(u){return u.nombre==='Definir'});var utMissingTonKm=!utArr.some(function(u){return u.nombre==='Ton-Km'});if(utHasDefinir||utMissingTonKm){var fixed=utArr.filter(function(u){return u.nombre!=='Definir'});TRANSP_UNIDADES.forEach(function(u){if(!fixed.some(function(m){return m.nombre===u.nombre})){fixed.push({codigo:u.codigo,nombre:u.nombre,desc:u.desc})}});var knownNombres2=TRANSP_UNIDADES.map(function(u){return u.nombre});var knownItems2=fixed.filter(function(m){return knownNombres2.indexOf(m.nombre)>=0});var customItems2=fixed.filter(function(m){return knownNombres2.indexOf(m.nombre)<0});fixed=knownItems2.concat(customItems2);d=Object.assign({},d,{config_listas:Object.assign({},cl,{unidades_transporte:fixed})})}}const hasAny=(d.apus&&d.apus.length>0)||(d.equipos&&d.equipos.length>0)||(d.insumos&&d.insumos.length>0);if(hasAny)hadData.current=true;const h=location.hash||'';const m=h.match(/clear=(\w+)/);if(m&&d[m[1]]!==undefined){d[m[1]]=[];idbSave(d);history.replaceState(null,'',location.pathname+location.search)}if(d.proveedores){d={...d,proveedores:d.proveedores.map(p=>{let t=p.tipo;if(typeof t==='string')t=t.split(',').map(s=>s.trim()).filter(s=>s);return{...p,tipo:(t||[]).map(s=>s.charAt(0).toUpperCase()+s.slice(1).toLowerCase())}})}}if(!d.categorias_apu){d={...d,categorias_apu:CATEGORIAS_APU.map(c=>({...c}))}}if(d.categorias_apu&&!d.categorias_apu.some(c=>c.codigo==='CAT-23')){d={...d,categorias_apu:[...d.categorias_apu,{codigo:'CAT-23',categoria:'Preparado en Obra',desc:'APU elaborados para actividades de preparación y optimización en sitio, como mezclas, vaciados preliminares, movilización de materiales, y otros procesos previos a la instalación definitiva.'}]}}if(d.cargos&&d.cargos.some(c=>!c.codigo)){var maxN=0;d.cargos.forEach(c=>{var m=(c.codigo||'').match(/MO-(\d+)/);if(m)maxN=Math.max(maxN,parseInt(m[1]))});d={...d,cargos:d.cargos.map(c=>{if(c.codigo)return c;maxN++;return{...c,codigo:'MO-'+String(maxN).padStart(3,'0')}})}}if(d.apus&&d.apus.some(a=>/^AP-\d/.test(a.codigo||''))){d={...d,apus:d.apus.map(a=>/^AP-\d/.test(a.codigo||'')?{...a,codigo:a.codigo.replace(/^AP-/,'APU-')}:a)}}(d.apus||[]).forEach(a=>{if(!a.recursos_transporte)a.recursos_transporte=[];if(!a.fecha_creacion)a.fecha_creacion='';(a.recursos_mo||[]).forEach(r=>{delete r.vr_jornal_dia});(a.recursos_transporte||[]).forEach(r=>{if(r.distancia_km==null)r.distancia_km=0;if(r.tarifa==null)r.tarifa=0;if(!r.unidad)r.unidad='Definir'})});if(!d.config_listas){d={...d,config_listas:{unidades:UNIDADES.slice(),categorias_insumo:CATEGORIAS_INSUMO.slice(),categorias_apu:(d.categorias_apu||CATEGORIAS_APU).map(function(c){return{codigo:c.codigo,categoria:c.categoria,desc:c.desc||''}}),tipos_equipo:TIPO_EQUIPO.slice(),origenes:ORIGENES.slice(),unidades_transporte:TRANSP_UNIDADES.slice()}}}if(d.config_listas&&d.config_listas.unidades&&d.config_listas.unidades.length>0&&typeof d.config_listas.unidades[0]==='string'){var uMap={};UNIDADES.forEach(function(u){uMap[u.abreviatura]=u});d={...d,config_listas:{...d.config_listas,unidades:d.config_listas.unidades.map(function(s){return uMap[s]||{abreviatura:s,descripcion:s,tipo:'General'}})}}}if(d.config_listas&&!d.config_listas.tipos_unidad){d={...d,config_listas:{...d.config_listas,tipos_unidad:[]}}}if(d.config_listas&&!d.config_listas.perfiles_pais){var ppArr=[];Object.keys(PAISES).forEach(function(k){var p=PAISES[k];ppArr.push({codigo:k,nombre:p.nombre,moneda:p.moneda,smmlv:p.smmlv,tope_ibc_mult:p.tope_ibc_mult||0,auxilio_transporte:p.auxilio_transporte||0,dias_mes:p.dias_mes||30,horas_mes:p.horas_mes||240,unidad:p.unidad||'mes'})});d=Object.assign({},d,{config_listas:Object.assign({},d.config_listas,{perfiles_pais:ppArr})})}if(d.config_listas&&d.config_listas.categorias_insumo&&d.config_listas.categorias_insumo.length>0&&typeof d.config_listas.categorias_insumo[0]==='string'){var cMap={};CATEGORIAS_INSUMO.forEach(function(c){cMap[c.nombre]=c});d={...d,config_listas:{...d.config_listas,categorias_insumo:d.config_listas.categorias_insumo.map(function(s){return cMap[s]||{codigo:'CI-'+String(d.config_listas.categorias_insumo.indexOf(s)+1).padStart(2,'0'),nombre:s,desc:''}})}}}if(!d._prestResetV2){d={...d,factoresPrestaciones:PREST_DEFAULTS.map(function(p){return Object.assign({},p)})},d._prestResetV2=true}if(d.config&&d.config.comentarios_apu&&d.config.comentarios_apu.costo_personal_fp&&d.config.comentarios_apu.costo_personal_fp.includes('Define si en los APU')){d={...d,config:{...d.config,comentarios_apu:{...d.config.comentarios_apu,costo_personal_fp:'Si elije NO, el F.P. se incrusta en el costo unitario del personal. Si elije SI, el F.P. se calcula al final'}}}}delete d.tab;delete d.selCuadrillaIdx;delete d.prevTab;setS(d)}else{showToast('Sin datos guardados. Creando datos iniciales.',{type:'ok',dur:2500})}loaded.current=true}).catch(()=>{showToast('Error al cargar datos. Usando datos por defecto.',{type:'err',dur:4000});loaded.current=true})},[]);
+  useEffect(function(){idbLoad().then(function(d){if(d){var cl=d.config_listas;if(cl&&cl.tipos_equipo&&cl.tipos_equipo.length>0&&typeof cl.tipos_equipo[0]==='string'){var mapTE={};TIPO_EQUIPO.forEach(function(t){mapTE[t.nombre]=t});var maxTE=0;TIPO_EQUIPO.forEach(function(t){var m=(t.codigo||'').match(/TE-(\d+)/);if(m)maxTE=Math.max(maxTE,parseInt(m[1]))});d=Object.assign({},d,{config_listas:Object.assign({},cl,{tipos_equipo:cl.tipos_equipo.map(function(s){if(mapTE[s])return mapTE[s];maxTE++;return{codigo:'TE-'+String(maxTE).padStart(2,'0'),nombre:s,desc:''}})})})}if(cl&&cl.origenes&&cl.origenes.length>0&&typeof cl.origenes[0]==='string'){var mapO={};ORIGENES.forEach(function(o){mapO[o.nombre.toLowerCase()]=o});var mapOl=cl.origenes_labels||{};var maxOR=0;ORIGENES.forEach(function(o){var m=(o.codigo||'').match(/OR-(\d+)/);if(m)maxOR=Math.max(maxOR,parseInt(m[1]))});var newOrigs=cl.origenes.map(function(s){var sl=s.toLowerCase();if(mapO[sl])return mapO[sl];var label=mapOl[s]||s;maxOR++;return{codigo:'OR-'+String(maxOR).padStart(2,'0'),nombre:label,desc:''}});var origNameMap={};cl.origenes.forEach(function(s,i){origNameMap[s]=newOrigs[i].nombre});d=Object.assign({},d,{config_listas:Object.assign({},cl,{origenes:newOrigs}),insumos:(d.insumos||[]).map(function(ins){if(origNameMap[ins.origen])return Object.assign({},ins,{origen:origNameMap[ins.origen]});return ins})});delete d.config_listas.origenes_labels}if(cl&&cl.unidades_transporte&&cl.unidades_transporte.length>0&&typeof cl.unidades_transporte[0]==='string'){var mapUT={};TRANSP_UNIDADES.forEach(function(u){mapUT[u.nombre.toLowerCase()]=u});var maxUT=0;TRANSP_UNIDADES.forEach(function(u){var m=(u.codigo||'').match(/UT-(\d+)/);if(m)maxUT=Math.max(maxUT,parseInt(m[1]))});var migrated=cl.unidades_transporte.map(function(s){var sl=s.toLowerCase();if(mapUT[sl])return mapUT[sl];maxUT++;return{codigo:'UT-'+String(maxUT).padStart(2,'0'),nombre:s,desc:''}}).filter(function(u){return u.nombre!=='Definir'});TRANSP_UNIDADES.forEach(function(u){if(!migrated.some(function(m){return m.nombre===u.nombre})){migrated.push({codigo:u.codigo,nombre:u.nombre,desc:u.desc})}});var knownNombres=TRANSP_UNIDADES.map(function(u){return u.nombre});var knownItems=migrated.filter(function(m){return knownNombres.indexOf(m.nombre)>=0});var customItems=migrated.filter(function(m){return knownNombres.indexOf(m.nombre)<0});migrated=knownItems.concat(customItems);d=Object.assign({},d,{config_listas:Object.assign({},cl,{unidades_transporte:migrated})})}else if(cl&&cl.unidades_transporte&&cl.unidades_transporte.length>0&&typeof cl.unidades_transporte[0]==='object'){var utArr=cl.unidades_transporte;var utHasDefinir=utArr.some(function(u){return u.nombre==='Definir'});var utMissingTonKm=!utArr.some(function(u){return u.nombre==='Ton-Km'});if(utHasDefinir||utMissingTonKm){var fixed=utArr.filter(function(u){return u.nombre!=='Definir'});TRANSP_UNIDADES.forEach(function(u){if(!fixed.some(function(m){return m.nombre===u.nombre})){fixed.push({codigo:u.codigo,nombre:u.nombre,desc:u.desc})}});var knownNombres2=TRANSP_UNIDADES.map(function(u){return u.nombre});var knownItems2=fixed.filter(function(m){return knownNombres2.indexOf(m.nombre)>=0});var customItems2=fixed.filter(function(m){return knownNombres2.indexOf(m.nombre)<0});fixed=knownItems2.concat(customItems2);d=Object.assign({},d,{config_listas:Object.assign({},cl,{unidades_transporte:fixed})})}}const hasAny=(d.apus&&d.apus.length>0)||(d.equipos&&d.equipos.length>0)||(d.insumos&&d.insumos.length>0);if(hasAny)hadData.current=true;const h=location.hash||'';const m=h.match(/clear=(\w+)/);if(m&&d[m[1]]!==undefined){d[m[1]]=[];idbSave(d);history.replaceState(null,'',location.pathname+location.search)}if(d.proveedores){d={...d,proveedores:d.proveedores.map(p=>{let t=p.tipo;if(typeof t==='string')t=t.split(',').map(s=>s.trim()).filter(s=>s);return{...p,tipo:(t||[]).map(s=>s.charAt(0).toUpperCase()+s.slice(1).toLowerCase())}})}}if(!d.categorias_apu){d={...d,categorias_apu:CATEGORIAS_APU.map(c=>({...c}))}}if(d.categorias_apu&&!d.categorias_apu.some(c=>c.codigo==='CAT-23')){d={...d,categorias_apu:[...d.categorias_apu,{codigo:'CAT-23',categoria:'Preparado en Obra',desc:'APU elaborados para actividades de preparación y optimización en sitio, como mezclas, vaciados preliminares, movilización de materiales, y otros procesos previos a la instalación definitiva.'}]}}if(d.cargos&&d.cargos.some(c=>!c.codigo)){var maxN=0;d.cargos.forEach(c=>{var m=(c.codigo||'').match(/MO-(\d+)/);if(m)maxN=Math.max(maxN,parseInt(m[1]))});d={...d,cargos:d.cargos.map(c=>{if(c.codigo)return c;maxN++;return{...c,codigo:'MO-'+String(maxN).padStart(3,'0')}})}}if(d.apus&&d.apus.some(a=>/^AP-\d/.test(a.codigo||''))){d={...d,apus:d.apus.map(a=>/^AP-\d/.test(a.codigo||'')?{...a,codigo:a.codigo.replace(/^AP-/,'APU-')}:a)}}(d.apus||[]).forEach(a=>{if(!a.recursos_transporte)a.recursos_transporte=[];if(!a.fecha_creacion)a.fecha_creacion='';(a.recursos_mo||[]).forEach(r=>{delete r.vr_jornal_dia});(a.recursos_transporte||[]).forEach(r=>{if(r.distancia_km==null)r.distancia_km=0;if(r.tarifa==null)r.tarifa=0;if(!r.unidad)r.unidad='Definir'})});if(!d.config_listas){d={...d,config_listas:{unidades:UNIDADES.slice(),categorias_insumo:CATEGORIAS_INSUMO.slice(),categorias_apu:(d.categorias_apu||CATEGORIAS_APU).map(function(c){return{codigo:c.codigo,categoria:c.categoria,desc:c.desc||''}}),tipos_equipo:TIPO_EQUIPO.slice(),origenes:ORIGENES.slice(),unidades_transporte:TRANSP_UNIDADES.slice()}}}if(d.config_listas&&d.config_listas.unidades&&d.config_listas.unidades.length>0&&typeof d.config_listas.unidades[0]==='string'){var uMap={};UNIDADES.forEach(function(u){uMap[u.abreviatura]=u});d={...d,config_listas:{...d.config_listas,unidades:d.config_listas.unidades.map(function(s){return uMap[s]||{abreviatura:s,descripcion:s,tipo:'General'}})}}}if(d.config_listas&&!d.config_listas.tipos_unidad){d={...d,config_listas:{...d.config_listas,tipos_unidad:[]}}}if(d.config_listas&&!d.config_listas.perfiles_pais){var ppArr=[];Object.keys(PAISES).forEach(function(k){var p=PAISES[k];ppArr.push({codigo:k,nombre:p.nombre,moneda:p.moneda,smmlv:p.smmlv,tope_ibc_mult:p.tope_ibc_mult||0,auxilio_transporte:p.auxilio_transporte||0,dias_mes:p.dias_mes||30,horas_mes:p.horas_mes||240,unidad:p.unidad||'mes'})});d=Object.assign({},d,{config_listas:Object.assign({},d.config_listas,{perfiles_pais:ppArr})})}if(d.config_listas&&d.config_listas.categorias_insumo&&d.config_listas.categorias_insumo.length>0&&typeof d.config_listas.categorias_insumo[0]==='string'){var cMap={};CATEGORIAS_INSUMO.forEach(function(c){cMap[c.nombre]=c});d={...d,config_listas:{...d.config_listas,categorias_insumo:d.config_listas.categorias_insumo.map(function(s){return cMap[s]||{codigo:'CI-'+String(d.config_listas.categorias_insumo.indexOf(s)+1).padStart(2,'0'),nombre:s,desc:''}})}}}if(!d._prestResetV2){d={...d,factoresPrestaciones:PREST_DEFAULTS.map(function(p){return Object.assign({},p)})},d._prestResetV2=true}if(d.config&&d.config.comentarios_apu&&d.config.comentarios_apu.costo_personal_fp&&d.config.comentarios_apu.costo_personal_fp.includes('Define si en los APU')){d={...d,config:{...d.config,comentarios_apu:{...d.config.comentarios_apu,costo_personal_fp:'Si elije NO, el F.P. se incrusta en el costo unitario del personal. Si elije SI, el F.P. se calcula al final'}}}}d=migrateApusBasico(d);d=asegurarIdsUnicosApus(d);delete d.tab;delete d.selCuadrillaIdx;delete d.prevTab;setS(d)}else{showToast('Sin datos guardados. Creando datos iniciales.',{type:'ok',dur:2500})}loaded.current=true}).catch(()=>{showToast('Error al cargar datos. Usando datos por defecto.',{type:'err',dur:4000});loaded.current=true})},[]);
 
   useEffect(function(){if(!loaded.current)return;var t=setTimeout(function(){var nowEmpty=!(s.apus&&s.apus.length)&&!(s.equipos&&s.equipos.length)&&!(s.insumos&&s.insumos.length)&&!(s.cuadrillas&&s.cuadrillas.length);if(nowEmpty&&hadData.current){console.warn('IDB SAFEGUARD: Bloqueado guardado de estado vacío');return;}idbSave(s).catch(function(){})},300);return function(){clearTimeout(t)}},[s]);
 
@@ -782,10 +782,30 @@ function migrateApusBasico(data){
 
   if(ab.length===0)return data;
 
-  var merged=ab.map(function(a){return Object.assign({},a,{es_basico:true,codigo:a.codigo&&a.codigo.indexOf('APU-BAS')===0?a.codigo:'APU-BAS-'+(a.codigo||'').replace(/^APU-/,'')})});
+  var merged=ab.map(function(a){return Object.assign({},a,{id:a.id!=null?a.id:uid(),es_basico:true,codigo:a.codigo&&a.codigo.indexOf('APU-BAS')===0?a.codigo:'APU-BAS-'+(a.codigo||'').replace(/^APU-/,'')})});
 
   return Object.assign({},data,{apus:(data.apus||[]).concat(merged),apus_basico:undefined});
 
+}
+
+/* Salvaguarda: corrige cualquier id faltante o duplicado en data.apus, sin importar su origen */
+function asegurarIdsUnicosApus(data){
+  var apus=data.apus||[];
+  var vistos=new Set();
+  var corregidos=0;
+  var fixed=apus.map(function(a){
+    if(a.id==null||vistos.has(a.id)){
+      corregidos++;
+      return Object.assign({},a,{id:uid()});
+    }
+    vistos.add(a.id);
+    return a;
+  });
+  if(corregidos>0){
+    console.warn('[CIVILMANAGER] Se corrigieron '+corregidos+' APU con id faltante o duplicado.');
+    return Object.assign({},data,{apus:fixed});
+  }
+  return data;
 }
 
 
@@ -7344,9 +7364,12 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
     closeApuModal();
     showToast('APU asignado',{type:'ok',dur:2000});
   };
+  function apuKey(a){return a&&(a.id!=null?'id:'+a.id:'cod:'+(a.codigo||''))}
   var confirmarAsignacion=function(){
     if(!apuSel)return;
-    assignApu(apuSel.id);
+    var found=filteredApus().find(function(a){return apuKey(a)===apuSel});
+    if(!found)return;
+    assignApu(found.id);
   };
   var unassignApu=async function(i){
     if(readOnly)return;if(!(await askConfirm('¿Desea quitar el APU asignado a este ítem? Esta acción no se puede deshacer.')))return;
@@ -7712,14 +7735,14 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
         var itemActual=apuModal.itemIdx!==null?itemsArr[apuModal.itemIdx]:null;
         return(
         <div className="modal-overlay" onClick={closeApuModal}>
-          <div className="modal-box" style={{width:1300,maxWidth:'96vw',height:'85vh',display:'flex',flexDirection:'column'}} onClick={function(e){e.stopPropagation()}}>
+          <div className="modal-box" style={{width:1530,maxWidth:'97vw',height:'85vh',display:'flex',flexDirection:'column'}} onClick={function(e){e.stopPropagation()}}>
             <div className="modal-hdr">
               <span className="title">Asignar APU al item</span>
-              {itemActual&&<span style={{fontSize:10,color:'var(--tx3)',marginLeft:12}}>Item {itemActual.num_item} — {itemActual.descripcion} &middot; Unidad: {itemActual.unidad} &middot; Cant: {fmt(itemActual.cantidad)}</span>}
+              {itemActual&&<span style={{fontSize:12,fontWeight:700,color:'var(--tx)',marginLeft:12}}>Item {itemActual.num_item} — {itemActual.descripcion} <span style={{fontSize:11,fontWeight:600,color:'var(--tx2)'}}>&middot; Unidad: {itemActual.unidad} &middot; Cant: {fmt(itemActual.cantidad)}</span></span>}
               <button onClick={closeApuModal} style={{background:'none',border:'none',cursor:'pointer',padding:2,color:'var(--ok)'}}><IconX/></button>
             </div>
             <div className="modal-body" style={{display:'flex',gap:10,flex:1,minHeight:0}}>
-              <div style={{width:360,flexShrink:0,display:'flex',flexDirection:'column',minHeight:0,gap:8}}>
+              <div style={{width:590,flexShrink:0,display:'flex',flexDirection:'column',minHeight:0,gap:8}}>
                 <div style={{display:'flex',gap:6,alignItems:'center'}}>
                   <select className="ni" value={apuModal.catFilter} onChange={function(e){setApuModal(Object.assign({},apuModal,{catFilter:e.target.value}))}} style={{width:150,height:22,fontSize:11,border:'1px solid var(--ac)',borderRadius:4}}>
                     <option value=''>Todas las categorias</option>
@@ -7729,17 +7752,18 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
                 </div>
                 <div className="xl-scroll" style={{flex:1,overflowY:'auto',border:'1px solid var(--bdr)',borderRadius:4}}>
                   <table style={{tableLayout:'fixed',width:'100%',fontSize:10}}>
-                    <colgroup><col className="cw-90"/><col className="cw-190"/><col className="cw-60"/></colgroup>
-                    <thead style={{position:'sticky',top:0,background:'var(--bg3)'}}><tr><th>Codigo</th><th>Nombre</th><th>UN</th></tr></thead>
+                    <colgroup><col style={{width:90}}/><col style={{width:420}}/><col style={{width:60}}/></colgroup>
+                    <thead style={{position:'sticky',top:0,background:'var(--bg3)'}}><tr><th style={{padding:'4px 8px'}}>Codigo</th><th style={{padding:'4px 8px',textAlign:'left'}}>Nombre</th><th style={{padding:'4px 8px'}}>UN</th></tr></thead>
                     <tbody>
                       {filteredApus().length===0&&<tr><td colSpan={3} style={{textAlign:'center',padding:'20px',color:'var(--tx3)'}}>Sin resultados</td></tr>}
-                      {filteredApus().map(function(a){
-                        var activo=apuSel&&apuSel.id===a.id;
+                      {filteredApus().map(function(a,ai){
+                        var activo=apuSel===apuKey(a);
+                        var bgActivo=activo?'rgba(77,143,247,.32)':'transparent';
                         return(
-                          <tr key={a.id} onClick={function(){setApuSel(a)}} style={{cursor:'pointer',background:activo?'rgba(74,222,128,.10)':'transparent'}}>
-                            <td style={{fontWeight:600,color:'var(--ac)'}}>{a.codigo||'-'}</td>
-                            <td>{a.nombre||'-'}</td>
-                            <td style={{textAlign:'center'}}>{a.unidad||'-'}</td>
+                          <tr key={(a.id||a.codigo||'')+'_'+ai} onClick={function(){setApuSel(apuKey(a))}} style={{cursor:'pointer'}}>
+                            <td style={{padding:'4px 8px',fontWeight:600,color:'var(--ac)',background:bgActivo}}>{a.codigo||'-'}</td>
+                            <td style={{padding:'4px 8px',whiteSpace:'normal',wordBreak:'break-word',background:bgActivo}}>{a.nombre||'-'}</td>
+                            <td style={{padding:'4px 8px',textAlign:'center',background:bgActivo}}>{a.unidad||'-'}</td>
                           </tr>
                         );
                       })}
@@ -7748,7 +7772,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
                 </div>
               </div>
               <div style={{flex:1,border:'1px solid var(--bdr)',borderRadius:4,minHeight:0}}>
-                <ApuDetallePreview apu={apuSel} cargosCalc={cargosCalc} personMap={personMap} eqMap={eqMap} insMap={insMap} equipos={equipos} insumos={insumos} factorPrest={factorPrest} usarFpEnApu={usarFpEnApu} esHora={esHora} herrPct={herrPct} apusBasico={apusBasico}/>
+                <ApuDetallePreview apu={apuSel?filteredApus().find(function(a){return apuKey(a)===apuSel}):null} cargosCalc={cargosCalc} personMap={personMap} eqMap={eqMap} insMap={insMap} equipos={equipos} insumos={insumos} factorPrest={factorPrest} usarFpEnApu={usarFpEnApu} esHora={esHora} herrPct={herrPct} apusBasico={apusBasico}/>
               </div>
             </div>
             <div className="modal-foot">
@@ -8003,18 +8027,6 @@ function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,i
 function App(){
 
   var[data,setData]=usePersist(defaultState());
-
-
-
-  useEffect(function(){
-
-    if(data.apus_basico&&data.apus_basico.length>0){
-
-      setData(migrateApusBasico(data));
-
-    }
-
-  },[]);
 
 
 

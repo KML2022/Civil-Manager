@@ -2918,35 +2918,39 @@ function buscarMatchPorCodigo(recurso,base){
   return{id:encontrado.id,nombre:nombreCatalogo(encontrado),unidad:encontrado.unidad||recurso.unidad,precio:precioCatalogo(encontrado)};
 }
 
-function calcularSeveridad(recurso,umbralPct){
+/* Verificacion unica de unidad+precio, reutilizada tanto para match por codigo como por nombre.
+   Por codigo no se exige ademas similitud de nombre: el codigo ya confirma la identidad del recurso. */
+function calcularSeveridadDeMatch(recurso,match,umbralPct,matchPorCodigo){
   umbralPct=umbralPct==null?15:umbralPct;
-  if(recurso.tipo==='INSUMO'&&!recurso.desperdicio_valido)return'bloqueante';
-  if(!recurso.match)return'sin_match';
-  var simNombre=similitud(recurso.nombre_normalizado,normalizarTexto(recurso.match.nombre));
-  var unidadIgual=normalizarTexto(recurso.unidad)===normalizarTexto(recurso.match.unidad);
-  var deltaPct=Math.abs(recurso.precio_excel-recurso.match.precio)/(recurso.match.precio||1)*100;
+  if(!match)return'sin_match';
+  var unidadIgual=normalizarTexto(recurso.unidad)===normalizarTexto(match.unidad);
+  var deltaPct=Math.abs(recurso.precio_excel-match.precio)/(match.precio||1)*100;
   if(!unidadIgual)return'critica';
+  if(matchPorCodigo){
+    return deltaPct>umbralPct?'alta':'baja';
+  }
+  var simNombre=similitud(recurso.nombre_normalizado,normalizarTexto(match.nombre));
   if(simNombre>=99.5&&deltaPct>umbralPct)return'alta';
   if(simNombre>=80&&simNombre<99.5)return'media';
   if(simNombre>=99.5&&deltaPct<=umbralPct)return'baja';
   return'sin_match';
 }
 
-/* Resuelve match+severidad+decision de un recurso unico: si trae Codigo, resuelve por codigo directo
-   (severidad 'baja' automatica, sin pasar por similitud/umbral de precio); si no, usa el motor de
-   matching por nombre/unidad/precio existente. Usado en cada (re)calculo de recursosUnicos. */
+/* Resuelve match+severidad+decision de un recurso unico: intenta por Codigo primero; si no hay codigo
+   o el codigo no matchea, cae a matching por nombre/unidad/precio. Todo match (codigo o nombre) pasa
+   por la misma verificacion de unidad+precio. Usado en cada (re)calculo de recursosUnicos. */
 function resolverMatchYSeveridad(ru,base,umbralPct){
   var n=Object.assign({},ru);
   if(n.tipo==='INSUMO'&&!n.desperdicio_valido){n.match=n.codigo?buscarMatchPorCodigo(n,base):buscarMatch(n,base);n.severidad='bloqueante';return n}
-  if(n.codigo){
-    n.match=buscarMatchPorCodigo(n,base);
-    n.severidad=n.match?'baja':'sin_match';
-    if(n.match&&!n.decision)n.decision='vincular';
+  var matchPorCodigo=n.codigo?buscarMatchPorCodigo(n,base):null;
+  if(matchPorCodigo){
+    n.match=matchPorCodigo;
+    n.severidad=calcularSeveridadDeMatch(n,matchPorCodigo,umbralPct,true);
   }else{
     n.match=buscarMatch(n,base);
-    n.severidad=calcularSeveridad(n,umbralPct);
-    if(n.severidad==='baja'&&!n.decision)n.decision='vincular';
+    n.severidad=calcularSeveridadDeMatch(n,n.match,umbralPct,false);
   }
+  if(n.severidad==='baja'&&!n.decision)n.decision='vincular';
   return n;
 }
 
@@ -3364,6 +3368,8 @@ var SEVERIDAD_AYUDA={
   sin_match:{texto:'No se encontró este recurso en tu catálogo. Si ya existe con otro nombre, completá el Código; si no, elegí "Crear nuevo" en Decisión.',campo:'codigo'},
   baja:{texto:'Vinculado automáticamente por coincidencia exacta. No requiere acción.',campo:null}
 };
+var TIPO_LABEL={INSUMO:'▌ INSUMOS',EQUIPO:'▌ EQUIPO',MO:'▌ MANO DE OBRA',TRANSPORTE:'▌ TRANSPORTE'};
+var TIPO_ORDEN=['INSUMO','EQUIPO','MO','TRANSPORTE'];
 function estiloCampoRelevante(ru,nombreCampo){
   var relevante=SEVERIDAD_AYUDA[ru.severidad]&&SEVERIDAD_AYUDA[ru.severidad].campo===nombreCampo;
   return relevante?{borderColor:'#f59e0b',borderStyle:'dashed',background:'rgba(245,158,11,.06)'}:{};
@@ -3437,6 +3443,11 @@ function useApuBlockImport(repositorio,contextoCalc){
 function ImportApuModal({repositorio,contextoCalc,onAplicar,onClose,origenProyecto,modoDestino,setModoDestino}){
   var st=useApuBlockImport(repositorio,contextoCalc);
   var recursosOrdenados=st.recursosUnicos.slice().sort(function(a,b){return SEVERIDAD_ORDEN[a.severidad]-SEVERIDAD_ORDEN[b.severidad]});
+  var recursosPorTipo=useMemo(function(){
+    var grupos={INSUMO:[],EQUIPO:[],MO:[],TRANSPORTE:[]};
+    recursosOrdenados.forEach(function(ru){(grupos[ru.tipo]||grupos.INSUMO).push(ru)});
+    return grupos;
+  },[recursosOrdenados]);
   var numAuto=st.recursosUnicos.filter(function(ru){return ru.severidad==='baja'}).length;
   var numPendientes=st.recursosUnicos.length-numAuto;
   var faltaElegirDestino=!!origenProyecto&&!modoDestino;
@@ -3502,10 +3513,11 @@ function ImportApuModal({repositorio,contextoCalc,onAplicar,onClose,origenProyec
             <div style={{display:'flex',flexDirection:'column',gap:10}}>
               <div style={{fontSize:11,color:'var(--tx3)'}}>{st.nombreArchivo} · {st.bloques.length} APU detectados · {st.recursosUnicos.length} recursos unicos</div>
               {st.erroresParse.length>0&&(
-                <div style={{padding:'8px 10px',fontSize:11,color:'#f87171',background:'rgba(248,113,113,0.08)',border:'1px solid rgba(248,113,113,0.2)',borderRadius:4}}>
-                  <b>{st.erroresParse.length} fila(s) rechazada(s) del archivo:</b>
-                  <ul style={{margin:'4px 0 0 18px',padding:0}}>{st.erroresParse.slice(0,8).map(function(er,i){return <li key={i}>Fila {er.fila}: {er.msg}</li>})}</ul>
-                </div>
+                <details style={{fontSize:11,color:'#f87171',background:'rgba(248,113,113,0.08)',border:'1px solid rgba(248,113,113,0.2)',borderRadius:4,padding:'6px 10px'}}>
+                  <summary style={{cursor:'pointer',fontWeight:600}}>Ver detalle técnico — {st.erroresParse.length} fila(s) del Excel original rechazada(s)</summary>
+                  <ul style={{margin:'6px 0 0 18px',padding:0}}>{st.erroresParse.slice(0,8).map(function(er,i){return <li key={i}>Fila {er.fila}: {er.msg}</li>})}</ul>
+                  {st.erroresParse.length>8&&<div style={{marginTop:4,fontSize:10}}>...y {st.erroresParse.length-8} más.</div>}
+                </details>
               )}
               <div style={{padding:'10px 12px',borderRadius:4,border:'1px solid '+(st.hayBloqueos?'rgba(248,113,113,.35)':'rgba(74,222,128,.35)'),background:st.hayBloqueos?'rgba(248,113,113,.06)':'rgba(74,222,128,.06)'}}>
                 <div style={{display:'flex',gap:14,flexWrap:'wrap',fontSize:11,marginBottom:st.hayBloqueos?6:0}}>
@@ -3560,34 +3572,43 @@ function ImportApuModal({repositorio,contextoCalc,onAplicar,onClose,origenProyec
                     <th>Tipo</th><th>Codigo</th><th>Nombre</th><th>Unidad</th><th>Precio Excel</th><th>Match en catalogo</th><th>Severidad</th><th>Decision</th><th>#</th>
                   </tr></thead>
                   <tbody>
-                    {recursosOrdenados.map(function(ru){
-                      var key=claveDeRU(ru);
-                      var codigoVal=ru.codigo||'';
-                      var nombreVal=(ru.edicion&&ru.edicion.nombre)!=null?ru.edicion.nombre:ru.nombre_variantes[0];
-                      var unidadVal=(ru.edicion&&ru.edicion.unidad)!=null?ru.edicion.unidad:ru.unidad;
-                      var precioVal=(ru.edicion&&ru.edicion.precio)!=null?ru.edicion.precio:ru.precio_excel;
-                      var despVal=(ru.edicion&&ru.edicion.desperdicios_pct)!=null?ru.edicion.desperdicios_pct:'';
+                    {TIPO_ORDEN.filter(function(t){return recursosPorTipo[t].length>0}).map(function(tipo){
                       return(
-                        <tr key={key} style={ru.severidad==='bloqueante'||ru.severidad==='critica'?{background:'rgba(248,113,113,.06)'}:{}}>
-                          <td style={{textAlign:'center'}}>{ru.tipo}</td>
-                          <td><input className="ni" placeholder="opcional" value={codigoVal} onChange={function(e){st.editarRecurso(key,'codigo',e.target.value)}} style={Object.assign({fontSize:10,width:'100%',textAlign:'center'},estiloCampoRelevante(ru,'codigo'))}/></td>
-                          <td><input className="ni" value={nombreVal} onChange={function(e){st.editarRecurso(key,'nombre',e.target.value)}} style={{fontSize:10,width:'100%'}}/></td>
-                          <td><input className="ni" value={unidadVal} onChange={function(e){st.editarRecurso(key,'unidad',e.target.value)}} style={Object.assign({fontSize:10,width:'100%',textAlign:'center'},estiloCampoRelevante(ru,'unidad'))}/></td>
-                          <td><input className="ni" type="number" value={precioVal} onChange={function(e){st.editarRecurso(key,'precio',e.target.value)}} style={Object.assign({fontSize:10,width:'100%',textAlign:'right'},estiloCampoRelevante(ru,'precio'))}/>
-                            {ru.tipo==='INSUMO'&&(<div style={{marginTop:2,display:'flex',alignItems:'center',gap:2}}><input className="ni" type="number" placeholder="Desp %" value={despVal} onChange={function(e){st.editarRecurso(key,'desperdicios_pct',e.target.value)}} style={{fontSize:9,width:'100%',textAlign:'right',borderColor:ru.desperdicio_valido?undefined:'#f87171'}}/></div>)}
-                          </td>
-                          <td style={{fontSize:9}}>{ru.match?(ru.match.nombre+' — '+fmt(ru.match.precio)+' / '+ru.match.unidad):'— sin coincidencia —'}</td>
-                          <td style={{textAlign:'center'}}><span title={SEVERIDAD_AYUDA[ru.severidad]?SEVERIDAD_AYUDA[ru.severidad].texto:''} style={{fontSize:9,padding:'2px 6px',borderRadius:3,border:'1px solid '+SEVERIDAD_COLOR[ru.severidad],color:SEVERIDAD_COLOR[ru.severidad],cursor:'help'}}>{SEVERIDAD_LABEL[ru.severidad]}</span></td>
-                          <td>
-                            <select className="ni sel" value={ru.decision||''} onChange={function(e){st.setDecision(key,e.target.value)}} style={{fontSize:9,width:'100%'}} disabled={ru.severidad==='bloqueante'}>
-                              <option value="">-- elegir --</option>
-                              {ru.match&&<option value="vincular">Vincular a existente</option>}
-                              {ru.match&&<option value="vincular_actualizar">Vincular y actualizar precio</option>}
-                              <option value="crear_nuevo">Crear nuevo</option>
-                            </select>
-                          </td>
-                          <td style={{textAlign:'center'}}>{ru.apariciones.length}</td>
-                        </tr>
+                        <React.Fragment key={tipo}>
+                          <tr>
+                            <td colSpan={9} style={{background:'#2F5496',color:'#fff',fontSize:10,fontWeight:700,padding:'4px 8px'}}>{TIPO_LABEL[tipo]} ({recursosPorTipo[tipo].length})</td>
+                          </tr>
+                          {recursosPorTipo[tipo].map(function(ru){
+                            var key=claveDeRU(ru);
+                            var codigoVal=ru.codigo||'';
+                            var nombreVal=(ru.edicion&&ru.edicion.nombre)!=null?ru.edicion.nombre:ru.nombre_variantes[0];
+                            var unidadVal=(ru.edicion&&ru.edicion.unidad)!=null?ru.edicion.unidad:ru.unidad;
+                            var precioVal=(ru.edicion&&ru.edicion.precio)!=null?ru.edicion.precio:ru.precio_excel;
+                            var despVal=(ru.edicion&&ru.edicion.desperdicios_pct)!=null?ru.edicion.desperdicios_pct:'';
+                            return(
+                              <tr key={key} style={ru.severidad==='bloqueante'||ru.severidad==='critica'?{background:'rgba(248,113,113,.06)'}:{}}>
+                                <td style={{textAlign:'center'}}>{ru.tipo}</td>
+                                <td><input className="ni" placeholder="opcional" value={codigoVal} onChange={function(e){st.editarRecurso(key,'codigo',e.target.value)}} style={Object.assign({fontSize:10,width:'100%',textAlign:'center'},estiloCampoRelevante(ru,'codigo'))}/></td>
+                                <td><input className="ni" value={nombreVal} onChange={function(e){st.editarRecurso(key,'nombre',e.target.value)}} style={{fontSize:10,width:'100%'}}/></td>
+                                <td><input className="ni" value={unidadVal} onChange={function(e){st.editarRecurso(key,'unidad',e.target.value)}} style={Object.assign({fontSize:10,width:'100%',textAlign:'center'},estiloCampoRelevante(ru,'unidad'))}/></td>
+                                <td><input className="ni" type="number" value={precioVal} onChange={function(e){st.editarRecurso(key,'precio',e.target.value)}} style={Object.assign({fontSize:10,width:'100%',textAlign:'right'},estiloCampoRelevante(ru,'precio'))}/>
+                                  {ru.tipo==='INSUMO'&&(<div style={{marginTop:2,display:'flex',alignItems:'center',gap:2}}><input className="ni" type="number" placeholder="Desp %" value={despVal} onChange={function(e){st.editarRecurso(key,'desperdicios_pct',e.target.value)}} style={{fontSize:9,width:'100%',textAlign:'right',borderColor:ru.desperdicio_valido?undefined:'#f87171'}}/></div>)}
+                                </td>
+                                <td style={{fontSize:9}}>{ru.match?(ru.match.nombre+' — '+fmt(ru.match.precio)+' / '+ru.match.unidad):'— sin coincidencia —'}</td>
+                                <td style={{textAlign:'center'}}><span title={SEVERIDAD_AYUDA[ru.severidad]?SEVERIDAD_AYUDA[ru.severidad].texto:''} style={{fontSize:9,padding:'2px 6px',borderRadius:3,border:'1px solid '+SEVERIDAD_COLOR[ru.severidad],color:SEVERIDAD_COLOR[ru.severidad],cursor:'help'}}>{SEVERIDAD_LABEL[ru.severidad]}</span></td>
+                                <td>
+                                  <select className="ni sel" value={ru.decision||''} onChange={function(e){st.setDecision(key,e.target.value)}} style={{fontSize:9,width:'100%'}} disabled={ru.severidad==='bloqueante'}>
+                                    <option value="">-- elegir --</option>
+                                    {ru.match&&<option value="vincular">Vincular a existente</option>}
+                                    {ru.match&&<option value="vincular_actualizar">Vincular y actualizar precio</option>}
+                                    <option value="crear_nuevo">Crear nuevo</option>
+                                  </select>
+                                </td>
+                                <td style={{textAlign:'center'}}>{ru.apariciones.length}</td>
+                              </tr>
+                            );
+                          })}
+                        </React.Fragment>
                       );
                     })}
                   </tbody>

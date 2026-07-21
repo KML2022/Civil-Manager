@@ -3356,6 +3356,18 @@ function ApuDetallePreview({apu,cargosCalc,personMap,eqMap,insMap,equipos,insumo
 var SEVERIDAD_ORDEN={bloqueante:0,critica:1,alta:2,media:3,baja:4,sin_match:5};
 var SEVERIDAD_LABEL={bloqueante:'Bloqueante',critica:'Critica',alta:'Alta',media:'Media',baja:'Baja (auto)',sin_match:'Sin match'};
 var SEVERIDAD_COLOR={bloqueante:'#f87171',critica:'#f87171',alta:'#fbbf24',media:'#fbbf24',baja:'#4ade80',sin_match:'var(--tx3)'};
+var SEVERIDAD_AYUDA={
+  bloqueante:{texto:'Falta un dato obligatorio (ej. % desperdicio en materiales). Completalo para continuar.',campo:null},
+  critica:{texto:'El nombre coincide con el catálogo pero la unidad es distinta — revisá la Unidad o elegí una decisión.',campo:'unidad'},
+  alta:{texto:'El nombre coincide exacto pero el precio difiere del catálogo más de lo esperado — confirmá el precio o elegí una decisión.',campo:'precio'},
+  media:{texto:'El nombre es similar pero no idéntico al catálogo — confirmá si es el mismo recurso.',campo:'nombre'},
+  sin_match:{texto:'No se encontró este recurso en tu catálogo. Si ya existe con otro nombre, completá el Código; si no, elegí "Crear nuevo" en Decisión.',campo:'codigo'},
+  baja:{texto:'Vinculado automáticamente por coincidencia exacta. No requiere acción.',campo:null}
+};
+function estiloCampoRelevante(ru,nombreCampo){
+  var relevante=SEVERIDAD_AYUDA[ru.severidad]&&SEVERIDAD_AYUDA[ru.severidad].campo===nombreCampo;
+  return relevante?{borderColor:'#f59e0b',borderStyle:'dashed',background:'rgba(245,158,11,.06)'}:{};
+}
 
 function useApuBlockImport(repositorio,contextoCalc){
   var faseSt=useState(1);var fase=faseSt[0],setFase=faseSt[1];
@@ -3428,6 +3440,12 @@ function ImportApuModal({repositorio,contextoCalc,onAplicar,onClose,origenProyec
   var numAuto=st.recursosUnicos.filter(function(ru){return ru.severidad==='baja'}).length;
   var numPendientes=st.recursosUnicos.length-numAuto;
   var faltaElegirDestino=!!origenProyecto&&!modoDestino;
+  var despMasivoState=useState('');var despMasivo=despMasivoState[0],setDespMasivo=despMasivoState[1];
+  var porSeveridad=useMemo(function(){
+    var m={bloqueante:0,critica:0,alta:0,media:0,baja:0,sin_match:0};
+    st.recursosUnicos.forEach(function(ru){m[ru.severidad]=(m[ru.severidad]||0)+1});
+    return m;
+  },[st.recursosUnicos]);
 
   var handleConfirmar=function(){
     var resultado=st.confirmar();
@@ -3489,6 +3507,52 @@ function ImportApuModal({repositorio,contextoCalc,onAplicar,onClose,origenProyec
                   <ul style={{margin:'4px 0 0 18px',padding:0}}>{st.erroresParse.slice(0,8).map(function(er,i){return <li key={i}>Fila {er.fila}: {er.msg}</li>})}</ul>
                 </div>
               )}
+              <div style={{padding:'10px 12px',borderRadius:4,border:'1px solid '+(st.hayBloqueos?'rgba(248,113,113,.35)':'rgba(74,222,128,.35)'),background:st.hayBloqueos?'rgba(248,113,113,.06)':'rgba(74,222,128,.06)'}}>
+                <div style={{display:'flex',gap:14,flexWrap:'wrap',fontSize:11,marginBottom:st.hayBloqueos?6:0}}>
+                  {porSeveridad.bloqueante>0&&<span style={{color:SEVERIDAD_COLOR.bloqueante}}>🔴 {porSeveridad.bloqueante} bloqueante(s)</span>}
+                  {porSeveridad.critica>0&&<span style={{color:SEVERIDAD_COLOR.critica}}>🟠 {porSeveridad.critica} critico(s)</span>}
+                  {(porSeveridad.alta+porSeveridad.media)>0&&<span style={{color:SEVERIDAD_COLOR.alta}}>🟡 {porSeveridad.alta+porSeveridad.media} requieren revisión</span>}
+                  {porSeveridad.baja>0&&<span style={{color:'var(--tx3)'}}>🟢 {porSeveridad.baja} autoasignado(s)</span>}
+                  {porSeveridad.sin_match>0&&<span style={{color:'var(--tx3)'}}>⚪ {porSeveridad.sin_match} sin coincidencia</span>}
+                </div>
+                <div style={{fontSize:11,fontWeight:600,color:st.hayBloqueos?'#f87171':'var(--ok)'}}>
+                  {st.hayBloqueos?'Resolvé los recursos en rojo/naranja (bloqueantes y críticos) para poder continuar.':'Todo resuelto — podés continuar a confirmación.'}
+                </div>
+                <div style={{fontSize:10,color:'var(--tx2)',display:'flex',flexDirection:'column',gap:2,marginTop:6}}>
+                  {Object.keys(SEVERIDAD_AYUDA).filter(function(s){return porSeveridad[s]>0}).map(function(s){
+                    return <div key={s}><b style={{color:SEVERIDAD_COLOR[s]}}>{SEVERIDAD_LABEL[s]}:</b> {SEVERIDAD_AYUDA[s].texto}</div>;
+                  })}
+                </div>
+                {porSeveridad.bloqueante>0&&(
+                  <div style={{marginTop:8}}>
+                    <div style={{fontSize:10,color:'var(--tx3)',marginBottom:4}}>¿Todos estos insumos comparten el mismo % de desperdicio? Completá el campo y aplicá a todos. Si cada uno necesita un valor distinto, ingresalo directamente en el campo "Desp %" de cada fila abajo.</div>
+                    <div style={{display:'flex',alignItems:'center',gap:6}}>
+                      <input className="ni" type="number" placeholder="% desperdicio" value={despMasivo} onChange={function(e){setDespMasivo(e.target.value)}} style={{width:120,fontSize:10}}/>
+                      <button className="btn" disabled={!despMasivo} onClick={function(){
+                        st.recursosUnicos.forEach(function(ru){
+                          if(ru.severidad==='bloqueante'&&ru.tipo==='INSUMO'&&!ru.desperdicio_valido){
+                            st.editarRecurso(claveDeRU(ru),'desperdicios_pct',despMasivo);
+                          }
+                        });
+                      }} style={{fontSize:10,padding:'4px 10px'}}>Aplicar a los {porSeveridad.bloqueante} bloqueantes</button>
+                    </div>
+                  </div>
+                )}
+                {(porSeveridad.alta+porSeveridad.media)>0&&(
+                  <div style={{marginTop:8}}>
+                  <div style={{fontSize:10,color:'var(--tx3)',marginBottom:4}}>Si confiás en las coincidencias sugeridas por el sistema, aceptalas todas de una vez. Si preferís revisar caso por caso, elegí la decisión en cada fila individualmente.</div>
+                  <button className="btn" onClick={function(){
+                    st.recursosUnicos.forEach(function(ru){
+                      if((ru.severidad==='alta'||ru.severidad==='media')&&ru.match){
+                        st.setDecision(claveDeRU(ru),'vincular');
+                      }
+                    });
+                  }} style={{fontSize:10,padding:'4px 10px',marginTop:6}}>
+                    Aceptar sugerencia de catálogo para los {porSeveridad.alta+porSeveridad.media} pendientes
+                  </button>
+                  </div>
+                )}
+              </div>
               <div className="xl-scroll" style={{maxHeight:380,overflowY:'auto',border:'1px solid var(--bdr)',borderRadius:4}}>
                 <table style={{tableLayout:'fixed',width:'100%',fontSize:10}}>
                   <colgroup><col style={{width:60}}/><col style={{width:70}}/><col style={{width:130}}/><col style={{width:60}}/><col style={{width:80}}/><col style={{width:160}}/><col style={{width:80}}/><col style={{width:130}}/><col style={{width:40}}/></colgroup>
@@ -3506,14 +3570,14 @@ function ImportApuModal({repositorio,contextoCalc,onAplicar,onClose,origenProyec
                       return(
                         <tr key={key} style={ru.severidad==='bloqueante'||ru.severidad==='critica'?{background:'rgba(248,113,113,.06)'}:{}}>
                           <td style={{textAlign:'center'}}>{ru.tipo}</td>
-                          <td><input className="ni" placeholder="opcional" value={codigoVal} onChange={function(e){st.editarRecurso(key,'codigo',e.target.value)}} style={{fontSize:10,width:'100%',textAlign:'center'}}/></td>
+                          <td><input className="ni" placeholder="opcional" value={codigoVal} onChange={function(e){st.editarRecurso(key,'codigo',e.target.value)}} style={Object.assign({fontSize:10,width:'100%',textAlign:'center'},estiloCampoRelevante(ru,'codigo'))}/></td>
                           <td><input className="ni" value={nombreVal} onChange={function(e){st.editarRecurso(key,'nombre',e.target.value)}} style={{fontSize:10,width:'100%'}}/></td>
-                          <td><input className="ni" value={unidadVal} onChange={function(e){st.editarRecurso(key,'unidad',e.target.value)}} style={{fontSize:10,width:'100%',textAlign:'center'}}/></td>
-                          <td><input className="ni" type="number" value={precioVal} onChange={function(e){st.editarRecurso(key,'precio',e.target.value)}} style={{fontSize:10,width:'100%',textAlign:'right'}}/>
+                          <td><input className="ni" value={unidadVal} onChange={function(e){st.editarRecurso(key,'unidad',e.target.value)}} style={Object.assign({fontSize:10,width:'100%',textAlign:'center'},estiloCampoRelevante(ru,'unidad'))}/></td>
+                          <td><input className="ni" type="number" value={precioVal} onChange={function(e){st.editarRecurso(key,'precio',e.target.value)}} style={Object.assign({fontSize:10,width:'100%',textAlign:'right'},estiloCampoRelevante(ru,'precio'))}/>
                             {ru.tipo==='INSUMO'&&(<div style={{marginTop:2,display:'flex',alignItems:'center',gap:2}}><input className="ni" type="number" placeholder="Desp %" value={despVal} onChange={function(e){st.editarRecurso(key,'desperdicios_pct',e.target.value)}} style={{fontSize:9,width:'100%',textAlign:'right',borderColor:ru.desperdicio_valido?undefined:'#f87171'}}/></div>)}
                           </td>
                           <td style={{fontSize:9}}>{ru.match?(ru.match.nombre+' — '+fmt(ru.match.precio)+' / '+ru.match.unidad):'— sin coincidencia —'}</td>
-                          <td style={{textAlign:'center'}}><span style={{fontSize:9,padding:'2px 6px',borderRadius:3,border:'1px solid '+SEVERIDAD_COLOR[ru.severidad],color:SEVERIDAD_COLOR[ru.severidad]}}>{SEVERIDAD_LABEL[ru.severidad]}</span></td>
+                          <td style={{textAlign:'center'}}><span title={SEVERIDAD_AYUDA[ru.severidad]?SEVERIDAD_AYUDA[ru.severidad].texto:''} style={{fontSize:9,padding:'2px 6px',borderRadius:3,border:'1px solid '+SEVERIDAD_COLOR[ru.severidad],color:SEVERIDAD_COLOR[ru.severidad],cursor:'help'}}>{SEVERIDAD_LABEL[ru.severidad]}</span></td>
                           <td>
                             <select className="ni sel" value={ru.decision||''} onChange={function(e){st.setDecision(key,e.target.value)}} style={{fontSize:9,width:'100%'}} disabled={ru.severidad==='bloqueante'}>
                               <option value="">-- elegir --</option>
@@ -3531,7 +3595,7 @@ function ImportApuModal({repositorio,contextoCalc,onAplicar,onClose,origenProyec
               </div>
               <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
                 <span style={{fontSize:10,color:'var(--tx3)'}}>{st.hayBloqueos?'Resuelva los recursos en rojo (bloqueante/critica) para continuar.':'Todo listo para confirmar.'}</span>
-                <button className="btn" disabled={st.hayBloqueos} onClick={function(){st.setFase(4)}} style={{fontSize:11,padding:'6px 14px',border:'1px solid var(--ok)',borderRadius:4,background:st.hayBloqueos?'none':'rgba(74,222,128,.08)',color:'var(--ok)',cursor:st.hayBloqueos?'not-allowed':'pointer',opacity:st.hayBloqueos?0.5:1}}>Continuar a Confirmación →</button>
+                <button className="btn" disabled={st.hayBloqueos} onClick={function(){st.setFase(4)}} style={{fontSize:11,padding:'6px 14px',border:'1px solid var(--ok)',borderRadius:4,background:st.hayBloqueos?'none':'rgba(74,222,128,.08)',color:'var(--ok)',cursor:st.hayBloqueos?'not-allowed':'pointer',opacity:st.hayBloqueos?0.5:1}}>{st.hayBloqueos?'Resolvé '+(porSeveridad.bloqueante+porSeveridad.critica)+' pendiente(s) para continuar':'Continuar a Confirmación →'}</button>
               </div>
             </div>
           )}

@@ -2894,16 +2894,19 @@ function precioCatalogo(registro){
   return 0;
 }
 
-function buscarMatch(recurso,base){
+function buscarCandidatos(recurso,base,max){
+  max=max||3;
   var categoria=TIPO_RECURSO_A_CATEGORIA[recurso.tipo];
   var candidatos=(base&&base[categoria])||[];
-  var mejor=null,mejorSim=-1;
-  candidatos.forEach(function(c){
-    var sim=similitud(recurso.nombre_normalizado,normalizarTexto(nombreCatalogo(c)));
-    if(sim>mejorSim){mejorSim=sim;mejor=c}
-  });
-  if(!mejor||mejorSim<50)return null; // umbral minimo de candidatura (no confundir con umbralPct de precio)
-  return{id:mejor.id,nombre:nombreCatalogo(mejor),unidad:mejor.unidad||recurso.unidad,precio:precioCatalogo(mejor)};
+  var puntuados=candidatos.map(function(c){
+    return{sim:similitud(recurso.nombre_normalizado,normalizarTexto(nombreCatalogo(c))),
+      id:c.id,nombre:nombreCatalogo(c),unidad:c.unidad||recurso.unidad,precio:precioCatalogo(c)};
+  }).filter(function(x){return x.sim>=50}).sort(function(a,b){return b.sim-a.sim}); // umbral minimo de candidatura (no confundir con umbralPct de precio)
+  return puntuados.slice(0,max);
+}
+function buscarMatch(recurso,base){
+  var candidatos=buscarCandidatos(recurso,base,1);
+  return candidatos.length?candidatos[0]:null;
 }
 
 /* Match directo por Codigo (columna opcional de la plantilla v2): si el usuario llena el codigo de
@@ -2945,9 +2948,11 @@ function resolverMatchYSeveridad(ru,base,umbralPct){
   var matchPorCodigo=n.codigo?buscarMatchPorCodigo(n,base):null;
   if(matchPorCodigo){
     n.match=matchPorCodigo;
+    n.candidatos=[]; // busqueda exacta por codigo, no aplica el concepto de candidatos alternativos
     n.severidad=calcularSeveridadDeMatch(n,matchPorCodigo,umbralPct,true);
   }else{
-    n.match=buscarMatch(n,base);
+    n.candidatos=buscarCandidatos(n,base,3);
+    n.match=n.candidatos.length?n.candidatos[0]:null;
     n.severidad=calcularSeveridadDeMatch(n,n.match,umbralPct,false);
   }
   if(!n.decision){
@@ -3364,11 +3369,11 @@ var SEVERIDAD_ORDEN={bloqueante:0,critica:1,alta:2,media:3,baja:4,sin_match:5};
 var SEVERIDAD_LABEL={bloqueante:'Bloqueante',critica:'Critica',alta:'Alta',media:'Media',baja:'Baja (auto)',sin_match:'Sin match'};
 var SEVERIDAD_COLOR={bloqueante:'#f87171',critica:'#f87171',alta:'#fbbf24',media:'#fbbf24',baja:'#4ade80',sin_match:'var(--tx3)'};
 var SEVERIDAD_AYUDA={
-  bloqueante:{texto:'Falta un dato obligatorio (ej. % desperdicio en materiales). Completalo para continuar.',campo:null},
-  critica:{texto:'El nombre coincide con el catálogo pero la unidad es distinta — revisá la Unidad o elegí una decisión.',campo:'unidad'},
-  alta:{texto:'El nombre coincide exacto pero el precio difiere del catálogo más de lo esperado — confirmá el precio o elegí una decisión.',campo:'precio'},
-  media:{texto:'El nombre es similar pero no idéntico al catálogo — confirmá si es el mismo recurso.',campo:'nombre'},
-  sin_match:{texto:'No se encontró este recurso en tu catálogo. Si ya existe con otro nombre, completá el Código; si no, elegí "Crear nuevo" en Decisión.',campo:'codigo'},
+  bloqueante:{texto:'Falta un dato obligatorio (ej. % desperdicio en materiales). Es necesario completarlo para continuar.',campo:null},
+  critica:{texto:'El nombre coincide con el catálogo pero la unidad es distinta — es necesario revisar la Unidad o elegir una decisión.',campo:'unidad'},
+  alta:{texto:'El nombre coincide exacto pero el precio difiere del catálogo más de lo esperado — es necesario confirmar el precio o elegir una decisión.',campo:'precio'},
+  media:{texto:'El nombre es similar pero no idéntico al catálogo — es necesario confirmar si es el mismo recurso.',campo:'nombre'},
+  sin_match:{texto:'No se encontró este recurso en el catálogo. Si ya existe con otro nombre, completar el Código; si no, elegir "Crear nuevo" en Decisión.',campo:'codigo'},
   baja:{texto:'Vinculado automáticamente por coincidencia exacta. No requiere acción.',campo:null}
 };
 var TIPO_LABEL={INSUMO:'▌ INSUMOS',EQUIPO:'▌ EQUIPO',MO:'▌ MANO DE OBRA',TRANSPORTE:'▌ TRANSPORTE'};
@@ -3432,6 +3437,18 @@ function useApuBlockImport(repositorio,contextoCalc){
     setRecursosUnicos(function(list){return list.map(function(ru){return claveDeRU(ru)===key?Object.assign({},ru,{decision:decision}):ru})});
   };
 
+  var elegirCandidato=function(key,candidatoElegido){
+    setRecursosUnicos(function(list){
+      return list.map(function(ru){
+        if(claveDeRU(ru)!==key)return ru;
+        var n=Object.assign({},ru,{match:candidatoElegido});
+        n.severidad=calcularSeveridadDeMatch(n,candidatoElegido,umbralPct,false);
+        if(n.severidad==='baja'&&!n.decision)n.decision='vincular';
+        return n;
+      });
+    });
+  };
+
   var hayBloqueos=recursosUnicos.some(function(ru){return ru.severidad==='bloqueante'||(ru.severidad==='critica'&&!ru.decision)});
 
   var confirmar=function(){
@@ -3440,7 +3457,7 @@ function useApuBlockImport(repositorio,contextoCalc){
 
   return{fase:fase,setFase:setFase,umbralPct:umbralPct,cambiarUmbral:cambiarUmbral,nombreArchivo:nombreArchivo,
     bloques:bloques,erroresParse:erroresParse,recursosUnicos:recursosUnicos,procesando:procesando,
-    procesarArchivo:procesarArchivo,editarRecurso:editarRecurso,setDecision:setDecision,hayBloqueos:hayBloqueos,confirmar:confirmar};
+    procesarArchivo:procesarArchivo,editarRecurso:editarRecurso,setDecision:setDecision,elegirCandidato:elegirCandidato,hayBloqueos:hayBloqueos,confirmar:confirmar};
 }
 
 function ImportApuModal({repositorio,contextoCalc,onAplicar,onClose,origenProyecto,modoDestino,setModoDestino}){
@@ -3455,6 +3472,7 @@ function ImportApuModal({repositorio,contextoCalc,onAplicar,onClose,origenProyec
   var numPendientes=st.recursosUnicos.length-numAuto;
   var faltaElegirDestino=!!origenProyecto&&!modoDestino;
   var despMasivoState=useState('');var despMasivo=despMasivoState[0],setDespMasivo=despMasivoState[1];
+  var popoverResolverState=useState(null);var popoverResolver=popoverResolverState[0],setPopoverResolver=popoverResolverState[1];
   var porSeveridad=useMemo(function(){
     var m={bloqueante:0,critica:0,alta:0,media:0,baja:0,sin_match:0};
     st.recursosUnicos.forEach(function(ru){m[ru.severidad]=(m[ru.severidad]||0)+1});
@@ -3532,31 +3550,36 @@ function ImportApuModal({repositorio,contextoCalc,onAplicar,onClose,origenProyec
                   {porSeveridad.sin_match>0&&<span style={{color:'var(--tx3)'}}>⚪ {porSeveridad.sin_match} sin coincidencia</span>}
                 </div>
                 <div style={{fontSize:11,fontWeight:600,color:st.hayBloqueos?'#f87171':'var(--ok)'}}>
-                  {st.hayBloqueos?'Resolvé los recursos en rojo/naranja (bloqueantes y críticos) para poder continuar.':'Todo resuelto — podés continuar a confirmación.'}
+                  {st.hayBloqueos?'Es necesario resolver los recursos en rojo/naranja (bloqueantes y críticos) para continuar.':'Todo resuelto — se puede continuar a confirmación.'}
                 </div>
                 <div style={{fontSize:10,color:'var(--tx2)',display:'flex',flexDirection:'column',gap:2,marginTop:6}}>
-                  {Object.keys(SEVERIDAD_AYUDA).filter(function(s){return porSeveridad[s]>0}).map(function(s){
+                  {Object.keys(SEVERIDAD_AYUDA).filter(function(s){return porSeveridad[s]>0&&s!=='bloqueante'&&s!=='sin_match'}).map(function(s){
                     return <div key={s}><b style={{color:SEVERIDAD_COLOR[s]}}>{SEVERIDAD_LABEL[s]}:</b> {SEVERIDAD_AYUDA[s].texto}</div>;
                   })}
                 </div>
                 {porSeveridad.bloqueante>0&&(
                   <div style={{marginTop:8}}>
-                    <div style={{fontSize:10,color:'var(--tx3)',marginBottom:4}}>¿Todos estos insumos comparten el mismo % de desperdicio? Completá el campo y aplicá a todos. Si cada uno necesita un valor distinto, ingresalo directamente en el campo "Desp %" de cada fila abajo.</div>
-                    <div style={{display:'flex',alignItems:'center',gap:6}}>
-                      <input className="ni" type="number" placeholder="% desperdicio" value={despMasivo} onChange={function(e){setDespMasivo(e.target.value)}} style={{width:120,fontSize:10}}/>
+                    <div style={{fontSize:11,marginBottom:8}}>
+                      <div style={{fontWeight:600,marginBottom:4}}>¿Cómo se puede resolver el % de desperdicio faltante?</div>
+                      <div><b style={{color:'var(--ac)'}}>Opción 1 — Un mismo valor para todos:</b> si todos estos insumos comparten el mismo % de desperdicio, completar el campo de abajo y aplicarlo de una sola vez.</div>
+                      <div style={{marginTop:2}}><b style={{color:'var(--ac)'}}>Opción 2 — Valores distintos por fila:</b> si cada insumo necesita un % diferente, completar el campo "Desp %" directamente en cada fila de la tabla.</div>
+                    </div>
+                    <div style={{border:'1px solid var(--ac)',borderRadius:6,background:'rgba(77,143,247,.07)',padding:'10px 12px',display:'flex',alignItems:'center',gap:8,marginTop:4}}>
+                      <span style={{fontSize:10,color:'var(--tx2)',flexShrink:0}}>Opción 1:</span>
+                      <input className="ni" type="number" placeholder="% desperdicio" value={despMasivo} onChange={function(e){setDespMasivo(e.target.value)}} style={{width:110,background:'var(--bg2)',border:'1px solid var(--bdr)',borderRadius:4,padding:'4px 8px'}}/>
                       <button className="btn" disabled={!despMasivo} onClick={function(){
                         st.recursosUnicos.forEach(function(ru){
                           if(ru.severidad==='bloqueante'&&ru.tipo==='INSUMO'&&!ru.desperdicio_valido){
                             st.editarRecurso(claveDeRU(ru),'desperdicios_pct',despMasivo);
                           }
                         });
-                      }} style={{fontSize:10,padding:'4px 10px'}}>Aplicar a los {porSeveridad.bloqueante} bloqueantes</button>
+                      }} style={{fontSize:11,padding:'6px 14px',border:'1px solid var(--ac)',borderRadius:4,background:despMasivo?'var(--ac)':'transparent',color:despMasivo?'#fff':'var(--tx3)',cursor:despMasivo?'pointer':'not-allowed',fontWeight:600}}>Aplicar a los {porSeveridad.bloqueante} bloqueantes</button>
                     </div>
                   </div>
                 )}
                 {(porSeveridad.alta+porSeveridad.media)>0&&(
                   <div style={{marginTop:8}}>
-                  <div style={{fontSize:10,color:'var(--tx3)',marginBottom:4}}>Si confiás en las coincidencias sugeridas por el sistema, aceptalas todas de una vez. Si preferís revisar caso por caso, elegí la decisión en cada fila individualmente.</div>
+                  <div style={{fontSize:10,color:'var(--tx3)',marginBottom:4}}>Si las coincidencias sugeridas por el sistema son correctas, se pueden aceptar todas de una vez. Si se prefiere revisar caso por caso, es posible elegir la decisión en cada fila individualmente.</div>
                   <button className="btn" onClick={function(){
                     st.recursosUnicos.forEach(function(ru){
                       if((ru.severidad==='alta'||ru.severidad==='media')&&ru.match){
@@ -3573,32 +3596,66 @@ function ImportApuModal({repositorio,contextoCalc,onAplicar,onClose,origenProyec
                 <table style={{tableLayout:'fixed',width:'100%',fontSize:10}}>
                   <colgroup><col style={{width:60}}/><col style={{width:70}}/><col style={{width:130}}/><col style={{width:60}}/><col style={{width:80}}/><col style={{width:160}}/><col style={{width:80}}/><col style={{width:130}}/><col style={{width:40}}/></colgroup>
                   <thead style={{position:'sticky',top:0,background:'var(--bg3)'}}><tr>
-                    <th>Tipo</th><th>Codigo</th><th>Nombre</th><th>Unidad</th><th>Precio Excel</th><th>Match en catalogo</th><th>Severidad</th><th>Decision</th><th>#</th>
+                    <th>Tipo</th><th>Codigo</th><th>Nombre</th><th>Unidad</th><th>Vr Base Importado</th><th>Match en catalogo</th><th>Severidad</th><th>Decision</th><th>#</th>
                   </tr></thead>
                   <tbody>
-                    {TIPO_ORDEN.filter(function(t){return recursosPorTipo[t].length>0}).map(function(tipo){
+                    {TIPO_ORDEN.filter(function(t){return recursosPorTipo[t].length>0}).map(function(tipo,idxGrupo){
                       return(
                         <React.Fragment key={tipo}>
                           <tr>
-                            <td colSpan={9} style={{background:'#2F5496',color:'#fff',fontSize:10,fontWeight:700,padding:'4px 8px'}}>{TIPO_LABEL[tipo]} ({recursosPorTipo[tipo].length})</td>
+                            <td colSpan={9} style={{background:'#2F5496',color:'#fff',fontSize:10,fontWeight:700,padding:'4px 8px',borderTop:idxGrupo>0?'3px solid var(--bg)':'none'}}>{TIPO_LABEL[tipo]} ({recursosPorTipo[tipo].length})</td>
                           </tr>
                           {recursosPorTipo[tipo].map(function(ru){
                             var key=claveDeRU(ru);
                             var codigoVal=ru.codigo||'';
                             var nombreVal=(ru.edicion&&ru.edicion.nombre)!=null?ru.edicion.nombre:ru.nombre_variantes[0];
                             var unidadVal=(ru.edicion&&ru.edicion.unidad)!=null?ru.edicion.unidad:ru.unidad;
-                            var precioVal=(ru.edicion&&ru.edicion.precio)!=null?ru.edicion.precio:r2(ru.precio_excel);
                             var despVal=(ru.edicion&&ru.edicion.desperdicios_pct)!=null?ru.edicion.desperdicios_pct:'';
                             return(
                               <tr key={key} style={ru.severidad==='bloqueante'||ru.severidad==='critica'?{background:'rgba(248,113,113,.06)'}:{}}>
                                 <td style={{textAlign:'center'}}>{ru.tipo}</td>
-                                <td><input className="ni" placeholder="opcional" value={codigoVal} onChange={function(e){st.editarRecurso(key,'codigo',e.target.value)}} style={Object.assign({fontSize:10,width:'100%',textAlign:'center'},estiloCampoRelevante(ru,'codigo'))}/></td>
-                                <td><input className="ni" value={nombreVal} onChange={function(e){st.editarRecurso(key,'nombre',e.target.value)}} style={{fontSize:10,width:'100%'}}/></td>
+                                <td style={{textAlign:'center',fontSize:10}}>{codigoVal||'—'}</td>
+                                <td style={{fontSize:10}}>{nombreVal}</td>
                                 <td><input className="ni" value={unidadVal} onChange={function(e){st.editarRecurso(key,'unidad',e.target.value)}} style={Object.assign({fontSize:10,width:'100%',textAlign:'center'},estiloCampoRelevante(ru,'unidad'))}/></td>
-                                <td><input className="ni" type="number" value={precioVal} onChange={function(e){st.editarRecurso(key,'precio',e.target.value)}} style={Object.assign({fontSize:10,width:'100%',textAlign:'right'},estiloCampoRelevante(ru,'precio'))}/>
+                                <td style={{textAlign:'right',fontSize:10,padding:'0 8px'}}>{fmt(r2(ru.precio_excel))}
                                   {ru.tipo==='INSUMO'&&(<div style={{marginTop:2,display:'flex',alignItems:'center',gap:2}}><input className="ni" type="number" placeholder="Desp %" value={despVal} onChange={function(e){st.editarRecurso(key,'desperdicios_pct',e.target.value)}} style={{fontSize:9,width:'100%',textAlign:'right',borderColor:ru.desperdicio_valido?undefined:'#f87171'}}/></div>)}
                                 </td>
-                                <td style={{fontSize:9}}>{ru.match?(ru.match.nombre+' — '+fmt(ru.match.precio)+' / '+ru.match.unidad):'— sin coincidencia —'}</td>
+                                <td style={{fontSize:9,position:'relative'}}>
+                                  {ru.match?<span>{ru.match.nombre} — {fmt(ru.match.precio)} / {ru.match.unidad}</span>:'— sin coincidencia —'}
+                                  <button onClick={function(){setPopoverResolver(popoverResolver===key?null:key)}} style={{fontSize:9,padding:'2px 8px',border:'1px solid var(--ac)',borderRadius:3,background:'transparent',color:'var(--ac)',cursor:'pointer',marginTop:4,display:'block'}}>🔍 Resolver</button>
+                                  {popoverResolver===key&&(
+                                    <div style={{position:'absolute',zIndex:10,marginTop:4,width:280,border:'1px solid var(--ac)',borderRadius:6,background:'var(--bg2)',padding:10,boxShadow:'0 4px 16px rgba(0,0,0,.4)'}}>
+                                      <div style={{fontSize:10,fontWeight:700,marginBottom:6}}>¿Cómo se puede resolver este recurso?</div>
+                                      <div style={{marginBottom:8}}>
+                                        <div style={{fontSize:9,color:'var(--tx2)',marginBottom:2}}>1. Si se conoce el código de catálogo:</div>
+                                        <input className="ni" placeholder="Código" value={codigoVal} onChange={function(e){st.editarRecurso(key,'codigo',e.target.value)}} style={{fontSize:10,background:'var(--bg3)',border:'1px solid var(--bdr)',borderRadius:4,padding:'4px 8px',width:'100%'}}/>
+                                      </div>
+                                      <div style={{marginBottom:8}}>
+                                        <div style={{fontSize:9,color:'var(--tx2)',marginBottom:2}}>2. O corregir el nombre para buscar de nuevo:</div>
+                                        <input className="ni" value={nombreVal} onChange={function(e){st.editarRecurso(key,'nombre',e.target.value)}} style={{fontSize:10,background:'var(--bg3)',border:'1px solid var(--bdr)',borderRadius:4,padding:'4px 8px',width:'100%'}}/>
+                                      </div>
+                                      <div>
+                                        <div style={{fontSize:9,color:'var(--tx2)',marginBottom:2}}>
+                                          3. {ru.candidatos&&ru.candidatos.length>0?'O elegir una de las coincidencias encontradas:':'No se encontraron coincidencias parecidas en el catálogo.'}
+                                        </div>
+                                        {ru.candidatos&&ru.candidatos.length>0?(
+                                          ru.candidatos.map(function(c){
+                                            return(
+                                              <div key={c.id} onClick={function(){st.elegirCandidato(key,c);setPopoverResolver(null)}} style={{padding:'4px 6px',cursor:'pointer',borderRadius:3,fontSize:9,marginTop:2,background:ru.match&&c.id===ru.match.id?'rgba(74,222,128,.12)':'var(--bg3)'}}>
+                                                {c.nombre} — {c.unidad} · {fmt(r2(c.precio))} ({c.sim.toFixed(0)}% similar)
+                                              </div>
+                                            );
+                                          })
+                                        ):(
+                                          <div style={{fontSize:9,color:'var(--tx2)',marginTop:2,lineHeight:1.4}}>
+                                            No se encontró nada parecido en el catálogo actual. Esto normalmente significa que es un recurso nuevo — por eso la Decisión ya viene preseleccionada como <b>"Crear nuevo"</b>.
+                                            <br/>Si ya existe con un nombre muy distinto, se puede probar escribiendo su código exacto arriba, en el punto 1.
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
+                                </td>
                                 <td style={{textAlign:'center'}}><span title={SEVERIDAD_AYUDA[ru.severidad]?SEVERIDAD_AYUDA[ru.severidad].texto:''} style={{fontSize:9,padding:'2px 6px',borderRadius:3,border:'1px solid '+SEVERIDAD_COLOR[ru.severidad],color:SEVERIDAD_COLOR[ru.severidad],cursor:'help'}}>{SEVERIDAD_LABEL[ru.severidad]}</span></td>
                                 <td>
                                   <select className="ni sel" value={ru.decision||''} onChange={function(e){st.setDecision(key,e.target.value)}} style={{fontSize:9,width:'100%'}} disabled={ru.severidad==='bloqueante'}>
@@ -3619,40 +3676,40 @@ function ImportApuModal({repositorio,contextoCalc,onAplicar,onClose,origenProyec
                 </table>
               </div>
               <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                <span style={{fontSize:10,color:'var(--tx3)'}}>{st.hayBloqueos?'Resuelva los recursos en rojo (bloqueante/critica) para continuar.':'Todo listo para confirmar.'}</span>
-                <button className="btn" disabled={st.hayBloqueos} onClick={function(){st.setFase(4)}} style={{fontSize:11,padding:'6px 14px',border:'1px solid var(--ok)',borderRadius:4,background:st.hayBloqueos?'none':'rgba(74,222,128,.08)',color:'var(--ok)',cursor:st.hayBloqueos?'not-allowed':'pointer',opacity:st.hayBloqueos?0.5:1}}>{st.hayBloqueos?'Resolvé '+(porSeveridad.bloqueante+porSeveridad.critica)+' pendiente(s) para continuar':'Continuar a Confirmación →'}</button>
+                <span style={{fontSize:10,color:'var(--tx3)'}}>{st.hayBloqueos?'Es necesario resolver los recursos en rojo (bloqueante/crítica) para continuar.':'Todo listo para confirmar.'}</span>
+                <button className="btn" disabled={st.hayBloqueos} onClick={function(){st.setFase(4)}} style={{fontSize:11,padding:'6px 14px',border:'1px solid var(--ok)',borderRadius:4,background:st.hayBloqueos?'none':'rgba(74,222,128,.08)',color:'var(--ok)',cursor:st.hayBloqueos?'not-allowed':'pointer',opacity:st.hayBloqueos?0.5:1}}>{st.hayBloqueos?'Faltan '+(porSeveridad.bloqueante+porSeveridad.critica)+' pendiente(s) para continuar':'Continuar a Confirmación →'}</button>
               </div>
             </div>
             <div style={{width:300,flexShrink:0,borderLeft:'1px solid var(--bdr)',paddingLeft:12,overflowY:'auto',fontSize:10,color:'var(--tx2)'}}>
               <div style={{fontSize:11,fontWeight:700,marginBottom:8,color:'var(--tx)'}}>📖 Guía rápida</div>
               <div style={{marginBottom:12,paddingBottom:12,borderBottom:'1px solid var(--bdr)'}}>
                 <b style={{color:'var(--ac)'}}>Match en catálogo</b>
-                <div style={{marginTop:3}}><b style={{color:'var(--warn)'}}>Qué es:</b> lo que el sistema encontró en tu catálogo actual que podría ser este mismo recurso.</div>
+                <div style={{marginTop:3}}><b style={{color:'var(--warn)'}}>Qué es:</b> lo que el sistema encontró en el catálogo actual que podría ser este mismo recurso.</div>
                 <div style={{marginTop:2}}><b style={{color:'var(--ac)'}}>Cómo se origina:</b> busca primero por Código; si no encuentra, busca por Nombre+Unidad+Precio. "— sin coincidencia —" = no encontró nada parecido.</div>
-                <div style={{marginTop:2}}><b style={{color:'var(--ok)'}}>Cómo se resuelve:</b> no se edita directamente. Si sabés que el recurso ya existe con otro nombre, corregí el Código o el Nombre de la fila — el Match se recalcula solo.</div>
+                <div style={{marginTop:2}}><b style={{color:'var(--ok)'}}>Cómo se resuelve:</b> no se edita directamente. Usar el botón <b>🔍 Resolver</b> de la fila para corregir el Código o el Nombre, o elegir entre las coincidencias encontradas — el Match se recalcula solo.</div>
               </div>
               <div style={{marginBottom:12,paddingBottom:12,borderBottom:'1px solid var(--bdr)'}}>
                 <b style={{color:'var(--ac)'}}>Severidad</b>
-                <div style={{marginTop:3}}><b style={{color:'var(--warn)'}}>Qué es:</b> qué tan confiable es el resultado del Match, para saber si necesitás prestarle atención.</div>
+                <div style={{marginTop:3}}><b style={{color:'var(--warn)'}}>Qué es:</b> qué tan confiable es el resultado del Match, para saber si requiere atención.</div>
                 <div style={{marginTop:2}}><b style={{color:'var(--ac)'}}>Cómo se origina:</b> se calcula solo, comparando el Match contra Unidad y Precio (y Desperdicio en insumos).</div>
                 <div style={{marginTop:2}}><b style={{color:'var(--ok)'}}>Cómo se resuelve:</b> no se edita directamente. Se corrige cambiando el dato que la origina:</div>
                 <ul style={{margin:'4px 0 0 14px',padding:0}}>
-                  <li>🔴 Bloqueante: completá el % de Desperdicio (solo insumos).</li>
-                  <li>🟠 Crítica: revisá la Unidad, o elegí una Decisión igual.</li>
-                  <li>🟡 Alta/Media: confirmá el Precio o el Nombre, o elegí una Decisión igual.</li>
-                  <li>🟢 Baja: coincidencia exacta — ya está resuelta, no requiere acción.</li>
-                  <li>⚪ Sin match: no existe nada parecido — se resuelve en la columna Decisión.</li>
+                  <li>🔴 <b style={{color:SEVERIDAD_COLOR.bloqueante}}>Bloqueante</b>: completar el % de Desperdicio (solo insumos).</li>
+                  <li>🟠 <b style={{color:SEVERIDAD_COLOR.critica}}>Crítica</b>: revisar la Unidad, o elegir una Decisión igual.</li>
+                  <li>🟡 <b style={{color:SEVERIDAD_COLOR.alta}}>Alta/Media</b>: confirmar el Precio o el Nombre, o elegir una Decisión igual.</li>
+                  <li>🟢 <b style={{color:SEVERIDAD_COLOR.baja}}>Baja</b>: coincidencia exacta — ya está resuelta, no requiere acción.</li>
+                  <li>⚪ <b style={{color:SEVERIDAD_COLOR.sin_match}}>Sin match</b>: no existe nada parecido — se resuelve en la columna Decisión.</li>
                 </ul>
               </div>
               <div>
                 <b style={{color:'var(--ac)'}}>Decisión</b>
-                <div style={{marginTop:3}}><b style={{color:'var(--warn)'}}>Qué es:</b> la ÚNICA columna que se resuelve con una acción directa tuya.</div>
-                <div style={{marginTop:2}}><b style={{color:'var(--ac)'}}>Cómo se origina:</b> viene sugerida según la Severidad (ej. "Crear nuevo" para Sin match), pero podés cambiarla.</div>
-                <div style={{marginTop:2}}><b style={{color:'var(--ok)'}}>Cómo se resuelve:</b> elegí una opción en el selector de cada fila, o usá los botones de "aplicar a todos" cuando estén disponibles:</div>
+                <div style={{marginTop:3}}><b style={{color:'var(--warn)'}}>Qué es:</b> la ÚNICA columna que se resuelve con una acción directa del usuario.</div>
+                <div style={{marginTop:2}}><b style={{color:'var(--ac)'}}>Cómo se origina:</b> viene sugerida según la Severidad (ej. "Crear nuevo" para Sin match), pero puede cambiarse.</div>
+                <div style={{marginTop:2}}><b style={{color:'var(--ok)'}}>Cómo se resuelve:</b> elegir una opción en el selector de cada fila, o usar los botones de "aplicar a todos" cuando estén disponibles:</div>
                 <ul style={{margin:'4px 0 0 14px',padding:0}}>
-                  <li><b>Vincular:</b> usar el recurso ya existente en tu catálogo.</li>
-                  <li><b>Vincular y actualizar precio:</b> usar el existente pero con el precio del Excel.</li>
-                  <li><b>Crear nuevo:</b> no existe, se agrega como recurso nuevo.</li>
+                  <li><b style={{color:'var(--ok)'}}>Vincular:</b> usar el recurso ya existente en el catálogo.</li>
+                  <li><b style={{color:'var(--ok)'}}>Vincular y actualizar precio:</b> usar el existente pero con el precio del Excel.</li>
+                  <li><b style={{color:'var(--ok)'}}>Crear nuevo:</b> no existe, se agrega como recurso nuevo.</li>
                 </ul>
               </div>
             </div>

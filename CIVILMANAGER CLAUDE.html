@@ -2950,7 +2950,10 @@ function resolverMatchYSeveridad(ru,base,umbralPct){
     n.match=buscarMatch(n,base);
     n.severidad=calcularSeveridadDeMatch(n,n.match,umbralPct,false);
   }
-  if(n.severidad==='baja'&&!n.decision)n.decision='vincular';
+  if(!n.decision){
+    if(n.severidad==='baja')n.decision='vincular';
+    else if(n.severidad==='sin_match')n.decision='crear_nuevo';
+  }
   return n;
 }
 
@@ -3466,7 +3469,7 @@ function ImportApuModal({repositorio,contextoCalc,onAplicar,onClose,origenProyec
 
   return(
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-box" style={{width:960,maxHeight:'88vh',display:'flex',flexDirection:'column'}} onClick={function(e){e.stopPropagation()}}>
+      <div className="modal-box" style={{width:1320,maxWidth:'96vw',maxHeight:'88vh',display:'flex',flexDirection:'column'}} onClick={function(e){e.stopPropagation()}}>
         <div className="modal-hdr">
           <span className="title">Importar Multi-APU desde Excel</span>
           <button className="btn-del" onClick={onClose} style={{background:'none',border:'none',cursor:'pointer',padding:2,color:'var(--ok)'}}><IconX/></button>
@@ -3510,7 +3513,8 @@ function ImportApuModal({repositorio,contextoCalc,onAplicar,onClose,origenProyec
           )}
 
           {st.fase===3&&(
-            <div style={{display:'flex',flexDirection:'column',gap:10}}>
+            <div style={{display:'flex',gap:12,flex:1,minHeight:0}}>
+            <div style={{flex:1,minWidth:0,display:'flex',flexDirection:'column',gap:10}}>
               <div style={{fontSize:11,color:'var(--tx3)'}}>{st.nombreArchivo} · {st.bloques.length} APU detectados · {st.recursosUnicos.length} recursos unicos</div>
               {st.erroresParse.length>0&&(
                 <details style={{fontSize:11,color:'#f87171',background:'rgba(248,113,113,0.08)',border:'1px solid rgba(248,113,113,0.2)',borderRadius:4,padding:'6px 10px'}}>
@@ -3583,7 +3587,7 @@ function ImportApuModal({repositorio,contextoCalc,onAplicar,onClose,origenProyec
                             var codigoVal=ru.codigo||'';
                             var nombreVal=(ru.edicion&&ru.edicion.nombre)!=null?ru.edicion.nombre:ru.nombre_variantes[0];
                             var unidadVal=(ru.edicion&&ru.edicion.unidad)!=null?ru.edicion.unidad:ru.unidad;
-                            var precioVal=(ru.edicion&&ru.edicion.precio)!=null?ru.edicion.precio:ru.precio_excel;
+                            var precioVal=(ru.edicion&&ru.edicion.precio)!=null?ru.edicion.precio:r2(ru.precio_excel);
                             var despVal=(ru.edicion&&ru.edicion.desperdicios_pct)!=null?ru.edicion.desperdicios_pct:'';
                             return(
                               <tr key={key} style={ru.severidad==='bloqueante'||ru.severidad==='critica'?{background:'rgba(248,113,113,.06)'}:{}}>
@@ -3618,6 +3622,40 @@ function ImportApuModal({repositorio,contextoCalc,onAplicar,onClose,origenProyec
                 <span style={{fontSize:10,color:'var(--tx3)'}}>{st.hayBloqueos?'Resuelva los recursos en rojo (bloqueante/critica) para continuar.':'Todo listo para confirmar.'}</span>
                 <button className="btn" disabled={st.hayBloqueos} onClick={function(){st.setFase(4)}} style={{fontSize:11,padding:'6px 14px',border:'1px solid var(--ok)',borderRadius:4,background:st.hayBloqueos?'none':'rgba(74,222,128,.08)',color:'var(--ok)',cursor:st.hayBloqueos?'not-allowed':'pointer',opacity:st.hayBloqueos?0.5:1}}>{st.hayBloqueos?'Resolvé '+(porSeveridad.bloqueante+porSeveridad.critica)+' pendiente(s) para continuar':'Continuar a Confirmación →'}</button>
               </div>
+            </div>
+            <div style={{width:300,flexShrink:0,borderLeft:'1px solid var(--bdr)',paddingLeft:12,overflowY:'auto',fontSize:10,color:'var(--tx2)'}}>
+              <div style={{fontSize:11,fontWeight:700,marginBottom:8,color:'var(--tx)'}}>📖 Guía rápida</div>
+              <div style={{marginBottom:12,paddingBottom:12,borderBottom:'1px solid var(--bdr)'}}>
+                <b style={{color:'var(--ac)'}}>Match en catálogo</b>
+                <div style={{marginTop:3}}><b style={{color:'var(--warn)'}}>Qué es:</b> lo que el sistema encontró en tu catálogo actual que podría ser este mismo recurso.</div>
+                <div style={{marginTop:2}}><b style={{color:'var(--ac)'}}>Cómo se origina:</b> busca primero por Código; si no encuentra, busca por Nombre+Unidad+Precio. "— sin coincidencia —" = no encontró nada parecido.</div>
+                <div style={{marginTop:2}}><b style={{color:'var(--ok)'}}>Cómo se resuelve:</b> no se edita directamente. Si sabés que el recurso ya existe con otro nombre, corregí el Código o el Nombre de la fila — el Match se recalcula solo.</div>
+              </div>
+              <div style={{marginBottom:12,paddingBottom:12,borderBottom:'1px solid var(--bdr)'}}>
+                <b style={{color:'var(--ac)'}}>Severidad</b>
+                <div style={{marginTop:3}}><b style={{color:'var(--warn)'}}>Qué es:</b> qué tan confiable es el resultado del Match, para saber si necesitás prestarle atención.</div>
+                <div style={{marginTop:2}}><b style={{color:'var(--ac)'}}>Cómo se origina:</b> se calcula solo, comparando el Match contra Unidad y Precio (y Desperdicio en insumos).</div>
+                <div style={{marginTop:2}}><b style={{color:'var(--ok)'}}>Cómo se resuelve:</b> no se edita directamente. Se corrige cambiando el dato que la origina:</div>
+                <ul style={{margin:'4px 0 0 14px',padding:0}}>
+                  <li>🔴 Bloqueante: completá el % de Desperdicio (solo insumos).</li>
+                  <li>🟠 Crítica: revisá la Unidad, o elegí una Decisión igual.</li>
+                  <li>🟡 Alta/Media: confirmá el Precio o el Nombre, o elegí una Decisión igual.</li>
+                  <li>🟢 Baja: coincidencia exacta — ya está resuelta, no requiere acción.</li>
+                  <li>⚪ Sin match: no existe nada parecido — se resuelve en la columna Decisión.</li>
+                </ul>
+              </div>
+              <div>
+                <b style={{color:'var(--ac)'}}>Decisión</b>
+                <div style={{marginTop:3}}><b style={{color:'var(--warn)'}}>Qué es:</b> la ÚNICA columna que se resuelve con una acción directa tuya.</div>
+                <div style={{marginTop:2}}><b style={{color:'var(--ac)'}}>Cómo se origina:</b> viene sugerida según la Severidad (ej. "Crear nuevo" para Sin match), pero podés cambiarla.</div>
+                <div style={{marginTop:2}}><b style={{color:'var(--ok)'}}>Cómo se resuelve:</b> elegí una opción en el selector de cada fila, o usá los botones de "aplicar a todos" cuando estén disponibles:</div>
+                <ul style={{margin:'4px 0 0 14px',padding:0}}>
+                  <li><b>Vincular:</b> usar el recurso ya existente en tu catálogo.</li>
+                  <li><b>Vincular y actualizar precio:</b> usar el existente pero con el precio del Excel.</li>
+                  <li><b>Crear nuevo:</b> no existe, se agrega como recurso nuevo.</li>
+                </ul>
+              </div>
+            </div>
             </div>
           )}
 

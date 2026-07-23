@@ -995,7 +995,7 @@ const handleTabKeyDown=function(setEditIdx){return function(i,e){if(e.key==='Ent
 
 
 
-function useCrudTable({data,onChange,dataKey,prefix,defaultItem,searchKeys,confirmDel,excelConfig}){
+function useCrudTable({data,onChange,dataKey,prefix,defaultItem,searchKeys,confirmDel,excelConfig,esReferenciado}){
 
   var items=data[dataKey]||[];
 
@@ -1009,13 +1009,37 @@ function useCrudTable({data,onChange,dataKey,prefix,defaultItem,searchKeys,confi
 
   var del=useCallback(async function(i){if(!(await askConfirm(confirmDel)))return;if(editIdx===i)setEditIdx(null);onChange(Object.assign({},data,{[dataKey]:items.filter(function(_,j){return j!==i})}))},[items,data,onChange,dataKey,editIdx,confirmDel]);
 
+  var [seleccionados,setSeleccionados]=useState(new Set());
+
+  var toggleSel=useCallback(function(id){
+    setSeleccionados(function(prev){
+      var next=new Set(prev);
+      if(next.has(id))next.delete(id);else next.add(id);
+      return next;
+    });
+  },[]);
+
+  var eliminarSeleccionados=useCallback(async function(){
+    if(seleccionados.size===0)return;
+    var bloqueados=esReferenciado?items.filter(function(x){return seleccionados.has(x.id)&&esReferenciado(x)}):[];
+    var aEliminar=items.filter(function(x){return seleccionados.has(x.id)&&!bloqueados.includes(x)});
+    if(aEliminar.length===0){showToast('Ningún registro se puede eliminar: todos están en uso en algún APU.',{type:'err'});return}
+    var msg='¿Eliminar '+aEliminar.length+' registro(s) seleccionado(s)? Esta acción no se puede deshacer.';
+    if(bloqueados.length>0)msg+=' ('+bloqueados.length+' se omiten por estar en uso en algún APU.)';
+    if(!(await askConfirm(msg)))return;
+    setEditIdx(null);
+    var idsAEliminar=new Set(aEliminar.map(function(x){return x.id}));
+    onChange(Object.assign({},data,{[dataKey]:items.filter(function(x){return !idsAEliminar.has(x.id)})}));
+    setSeleccionados(new Set());
+  },[seleccionados,items,data,onChange,dataKey,esReferenciado]);
+
   var filtered=useMemo(function(){return search?items.filter(function(item){return searchKeys.some(function(k){return norm(item[k]||'').includes(norm(search))})}):items},[items,search,searchKeys]);
 
   var handleKeyDown=handleTabKeyDown(setEditIdx);
 
   var excel=useExcelImportExport(Object.assign({},excelConfig,{items:items,data:data,onChange:onChange,dataKey:dataKey,prefix:prefix}));
 
-  return{items:items,editIdx:editIdx,setEditIdx:setEditIdx,search:search,setSearch:setSearch,upd:upd,add:add,del:del,filtered:filtered,handleKeyDown:handleKeyDown,excel:excel};
+  return{items:items,editIdx:editIdx,setEditIdx:setEditIdx,search:search,setSearch:setSearch,upd:upd,add:add,del:del,filtered:filtered,handleKeyDown:handleKeyDown,excel:excel,seleccionados:seleccionados,toggleSel:toggleSel,setSeleccionados:setSeleccionados,eliminarSeleccionados:eliminarSeleccionados};
 
 }
 
@@ -1106,6 +1130,31 @@ function FactorPrestacionalTab({data,onChange,factorPrest,cargosCalc,cargoMap,es
 
   var delCargo=async function(i){var cargoId=cargos[i].id;var enCuadrillas=(data.cuadrillas||[]).reduce(function(s,q){return s+(q.integrantes||[]).filter(function(int){return int.cargo_id===cargoId}).length},0);var enAPU=(data.apus||[]).reduce(function(s,a){return s+(a.recursos_mo||[]).filter(function(r){return r.cargo_id===cargoId}).length},0);if(enCuadrillas>0||enAPU>0){setCargoDelErr('Este colaborador se usa en '+enCuadrillas+' cuadrilla(s) y '+enAPU+' APU. No se puede eliminar.');return}setCargoDelErr('');if(!(await askConfirm('\u00bfDesea eliminar "'+(cargos[i].descripcion||'este colaborador')+'"? Esta acci\u00f3n no se puede deshacer.')))return;if(cargosEditIdx===i)setCargosEditIdx(null);onChange(Object.assign({},data,{cargos:cargos.filter(function(_,j){return j!==i})}))};
 
+  var[cargoSel,setCargoSel]=useState(new Set());
+
+  var cargoToggleSel=function(id){setCargoSel(function(prev){var next=new Set(prev);if(next.has(id))next.delete(id);else next.add(id);return next})};
+
+  var cargoTieneReferencia=function(c){
+    var enCuadrillas=(data.cuadrillas||[]).some(function(q){return(q.integrantes||[]).some(function(int){return int.cargo_id===c.id})});
+    var enAPU=(data.apus||[]).some(function(a){return(a.recursos_mo||[]).some(function(r){return r.cargo_id===c.id})});
+    return enCuadrillas||enAPU;
+  };
+
+  var cargoEliminarSeleccionados=async function(){
+    if(cargoSel.size===0)return;
+    var seleccionadosCargos=cargos.filter(function(c){return cargoSel.has(c.id)});
+    var bloqueados=seleccionadosCargos.filter(cargoTieneReferencia);
+    var aEliminar=seleccionadosCargos.filter(function(c){return bloqueados.indexOf(c)===-1});
+    if(aEliminar.length===0){showToast('Ning\u00fan colaborador se puede eliminar: todos est\u00e1n en uso en alguna cuadrilla o APU.',{type:'err'});return}
+    var msg='\u00bfEliminar '+aEliminar.length+' colaborador(es) seleccionado(s)? Esta acci\u00f3n no se puede deshacer.';
+    if(bloqueados.length>0)msg+=' ('+bloqueados.length+' se omiten por estar en uso.)';
+    if(!(await askConfirm(msg)))return;
+    var idsAEliminar=new Set(aEliminar.map(function(c){return c.id}));
+    setCargosEditIdx(null);
+    onChange(Object.assign({},data,{cargos:cargos.filter(function(c){return !idsAEliminar.has(c.id)})}));
+    setCargoSel(new Set());
+  };
+
   var handleCargosKeyDown=handleTabKeyDown(setCargosEditIdx);
 
   var cargosExcel=useExcelImportExport({items:cargos,data:data,onChange:onChange,dataKey:'cargos',prefix:'MO',title:'CATALOGO DE COLABORADORES',sheetName:'Colaboradores',filename:'colaboradores.xlsx',headers:esHora?['Codigo','Descripcion','# S.B.','Vr. Basico','Costo/Hora']:['Codigo','Descripcion','# S.B.','Vr. Basico','Costo/Dia','Costo/Hora'],colWidths:esHora?[{wch:10},{wch:30},{wch:10},{wch:14},{wch:14}]:[{wch:10},{wch:30},{wch:10},{wch:14},{wch:14},{wch:14}],mapRow:function(c){var calc=cargoMap.get(c.id)||{};return esHora?[c.codigo||'',c.descripcion||'',c.num_salarios_base||1,calc.valorBasico||0,calc.costo_base_hora||0]:[c.codigo||'',c.descripcion||'',c.num_salarios_base||1,calc.valorBasico||0,calc.costo_base_dia||0,calc.costo_base_hora||0]},parseRow:function(r){return[String(r[0]||'').trim(),String(r[1]||'').trim(),String(r[2]||1).trim()]},buildItem:function(r,idx,existing,genCode){return{codigo:idx>=0?existing[idx].codigo:genCode(),id:idx>=0?existing[idx].id:uid(),descripcion:r[1]||'',num_salarios_base:safeFloat(r[2])||1}},matchKey:'codigo'});
@@ -1126,7 +1175,7 @@ function FactorPrestacionalTab({data,onChange,factorPrest,cargosCalc,cargoMap,es
 
 
 
-  var tblW=esHora?720:830;
+  var tblW=(esHora?720:830)+24;
 
   return(
 
@@ -1152,6 +1201,8 @@ function FactorPrestacionalTab({data,onChange,factorPrest,cargosCalc,cargoMap,es
 
               <colgroup>
 
+                <col style={{width:'24px'}}/>
+
                 <col className="col-rn" style={{width:'40px'}}/>
 
                 <col className="cw-90"/>
@@ -1173,6 +1224,8 @@ function FactorPrestacionalTab({data,onChange,factorPrest,cargosCalc,cargoMap,es
               <thead>
 
                 <tr>
+
+                  <th style={{textAlign:'center'}}><input type="checkbox" checked={filteredCargos.length>0&&filteredCargos.every(function(c){return cargoSel.has(c.id)})} onChange={function(){setCargoSel(filteredCargos.length>0&&filteredCargos.every(function(c){return cargoSel.has(c.id)})?new Set():new Set(filteredCargos.map(function(c){return c.id})))}}/></th>
 
                   <th className="col-rn">#</th>
 
@@ -1196,7 +1249,7 @@ function FactorPrestacionalTab({data,onChange,factorPrest,cargosCalc,cargoMap,es
 
             <tbody>
 
-                {filteredCargos.length===0&&cuadrillasRows.length===0&&<tr className="empty-row"><td colSpan={esHora?7:8}>{cargoSearch?'Sin resultados.':'Sin cargos. Agregue uno.'}</td></tr>}
+                {filteredCargos.length===0&&cuadrillasRows.length===0&&<tr className="empty-row"><td colSpan={esHora?8:9}>{cargoSearch?'Sin resultados.':'Sin cargos. Agregue uno.'}</td></tr>}
 
                 {filteredCargos.map(function(c,i){var origIdx=cargos.indexOf(c);
 
@@ -1207,6 +1260,8 @@ function FactorPrestacionalTab({data,onChange,factorPrest,cargosCalc,cargoMap,es
                   return(
 
                     <tr key={c.id} onBlur={function(e){if(!e.currentTarget.contains(e.relatedTarget))setCargosEditIdx(null)}}>
+
+                      <td style={{textAlign:'center'}}><input type="checkbox" checked={cargoSel.has(c.id)} onChange={function(){cargoToggleSel(c.id)}}/></td>
 
                       <XLRowNum n={i+1}/>
 
@@ -1230,7 +1285,7 @@ function FactorPrestacionalTab({data,onChange,factorPrest,cargosCalc,cargoMap,es
 
                 })}
 
-                {cuadrillasRows.length>0&&cuadrillasRows.some(function(cr){return !cargoSearch||(norm(cr.codigo||'').includes(norm(cargoSearch))||norm(cr.descripcion||'').includes(norm(cargoSearch)))})&&<tr style={{background:'var(--bg3)',borderBottom:'1px solid var(--bdr)',borderTop:'1px solid var(--bdr)'}}><td className="col-rn"/><td/><td style={{padding:'4px 6px',fontSize:11,fontWeight:700,color:'#4ade80',textAlign:'left'}}>CUADRILLAS</td>{!esHora&&<td/>}<td/><td/><td/><td className="col-act"/></tr>}
+                {cuadrillasRows.length>0&&cuadrillasRows.some(function(cr){return !cargoSearch||(norm(cr.codigo||'').includes(norm(cargoSearch))||norm(cr.descripcion||'').includes(norm(cargoSearch)))})&&<tr style={{background:'var(--bg3)',borderBottom:'1px solid var(--bdr)',borderTop:'1px solid var(--bdr)'}}><td/><td className="col-rn"/><td/><td style={{padding:'4px 6px',fontSize:11,fontWeight:700,color:'#4ade80',textAlign:'left'}}>CUADRILLAS</td>{!esHora&&<td/>}<td/><td/><td/><td className="col-act"/></tr>}
 
                 {cuadrillasRows.map(function(cr,ci){
 
@@ -1239,6 +1294,8 @@ function FactorPrestacionalTab({data,onChange,factorPrest,cargosCalc,cargoMap,es
                   return(
 
                     <tr key={cr.id} style={{background:'var(--bg2)'}}>
+
+                      <td/>
 
                       <XLRowNum n={filteredCargos.length+ci+1}/>
 
@@ -1268,7 +1325,9 @@ function FactorPrestacionalTab({data,onChange,factorPrest,cargosCalc,cargoMap,es
 
           </div>
 
-        <CrudFooter onAdd={addCargo} addLabel="Colaborador" excel={cargosExcel} exportLabel="Exportar" onSearch={{v:cargoSearch,set:setCargoSearch}} searchPlaceholder="Buscar colaborador..." countLabel="No. de Colaboradores:" count={cargos.length}/>
+        <CrudFooter onAdd={addCargo} addLabel="Colaborador" excel={cargosExcel} exportLabel="Exportar" onSearch={{v:cargoSearch,set:setCargoSearch}} searchPlaceholder="Buscar colaborador..." countLabel="No. de Colaboradores:" count={cargos.length}>
+          {cargoSel.size>0&&<button className="btn" onClick={cargoEliminarSeleccionados} style={{fontSize:11,border:'1px solid #f87171',borderRadius:4,color:'#f87171'}}>🗑 Eliminar {cargoSel.size} seleccionado(s)</button>}
+        </CrudFooter>
 
         <div style={{padding:'6px 10px',fontSize:10,color:'var(--tx3)',lineHeight:'1.5'}}><b style={{color:'var(--warn)'}}>NOTA:</b> "# S.B." Se refiere a la cantidad de Salarios Básicos de cada país que se requieren para obtener el Salario Básico de cada Colaborador.</div>
 
@@ -1859,7 +1918,18 @@ function EquiposTab({data,onChange,provMap,_unidades}){
 
   var[tipoFilter,setTipoFilter]=useState('Todos');
 
-  var{items:equipos,editIdx,setEditIdx,search,setSearch,upd,add,del,filtered:filteredEquipos,handleKeyDown,excel:eqExcel}=useCrudTable({data,onChange,dataKey:'equipos',prefix:'EQ',defaultItem:function(){return{id:uid(),codigo:genCodeFor(data.equipos,'EQ'),nombre:'',tipo:'Equipo menor',unidad:'hr',costo_hora:0,fecha_cotizacion:'',proveedor_id:''}},searchKeys:['codigo','nombre'],confirmDel:"Eliminar este equipo?",excelConfig:{title:'CATALOGO DE EQUIPOS Y MAQUINARIA',sheetName:'Equipos',filename:'catalogo_equipos.xlsx',headers:['Codigo','Descripcion','Tipo','Und','Costo/Und','F.Cotizacion','Proveedor'],colWidths:[{wch:10},{wch:30},{wch:18},{wch:6},{wch:14},{wch:14},{wch:20}],mapRow:function(e){var prov=proveedores.find(function(p){return p.id===e.proveedor_id});return[e.codigo||'',e.nombre||'',e.tipo||'',e.unidad||'',e.costo_hora||0,fmtDate(e.fecha_cotizacion),prov?prov.nombre:'']},parseRow:function(r){return[String(r[0]||'').trim(),String(r[1]||'').trim(),String(r[2]||'').trim(),String(r[3]||'').trim(),String(r[4]||0).trim(),String(r[5]||'').trim(),String(r[6]||'').trim()]},buildItem:function(r,idx,existing){var provNombre=(r[6]||'').trim();var provId=provNombre?((proveedores.find(function(p){return(p.nombre||'').toLowerCase()===provNombre.toLowerCase()})||{}).id||''):(idx>=0&&existing[idx]?existing[idx].proveedor_id:'');return{id:uid(),codigo:genCodeFor(equipos,'EQ',r[0]),nombre:r[1]||'',tipo:r[2]||'Equipo menor',unidad:r[3]||'hr',costo_hora:safeFloat(r[4])||0,fecha_cotizacion:toISODate(r[5]),proveedor_id:provId}}}});
+  var equipoTieneReferencia=function(e){
+    var apus=data.apus||[];
+    for(var a=0;a<apus.length;a++){
+      var eqs=apus[a].recursos_eq||[];
+      var trs=apus[a].recursos_transporte||[];
+      for(var j=0;j<eqs.length;j++){if(eqs[j].equipo_id===e.id)return true}
+      for(var k=0;k<trs.length;k++){if(trs[k].equipo_id===e.id)return true}
+    }
+    return false;
+  };
+
+  var{items:equipos,editIdx,setEditIdx,search,setSearch,upd,add,del,filtered:filteredEquipos,handleKeyDown,excel:eqExcel,seleccionados:eqSel,toggleSel:eqToggleSel,setSeleccionados:setEqSel,eliminarSeleccionados:eqEliminarSeleccionados}=useCrudTable({data,onChange,dataKey:'equipos',prefix:'EQ',defaultItem:function(){return{id:uid(),codigo:genCodeFor(data.equipos,'EQ'),nombre:'',tipo:'Equipo menor',unidad:'hr',costo_hora:0,fecha_cotizacion:'',proveedor_id:''}},searchKeys:['codigo','nombre'],confirmDel:"Eliminar este equipo?",esReferenciado:equipoTieneReferencia,excelConfig:{title:'CATALOGO DE EQUIPOS Y MAQUINARIA',sheetName:'Equipos',filename:'catalogo_equipos.xlsx',headers:['Codigo','Descripcion','Tipo','Und','Costo/Und','F.Cotizacion','Proveedor'],colWidths:[{wch:10},{wch:30},{wch:18},{wch:6},{wch:14},{wch:14},{wch:20}],mapRow:function(e){var prov=proveedores.find(function(p){return p.id===e.proveedor_id});return[e.codigo||'',e.nombre||'',e.tipo||'',e.unidad||'',e.costo_hora||0,fmtDate(e.fecha_cotizacion),prov?prov.nombre:'']},parseRow:function(r){return[String(r[0]||'').trim(),String(r[1]||'').trim(),String(r[2]||'').trim(),String(r[3]||'').trim(),String(r[4]||0).trim(),String(r[5]||'').trim(),String(r[6]||'').trim()]},buildItem:function(r,idx,existing){var provNombre=(r[6]||'').trim();var provId=provNombre?((proveedores.find(function(p){return(p.nombre||'').toLowerCase()===provNombre.toLowerCase()})||{}).id||''):(idx>=0&&existing[idx]?existing[idx].proveedor_id:'');return{id:uid(),codigo:genCodeFor(equipos,'EQ',r[0]),nombre:r[1]||'',tipo:r[2]||'Equipo menor',unidad:r[3]||'hr',costo_hora:safeFloat(r[4])||0,fecha_cotizacion:toISODate(r[5]),proveedor_id:provId}}}});
 
   var filteredEquiposF=tipoFilter==='Todos'?filteredEquipos:filteredEquipos.filter(function(e){return e.tipo===tipoFilter});
 
@@ -1903,21 +1973,23 @@ function EquiposTab({data,onChange,provMap,_unidades}){
 
     <div>
 
-      <div className="sec-hdr" style={{border:'1px solid var(--bdr)',borderRadius:4,padding:'2px 10px',marginBottom:8,flex:'0 0 auto',width:1137}}>
+      <div className="sec-hdr" style={{border:'1px solid var(--bdr)',borderRadius:4,padding:'2px 10px',marginBottom:8,flex:'0 0 auto',width:1161}}>
 
         <span className="title" style={{fontSize:15,lineHeight:'19px'}}>CATALOGO DE EQUIPOS Y MAQUINARIA</span>
 
       </div>
 
-      {equipoDelErr&&<div style={{padding:'8px 10px',fontSize:12,color:'#f87171',background:'rgba(248,113,113,0.08)',border:'1px solid rgba(248,113,113,0.2)',borderRadius:4,marginBottom:8,width:1137,display:'flex',alignItems:'center',justifyContent:'space-between'}}><span>{equipoDelErr}</span><button onClick={function(){setEquipoDelErr('')}} style={{background:'none',border:'none',color:'#f87171',cursor:'pointer',fontSize:16,lineHeight:1,padding:'0 4px'}} title="Cerrar">✕</button></div>}
+      {equipoDelErr&&<div style={{padding:'8px 10px',fontSize:12,color:'#f87171',background:'rgba(248,113,113,0.08)',border:'1px solid rgba(248,113,113,0.2)',borderRadius:4,marginBottom:8,width:1161,display:'flex',alignItems:'center',justifyContent:'space-between'}}><span>{equipoDelErr}</span><button onClick={function(){setEquipoDelErr('')}} style={{background:'none',border:'none',color:'#f87171',cursor:'pointer',fontSize:16,lineHeight:1,padding:'0 4px'}} title="Cerrar">✕</button></div>}
 
-      <div className="xl-wrap" style={{width:1137,display:'flex',flexDirection:'column'}}>
+      <div className="xl-wrap" style={{width:1161,display:'flex',flexDirection:'column'}}>
 
         <div className="xl-scroll" style={{maxHeight:'calc(100vh - 382px)'}}>
 
-          <table style={{tableLayout:'fixed',width:'1135px'}}>
+          <table style={{tableLayout:'fixed',width:'1159px'}}>
 
             <colgroup>
+
+              <col style={{width:'24px'}}/>
 
               <col className="col-rn" style={{width:'50px'}}/>
 
@@ -1943,6 +2015,8 @@ function EquiposTab({data,onChange,provMap,_unidades}){
 
               <tr>
 
+                <th style={{textAlign:'center'}}><input type="checkbox" checked={filteredEquiposF.length>0&&filteredEquiposF.every(function(e){return eqSel.has(e.id)})} onChange={function(){setEqSel(filteredEquiposF.length>0&&filteredEquiposF.every(function(e){return eqSel.has(e.id)})?new Set():new Set(filteredEquiposF.map(function(e){return e.id})))}}/></th>
+
                 <th className="col-rn">#</th>
 
                 <th>Codigo</th>
@@ -1967,13 +2041,15 @@ function EquiposTab({data,onChange,provMap,_unidades}){
 
             <tbody>
 
-              {filteredEquiposF.length===0&&<tr className="empty-row"><td colSpan={9}>{search||tipoFilter!=='Todos'?'Sin resultados.':'Sin equipos. Agregue uno.'}</td></tr>}
+              {filteredEquiposF.length===0&&<tr className="empty-row"><td colSpan={10}>{search||tipoFilter!=='Todos'?'Sin resultados.':'Sin equipos. Agregue uno.'}</td></tr>}
 
               {filteredEquiposF.map(function(e,i){var origIdx=equipos.indexOf(e);var isEdit=editIdx===origIdx;var oldCot=isCotOld(e.fecha_cotizacion);
 
                 return(
 
                   <tr key={e.id} onBlur={function(ev){if(!ev.currentTarget.contains(ev.relatedTarget))setEditIdx(null)}}>
+
+                    <td style={{textAlign:'center'}}><input type="checkbox" checked={eqSel.has(e.id)} onChange={function(){eqToggleSel(e.id)}}/></td>
 
                     <XLRowNum n={i+1}/>
 
@@ -2017,6 +2093,8 @@ function EquiposTab({data,onChange,provMap,_unidades}){
 
         <CrudFooter onAdd={add} addLabel="Equipo" onClearAll={async function(){if(!(await askConfirm('¿Desea eliminar todo el contenido de Equipos? Esta acción no se puede deshacer.')))return;onChange(Object.assign({},data,{equipos:[]}))}} clearLabel="Borrar" excel={eqExcel} exportLabel="Exportar Excel" onSearch={{v:search,set:setSearch}} searchPlaceholder="Buscar equipo..." countLabel="No. de Equipos:" count={tipoFilter!=='Todos'||search?filteredEquiposF.length+'/'+equipos.length:equipos.length}>
 
+          {eqSel.size>0&&<button className="btn" onClick={eqEliminarSeleccionados} style={{fontSize:11,border:'1px solid #f87171',borderRadius:4,color:'#f87171'}}>🗑 Eliminar {eqSel.size} seleccionado(s)</button>}
+
           <span style={{fontSize:11}}>Filtrar por Categoria:</span>
 
           <select className="sel" value={tipoFilter} onChange={function(e){setTipoFilter(e.target.value)}} style={{fontSize:10,height:20,width:120,border:'1px solid var(--ok)',borderRadius:4}}>
@@ -2057,7 +2135,16 @@ function InsumosTab({data,onChange,provMap,cargosCalc,cargoMap,esHora,_unidades,
 
   const[insDelErr,setInsDelErr]=useState('');
 
-  var{items:insumos,editIdx,setEditIdx,search,setSearch,upd,add,del,filtered:hookFiltered,handleKeyDown,excel:insExcel}=useCrudTable({data,onChange,dataKey:'insumos',prefix:'IN',defaultItem:function(){return{id:uid(),codigo:genCodeFor(data.insumos,'IN'),nombre:'',unidad:'un',origen:'Local',categoria:'Pétreos',subcategoria:'otros',marca_referencia:'',costo_unitario:0,fecha_cotizacion:'',apu_basico_id:'',proveedor_id:''}},searchKeys:['codigo','nombre'],confirmDel:"Eliminar este insumo?",excelConfig:{title:'CATALOGO DE INSUMOS',sheetName:'Insumos',filename:'catalogo_insumos.xlsx',headers:['Codigo','Categoria','Descripcion','UND','Vr. Cotizacion','F. Cotizacion','Origen','Marca','Proveedor'],colWidths:[{wch:10},{wch:14},{wch:30},{wch:6},{wch:14},{wch:14},{wch:16},{wch:20},{wch:20}],mapRow:function(ins){var prov=proveedores.find(function(p){return p.id===ins.proveedor_id});return[ins.codigo||'',ins.categoria||'',ins.nombre||'',ins.unidad||'',ins.costo_unitario||0,fmtDate(ins.fecha_cotizacion),ins.origen||'',ins.marca_referencia||'',prov?prov.nombre:'']},parseRow:function(r){return[String(r[0]||'').trim(),String(r[1]||'').trim(),String(r[2]||'').trim(),String(r[3]||'').trim(),String(r[4]||0).trim(),String(r[5]||'').trim(),String(r[6]||'').trim(),String(r[7]||'').trim(),String(r[8]||'').trim()]},buildItem:function(r,idx,existing,genCode){var provNombre=(r[8]||'').trim();var provId=provNombre?((proveedores.find(function(p){return(p.nombre||'').toLowerCase()===provNombre.toLowerCase()})||{}).id||''):(idx>=0?existing[idx].proveedor_id:'');return{codigo:idx>=0?existing[idx].codigo:genCode(),id:idx>=0?existing[idx].id:uid(),nombre:r[2]||'',unidad:r[3]||'un',categoria:r[1]||'Pétreos',subcategoria:'',origen:(r[6]||'Local').trim(),marca_referencia:r[7]||'',costo_unitario:safeFloat(r[4])||0,fecha_cotizacion:toISODate(r[5]),apu_basico_id:'',proveedor_id:provId}}}});
+  var insumoTieneReferencia=function(ins){
+    var apus=data.apus||[];
+    for(var a=0;a<apus.length;a++){
+      var rs=apus[a].recursos_ins||[];
+      for(var j=0;j<rs.length;j++){if(rs[j].insumo_id===ins.id)return true}
+    }
+    return false;
+  };
+
+  var{items:insumos,editIdx,setEditIdx,search,setSearch,upd,add,del,filtered:hookFiltered,handleKeyDown,excel:insExcel,seleccionados:insSel,toggleSel:insToggleSel,setSeleccionados:setInsSel,eliminarSeleccionados:insEliminarSeleccionados}=useCrudTable({data,onChange,dataKey:'insumos',prefix:'IN',defaultItem:function(){return{id:uid(),codigo:genCodeFor(data.insumos,'IN'),nombre:'',unidad:'un',origen:'Local',categoria:'Pétreos',subcategoria:'otros',marca_referencia:'',costo_unitario:0,fecha_cotizacion:'',apu_basico_id:'',proveedor_id:''}},searchKeys:['codigo','nombre'],confirmDel:"Eliminar este insumo?",esReferenciado:insumoTieneReferencia,excelConfig:{title:'CATALOGO DE INSUMOS',sheetName:'Insumos',filename:'catalogo_insumos.xlsx',headers:['Codigo','Categoria','Descripcion','UND','Vr. Cotizacion','F. Cotizacion','Origen','Marca','Proveedor'],colWidths:[{wch:10},{wch:14},{wch:30},{wch:6},{wch:14},{wch:14},{wch:16},{wch:20},{wch:20}],mapRow:function(ins){var prov=proveedores.find(function(p){return p.id===ins.proveedor_id});return[ins.codigo||'',ins.categoria||'',ins.nombre||'',ins.unidad||'',ins.costo_unitario||0,fmtDate(ins.fecha_cotizacion),ins.origen||'',ins.marca_referencia||'',prov?prov.nombre:'']},parseRow:function(r){return[String(r[0]||'').trim(),String(r[1]||'').trim(),String(r[2]||'').trim(),String(r[3]||'').trim(),String(r[4]||0).trim(),String(r[5]||'').trim(),String(r[6]||'').trim(),String(r[7]||'').trim(),String(r[8]||'').trim()]},buildItem:function(r,idx,existing,genCode){var provNombre=(r[8]||'').trim();var provId=provNombre?((proveedores.find(function(p){return(p.nombre||'').toLowerCase()===provNombre.toLowerCase()})||{}).id||''):(idx>=0?existing[idx].proveedor_id:'');return{codigo:idx>=0?existing[idx].codigo:genCode(),id:idx>=0?existing[idx].id:uid(),nombre:r[2]||'',unidad:r[3]||'un',categoria:r[1]||'Pétreos',subcategoria:'',origen:(r[6]||'Local').trim(),marca_referencia:r[7]||'',costo_unitario:safeFloat(r[4])||0,fecha_cotizacion:toISODate(r[5]),apu_basico_id:'',proveedor_id:provId}}}});
 
   /* ── Mapas para cálculo de APU Básicos ── */
 
@@ -2159,21 +2246,23 @@ function InsumosTab({data,onChange,provMap,cargosCalc,cargoMap,esHora,_unidades,
 
     <div>
 
-      <div className="sec-hdr" style={{border:'1px solid var(--bdr)',borderRadius:4,padding:'2px 10px',marginBottom:8,flex:'0 0 auto',width:1570}}>
+      <div className="sec-hdr" style={{border:'1px solid var(--bdr)',borderRadius:4,padding:'2px 10px',marginBottom:8,flex:'0 0 auto',width:1594}}>
 
         <span className="title" style={{fontSize:15,lineHeight:'19px'}}>CATALOGO DE INSUMOS</span>
 
       </div>
 
-      {insDelErr&&<div style={{padding:'8px 10px',fontSize:12,color:'#f87171',background:'rgba(248,113,113,0.08)',border:'1px solid rgba(248,113,113,0.2)',borderRadius:4,marginBottom:8,width:1570,display:'flex',alignItems:'center',justifyContent:'space-between'}}><span>{insDelErr}</span><button onClick={function(){setInsDelErr('')}} style={{background:'none',border:'none',color:'#f87171',cursor:'pointer',fontSize:16,lineHeight:1,padding:'0 4px'}} title="Cerrar">✕</button></div>}
+      {insDelErr&&<div style={{padding:'8px 10px',fontSize:12,color:'#f87171',background:'rgba(248,113,113,0.08)',border:'1px solid rgba(248,113,113,0.2)',borderRadius:4,marginBottom:8,width:1594,display:'flex',alignItems:'center',justifyContent:'space-between'}}><span>{insDelErr}</span><button onClick={function(){setInsDelErr('')}} style={{background:'none',border:'none',color:'#f87171',cursor:'pointer',fontSize:16,lineHeight:1,padding:'0 4px'}} title="Cerrar">✕</button></div>}
 
-      <div className="xl-wrap" style={{width:1570}}>
+      <div className="xl-wrap" style={{width:1594}}>
 
         <div className="xl-scroll" style={{maxHeight:'calc(100vh - 382px)'}}>
 
           <table style={{tableLayout:'fixed'}}>
 
             <colgroup>
+
+              <col style={{width:'24px'}}/>
 
               <col className="col-rn" style={{width:'60px'}}/>
 
@@ -2203,6 +2292,8 @@ function InsumosTab({data,onChange,provMap,cargosCalc,cargoMap,esHora,_unidades,
 
               <tr>
 
+                <th style={{textAlign:'center'}}><input type="checkbox" checked={filteredInsumos.length>0&&filteredInsumos.every(function(x){return insSel.has(x.id)})} onChange={function(){setInsSel(filteredInsumos.length>0&&filteredInsumos.every(function(x){return insSel.has(x.id)})?new Set():new Set(filteredInsumos.map(function(x){return x.id})))}}/></th>
+
                 <th className="col-rn">#</th>
 
                 <th>Codigo</th>
@@ -2231,7 +2322,7 @@ function InsumosTab({data,onChange,provMap,cargosCalc,cargoMap,esHora,_unidades,
 
             <tbody>
 
-              {filteredInsumos.length===0&&<tr className="empty-row"><td colSpan={11}>{search?'Sin resultados.':'Sin insumos. Agregue uno.'}</td></tr>}
+              {filteredInsumos.length===0&&<tr className="empty-row"><td colSpan={12}>{search?'Sin resultados.':'Sin insumos. Agregue uno.'}</td></tr>}
 
               {filteredInsumos.map(function(ins,i){var origIdx=insumos.indexOf(ins);var isEdit=editIdx===origIdx;
 
@@ -2250,6 +2341,8 @@ function InsumosTab({data,onChange,provMap,cargosCalc,cargoMap,esHora,_unidades,
                 return(
 
                   <tr key={ins.id} onBlur={function(ev){if(!ev.currentTarget.contains(ev.relatedTarget))setEditIdx(null)}}>
+
+                    <td style={{textAlign:'center'}}><input type="checkbox" checked={insSel.has(ins.id)} onChange={function(){insToggleSel(ins.id)}}/></td>
 
                     <XLRowNum n={i+1}/>
 
@@ -2320,6 +2413,8 @@ function InsumosTab({data,onChange,provMap,cargosCalc,cargoMap,esHora,_unidades,
         </div>
 
         <CrudFooter onAdd={add} addLabel="Insumo" onClearAll={async function(){if(!(await askConfirm('¿Desea eliminar todo el contenido de Insumos? Esta acción no se puede deshacer.')))return;onChange(Object.assign({},data,{insumos:[]}))}} clearLabel="Borrar" excel={insExcel} exportLabel="Exportar Excel" onSearch={{v:search,set:setSearch}} searchPlaceholder="Buscar insumo..." countLabel="No. Insumos:" count={catFilter!=='Todas'||origFilter!=='Todos'||search?filteredInsumos.length+'/'+insumos.length:insumos.length}>
+
+          {insSel.size>0&&<button className="btn" onClick={insEliminarSeleccionados} style={{fontSize:11,border:'1px solid #f87171',borderRadius:4,color:'#f87171'}}>🗑 Eliminar {insSel.size} seleccionado(s)</button>}
 
           <span style={{fontSize:11}}>Filtrar Insumo por:</span>
 
@@ -2711,12 +2806,12 @@ function parseApuBlocks(aoa){
     if(esFilaVaciaApu(fila))continue; // blanco perdido entre bloques, ignorar
     var primera=(fila[0]||'').toString().trim();
     if(estado==='esperando_apu'){
-      actual={codigo:primera,nombre:'',unidad:'',categoria:categoriaActual,fecha:fila[6]||null,filaInicio:i+1,recursos_ins:[],recursos_mo:[],recursos_eq:[],recursos_transporte:[]};
+      actual={codigo:primera,nombre:'',unidad:'',categoria:categoriaActual,categoria_default:!categoriaActual,fecha:fila[6]||null,filaInicio:i+1,recursos_ins:[],recursos_mo:[],recursos_eq:[],recursos_transporte:[]};
       estado='leyendo_nombre';
       continue;
     }
     if(estado==='leyendo_nombre'){
-      actual.nombre=primera;actual.unidad=(fila[6]||'').toString().trim();
+      actual.nombre=primera;actual.unidad=(fila[6]||'').toString().trim();actual.unidad_default=!actual.unidad;
       estado='en_bloque';seccionActual=null;
       continue;
     }
@@ -2724,7 +2819,7 @@ function parseApuBlocks(aoa){
       if(SECCIONES_APU[primera]){seccionActual=SECCIONES_APU[primera];estado='header_seccion';continue}
       // fila no reconocida como seccion => empieza un nuevo APU
       bloques.push(actual);
-      actual={codigo:primera,nombre:'',unidad:'',categoria:categoriaActual,fecha:fila[6]||null,filaInicio:i+1,recursos_ins:[],recursos_mo:[],recursos_eq:[],recursos_transporte:[]};
+      actual={codigo:primera,nombre:'',unidad:'',categoria:categoriaActual,categoria_default:!categoriaActual,fecha:fila[6]||null,filaInicio:i+1,recursos_ins:[],recursos_mo:[],recursos_eq:[],recursos_transporte:[]};
       estado='leyendo_nombre';
       continue;
     }
@@ -2966,8 +3061,8 @@ function resolverMatchYSeveridad(ru,base,umbralPct){
    modo se determina por donde se invoca el modal (Catalogo/APU general vs. dentro de un proyecto), no por un flag en los datos. */
 function crearRepositorio(contexto){
   var esSnapshot=contexto.modo==='snapshot_proyecto';
-  var campoSnap={insumos:'insumos_snap',equipos:'equipos_snap',colaboradores:'cargos_snap'};
-  var campoGlobal={insumos:'insumos',equipos:'equipos',colaboradores:'cargos'};
+  var campoSnap={insumos:'insumos_snap',equipos:'equipos_snap',colaboradores:'cargos_snap',apus:'apus_snap'};
+  var campoGlobal={insumos:'insumos',equipos:'equipos',colaboradores:'cargos',apus:'apus'};
   return{
     leer:function(tipo){
       return esSnapshot?(contexto.presupuesto[campoSnap[tipo]]||[]):(contexto.data[campoGlobal[tipo]]||[]);
@@ -3020,10 +3115,10 @@ function buildCargoDesdeImport(nombreExcel,costoImportado,esHa,factorPrestGlobal
   return{id:uid(),codigo:genCodeFor(existingCargos||[],'MO'),descripcion:nombreExcel,num_salarios_base:numSalariosBase};
 }
 
-function buildApuFromBlock(b,idPorKey){
+function buildApuFromBlock(b,idPorKey,apusLocal){
   function idDe(r){return idPorKey.get(claveDeRecursoCrudo(r))}
   return{
-    id:uid(),codigo:b.codigo||('APU-IMP-'+uid().slice(0,6)),nombre:b.nombre,categoria:b.categoria,unidad:b.unidad||'un',
+    id:uid(),codigo:genCodeFor(apusLocal,'APU'),nombre:b.nombre,categoria:b.categoria,unidad:b.unidad||'un',
     fecha_creacion:new Date().toISOString(),
     recursos_ins:(b.recursos_ins||[]).map(function(r){return{id:uid(),insumo_id:idDe(r),consumo:r.cantidad||0,desperdicios_pct:r.desperdicios_pct!=null?r.desperdicios_pct:5}}),
     recursos_mo:(b.recursos_mo||[]).map(function(r){return{id:uid(),cargo_id:idDe(r),cant_personas:r.cantidad||1,rendimiento:r.rendimiento||0}}),
@@ -3080,7 +3175,12 @@ function aplicarImportacion(bloques,recursosUnicos,repositorio,contextoCalc){
     }
     idPorKey.set(claveDeRU(ru),id);
   });
-  var nuevosApus=bloques.map(function(b){return buildApuFromBlock(b,idPorKey)});
+  var apusLocal=repositorio.leer('apus').slice();
+  var nuevosApus=bloques.map(function(b){
+    var nuevo=buildApuFromBlock(b,idPorKey,apusLocal);
+    apusLocal=apusLocal.concat([nuevo]);
+    return nuevo;
+  });
   return{nuevosApus:nuevosApus,insumos:insumosLocal,equipos:equiposLocal,colaboradores:colaboradoresLocal};
 }
 
@@ -3492,7 +3592,7 @@ function ImportApuModal({repositorio,contextoCalc,onAplicar,onClose,origenProyec
           <span className="title">Importar Multi-APU desde Excel</span>
           <button className="btn-del" onClick={onClose} style={{background:'none',border:'none',cursor:'pointer',padding:2,color:'var(--ok)'}}><IconX/></button>
         </div>
-        <div className="modal-body" style={{overflowY:'auto',flex:'1 1 auto',padding:'10px 4px'}}>
+        <div className="modal-body" style={{overflowY:'auto',flex:'1 1 auto',padding:'10px 4px',display:'flex',flexDirection:'column',minHeight:0}}>
 
           {st.fase===1&&(
             <div style={{display:'flex',flexDirection:'column',gap:16}}>
@@ -3532,8 +3632,16 @@ function ImportApuModal({repositorio,contextoCalc,onAplicar,onClose,origenProyec
 
           {st.fase===3&&(
             <div style={{display:'flex',gap:12,flex:1,minHeight:0}}>
-            <div style={{flex:1,minWidth:0,display:'flex',flexDirection:'column',gap:10}}>
+            <div style={{flex:1,minWidth:0,minHeight:0,display:'flex',flexDirection:'column',gap:10}}>
               <div style={{fontSize:11,color:'var(--tx3)'}}>{st.nombreArchivo} · {st.bloques.length} APU detectados · {st.recursosUnicos.length} recursos unicos</div>
+              {(function(){
+                var bloquesConDefault=st.bloques.filter(function(b){return b.unidad_default||b.categoria_default});
+                return bloquesConDefault.length>0&&(
+                  <div style={{padding:'8px 10px',fontSize:10,color:'#fb923c',background:'rgba(251,146,60,.08)',border:'1px solid rgba(251,146,60,.3)',borderRadius:4}}>
+                    ⚠ {bloquesConDefault.length} APU no traían Unidad y/o Categoría en el formato esperado por la plantilla — se completaron con un valor genérico. Revisar y corregir manualmente después de importar si corresponde.
+                  </div>
+                );
+              })()}
               {st.erroresParse.length>0&&(
                 <details style={{fontSize:11,color:'#f87171',background:'rgba(248,113,113,0.08)',border:'1px solid rgba(248,113,113,0.2)',borderRadius:4,padding:'6px 10px'}}>
                   <summary style={{cursor:'pointer',fontWeight:600}}>Ver detalle técnico — {st.erroresParse.length} fila(s) del Excel original rechazada(s)</summary>
@@ -3592,7 +3700,7 @@ function ImportApuModal({repositorio,contextoCalc,onAplicar,onClose,origenProyec
                   </div>
                 )}
               </div>
-              <div className="xl-scroll" style={{maxHeight:380,overflowY:'auto',border:'1px solid var(--bdr)',borderRadius:4}}>
+              <div className="xl-scroll" style={{flex:1,minHeight:0,overflowY:'auto',border:'1px solid var(--bdr)',borderRadius:4}}>
                 <table style={{tableLayout:'fixed',width:'100%',fontSize:10}}>
                   <colgroup><col style={{width:60}}/><col style={{width:70}}/><col style={{width:130}}/><col style={{width:60}}/><col style={{width:80}}/><col style={{width:160}}/><col style={{width:80}}/><col style={{width:130}}/><col style={{width:40}}/></colgroup>
                   <thead style={{position:'sticky',top:0,background:'var(--bg3)'}}><tr>
@@ -3612,7 +3720,8 @@ function ImportApuModal({repositorio,contextoCalc,onAplicar,onClose,origenProyec
                             var unidadVal=(ru.edicion&&ru.edicion.unidad)!=null?ru.edicion.unidad:ru.unidad;
                             var despVal=(ru.edicion&&ru.edicion.desperdicios_pct)!=null?ru.edicion.desperdicios_pct:'';
                             return(
-                              <tr key={key} style={ru.severidad==='bloqueante'||ru.severidad==='critica'?{background:'rgba(248,113,113,.06)'}:{}}>
+                              <React.Fragment key={key}>
+                              <tr style={ru.severidad==='bloqueante'||ru.severidad==='critica'?{background:'rgba(248,113,113,.06)'}:{}}>
                                 <td style={{textAlign:'center'}}>{ru.tipo}</td>
                                 <td style={{textAlign:'center',fontSize:10}}>{codigoVal||'—'}</td>
                                 <td style={{fontSize:10}}>{nombreVal}</td>
@@ -3620,41 +3729,9 @@ function ImportApuModal({repositorio,contextoCalc,onAplicar,onClose,origenProyec
                                 <td style={{textAlign:'right',fontSize:10,padding:'0 8px'}}>{fmt(r2(ru.precio_excel))}
                                   {ru.tipo==='INSUMO'&&(<div style={{marginTop:2,display:'flex',alignItems:'center',gap:2}}><input className="ni" type="number" placeholder="Desp %" value={despVal} onChange={function(e){st.editarRecurso(key,'desperdicios_pct',e.target.value)}} style={{fontSize:9,width:'100%',textAlign:'right',borderColor:ru.desperdicio_valido?undefined:'#f87171'}}/></div>)}
                                 </td>
-                                <td style={{fontSize:9,position:'relative'}}>
+                                <td style={{fontSize:9}}>
                                   {ru.match?<span>{ru.match.nombre} — {fmt(ru.match.precio)} / {ru.match.unidad}</span>:'— sin coincidencia —'}
                                   <button onClick={function(){setPopoverResolver(popoverResolver===key?null:key)}} style={{fontSize:9,padding:'2px 8px',border:'1px solid var(--ac)',borderRadius:3,background:'transparent',color:'var(--ac)',cursor:'pointer',marginTop:4,display:'block'}}>🔍 Resolver</button>
-                                  {popoverResolver===key&&(
-                                    <div style={{position:'absolute',zIndex:10,marginTop:4,width:280,border:'1px solid var(--ac)',borderRadius:6,background:'var(--bg2)',padding:10,boxShadow:'0 4px 16px rgba(0,0,0,.4)'}}>
-                                      <div style={{fontSize:10,fontWeight:700,marginBottom:6}}>¿Cómo se puede resolver este recurso?</div>
-                                      <div style={{marginBottom:8}}>
-                                        <div style={{fontSize:9,color:'var(--tx2)',marginBottom:2}}>1. Si se conoce el código de catálogo:</div>
-                                        <input className="ni" placeholder="Código" value={codigoVal} onChange={function(e){st.editarRecurso(key,'codigo',e.target.value)}} style={{fontSize:10,background:'var(--bg3)',border:'1px solid var(--bdr)',borderRadius:4,padding:'4px 8px',width:'100%'}}/>
-                                      </div>
-                                      <div style={{marginBottom:8}}>
-                                        <div style={{fontSize:9,color:'var(--tx2)',marginBottom:2}}>2. O corregir el nombre para buscar de nuevo:</div>
-                                        <input className="ni" value={nombreVal} onChange={function(e){st.editarRecurso(key,'nombre',e.target.value)}} style={{fontSize:10,background:'var(--bg3)',border:'1px solid var(--bdr)',borderRadius:4,padding:'4px 8px',width:'100%'}}/>
-                                      </div>
-                                      <div>
-                                        <div style={{fontSize:9,color:'var(--tx2)',marginBottom:2}}>
-                                          3. {ru.candidatos&&ru.candidatos.length>0?'O elegir una de las coincidencias encontradas:':'No se encontraron coincidencias parecidas en el catálogo.'}
-                                        </div>
-                                        {ru.candidatos&&ru.candidatos.length>0?(
-                                          ru.candidatos.map(function(c){
-                                            return(
-                                              <div key={c.id} onClick={function(){st.elegirCandidato(key,c);setPopoverResolver(null)}} style={{padding:'4px 6px',cursor:'pointer',borderRadius:3,fontSize:9,marginTop:2,background:ru.match&&c.id===ru.match.id?'rgba(74,222,128,.12)':'var(--bg3)'}}>
-                                                {c.nombre} — {c.unidad} · {fmt(r2(c.precio))} ({c.sim.toFixed(0)}% similar)
-                                              </div>
-                                            );
-                                          })
-                                        ):(
-                                          <div style={{fontSize:9,color:'var(--tx2)',marginTop:2,lineHeight:1.4}}>
-                                            No se encontró nada parecido en el catálogo actual. Esto normalmente significa que es un recurso nuevo — por eso la Decisión ya viene preseleccionada como <b>"Crear nuevo"</b>.
-                                            <br/>Si ya existe con un nombre muy distinto, se puede probar escribiendo su código exacto arriba, en el punto 1.
-                                          </div>
-                                        )}
-                                      </div>
-                                    </div>
-                                  )}
                                 </td>
                                 <td style={{textAlign:'center'}}><span title={SEVERIDAD_AYUDA[ru.severidad]?SEVERIDAD_AYUDA[ru.severidad].texto:''} style={{fontSize:9,padding:'2px 6px',borderRadius:3,border:'1px solid '+SEVERIDAD_COLOR[ru.severidad],color:SEVERIDAD_COLOR[ru.severidad],cursor:'help'}}>{SEVERIDAD_LABEL[ru.severidad]}</span></td>
                                 <td>
@@ -3667,6 +3744,46 @@ function ImportApuModal({repositorio,contextoCalc,onAplicar,onClose,origenProyec
                                 </td>
                                 <td style={{textAlign:'center'}}>{ru.apariciones.length}</td>
                               </tr>
+                              {popoverResolver===key&&(
+                                <tr>
+                                  <td colSpan={9} style={{background:'var(--bg2)',padding:12,border:'2px solid var(--ok)',borderRadius:6,boxShadow:'0 0 0 2px rgba(74,222,128,.15)'}}>
+                                    <div style={{maxWidth:480}}>
+                                      <div style={{fontSize:10,fontWeight:700,marginBottom:6}}>¿Cómo se puede resolver este recurso?</div>
+                                      <div style={{marginBottom:8}}>
+                                        <div style={{fontSize:9,color:'var(--tx2)',marginBottom:2}}>1. Si se conoce el código de catálogo:</div>
+                                        <input className="ni" placeholder="Código" value={codigoVal} onChange={function(e){st.editarRecurso(key,'codigo',e.target.value)}} style={{fontSize:10,background:'var(--bg3)',border:'1px solid var(--bdr)',borderRadius:4,padding:'4px 8px',width:220}}/>
+                                      </div>
+                                      <div style={{marginBottom:8}}>
+                                        <div style={{fontSize:9,color:'var(--tx2)',marginBottom:2}}>2. O corregir el nombre para buscar de nuevo:</div>
+                                        <input className="ni" value={nombreVal} onChange={function(e){st.editarRecurso(key,'nombre',e.target.value)}} style={{fontSize:10,background:'var(--bg3)',border:'1px solid var(--bdr)',borderRadius:4,padding:'4px 8px',width:320}}/>
+                                      </div>
+                                      <div>
+                                        <div style={{fontSize:9,color:'var(--tx2)',marginBottom:2}}>
+                                          3. {ru.severidad==='bloqueante'?'Es necesario completar primero el % de Desperdicio en la tabla — la búsqueda de coincidencias se activa después.':(ru.candidatos&&ru.candidatos.length>0?'O elegir una de las coincidencias encontradas:':'No se encontraron coincidencias parecidas en el catálogo.')}
+                                        </div>
+                                        {ru.candidatos&&ru.candidatos.length>0?(
+                                          <div style={{display:'flex',flexDirection:'column',gap:2,maxWidth:400}}>
+                                            {ru.candidatos.map(function(c){
+                                              return(
+                                                <div key={c.id} onClick={function(){st.elegirCandidato(key,c);setPopoverResolver(null)}} style={{padding:'4px 6px',cursor:'pointer',borderRadius:3,fontSize:9,background:ru.match&&c.id===ru.match.id?'rgba(74,222,128,.12)':'var(--bg3)'}}>
+                                                  {c.nombre} — {c.unidad} · {fmt(r2(c.precio))} ({c.sim.toFixed(0)}% similar)
+                                                </div>
+                                              );
+                                            })}
+                                          </div>
+                                        ):(ru.severidad!=='bloqueante'&&(
+                                          <div style={{fontSize:9,color:'var(--tx2)',lineHeight:1.4,maxWidth:400}}>
+                                            No se encontró nada parecido en el catálogo actual. Esto normalmente significa que es un recurso nuevo — por eso la Decisión ya viene preseleccionada como <b>"Crear nuevo"</b>.
+                                            <br/>Si ya existe con un nombre muy distinto, se puede probar escribiendo su código exacto arriba, en el punto 1.
+                                          </div>
+                                        ))}
+                                      </div>
+                                      <button onClick={function(){setPopoverResolver(null)}} style={{marginTop:8,fontSize:9,padding:'4px 10px',border:'1px solid var(--ok)',borderRadius:4,background:'transparent',color:'var(--ok)',cursor:'pointer'}}>Cerrar</button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              )}
+                              </React.Fragment>
                             );
                           })}
                         </React.Fragment>
@@ -3770,6 +3887,43 @@ function APUTab({data,onChange,cargosCalc,cargoMap,esHora,eqMap,insMap,cuadrilla
   var del=useCallback(async function(i){var a=apus[i];if(a&&a.es_basico===true){var linkedIns=(data.insumos||[]).filter(function(x){return x.apu_basico_id===a.id});if(linkedIns.length>0){var usedInAPU=false;for(var li=0;li<linkedIns.length;li++){var insId=linkedIns[li].id;for(var ai=0;ai<apus.length;ai++){if(apus[ai].es_basico===true)continue;var rIns=apus[ai].recursos_ins||[];for(var ri=0;ri<rIns.length;ri++){if(rIns[ri].insumo_id===insId){usedInAPU=true;break}}if(usedInAPU)break}if(usedInAPU)break}if(usedInAPU){showToast("Este APU Basico tiene insumos ligados usados en otros APU. No se puede eliminar.",{type:'err',dur:4000});return}}}if(!(await askConfirm('¿Desea eliminar "'+(a.nombre||'este APU')+'"? Esta acción no se puede deshacer.')))return;if(selectedIdx===i)setSelectedIdx(null);else if(selectedIdx!==null&&selectedIdx>i)setSelectedIdx(selectedIdx-1);onChange(Object.assign({},data,{apus:apus.filter(function(_,j){return j!==i})}))},[data,apus,selectedIdx,onChange]);
 
   var closeDetail=useCallback(function(){setSelectedIdx(null)},[]);
+
+  var[seleccionados,setSeleccionados]=useState(new Set());
+
+  var toggleSel=useCallback(function(id){
+    setSeleccionados(function(prev){
+      var next=new Set(prev);
+      if(next.has(id))next.delete(id);else next.add(id);
+      return next;
+    });
+  },[]);
+
+  var apuEsReferenciado=useCallback(function(a){
+    if(a.es_basico!==true)return false;
+    var linkedIns=(data.insumos||[]).filter(function(x){return x.apu_basico_id===a.id});
+    if(linkedIns.length===0)return false;
+    return linkedIns.some(function(ins){
+      return apus.some(function(other){
+        if(other.es_basico===true)return false;
+        return(other.recursos_ins||[]).some(function(r){return r.insumo_id===ins.id});
+      });
+    });
+  },[data.insumos,apus]);
+
+  var eliminarSeleccionados=useCallback(async function(){
+    if(seleccionados.size===0)return;
+    var seleccionadosApus=apus.filter(function(a){return seleccionados.has(a.id)});
+    var bloqueados=seleccionadosApus.filter(apuEsReferenciado);
+    var aEliminar=seleccionadosApus.filter(function(a){return bloqueados.indexOf(a)===-1});
+    if(aEliminar.length===0){showToast('Ningún APU se puede eliminar: son Básicos con insumos ligados usados en otros APU.',{type:'err'});return}
+    var msg='¿Eliminar '+aEliminar.length+' APU seleccionado(s)? Esta acción no se puede deshacer.';
+    if(bloqueados.length>0)msg+=' ('+bloqueados.length+' se omiten por ser APU Básico con insumos ligados en uso.)';
+    if(!(await askConfirm(msg)))return;
+    var idsAEliminar=new Set(aEliminar.map(function(a){return a.id}));
+    setSelectedIdx(null);
+    onChange(Object.assign({},data,{apus:apus.filter(function(a){return !idsAEliminar.has(a.id)})}));
+    setSeleccionados(new Set());
+  },[seleccionados,apus,data,onChange,apuEsReferenciado]);
 
   var[catFilter,setCatFilter]=useState('');
 
@@ -4144,7 +4298,7 @@ function APUTab({data,onChange,cargosCalc,cargoMap,esHora,eqMap,insMap,cuadrilla
 
           {view==='catalog'&&<React.Fragment>
 
-          <div style={{width:935,display:'flex',flexDirection:'column',overflow:'hidden'}}>
+          <div style={{width:959,display:'flex',flexDirection:'column',overflow:'hidden'}}>
 
             <div className="sec-hdr" style={{border:'1px solid var(--bdr)',borderRadius:4,padding:'2px 10px',height:25,marginBottom:8,flex:'0 0 auto'}}>
 
@@ -4152,13 +4306,15 @@ function APUTab({data,onChange,cargosCalc,cargoMap,esHora,eqMap,insMap,cuadrilla
 
         </div>
 
-        <div className="xl-wrap" style={{width:935,display:'flex',flexDirection:'column'}}>
+        <div className="xl-wrap" style={{width:959,display:'flex',flexDirection:'column'}}>
 
           <div className="xl-scroll" style={{flex:'0 1 auto',minHeight:0}}>
 
-            <table style={{tableLayout:'fixed',width:'935px'}}>
+            <table style={{tableLayout:'fixed',width:'959px'}}>
 
               <colgroup>
+
+                <col style={{width:'24px'}}/>
 
                 <col className="col-rn" style={{width:'40px'}}/>
 
@@ -4178,11 +4334,11 @@ function APUTab({data,onChange,cargosCalc,cargoMap,esHora,eqMap,insMap,cuadrilla
 
               </colgroup>
 
-              <thead><tr><th className="col-rn">#</th><th>Codigo</th><th>Categoria</th><th>Nombre</th><th>UN</th><th>Vr. Unitario</th><th>Fecha</th><th className="col-act">Acciones</th></tr></thead>
+              <thead><tr><th style={{textAlign:'center'}}><input type="checkbox" checked={filtered.length>0&&filtered.every(function(a){return seleccionados.has(a.id)})} onChange={function(){setSeleccionados(filtered.length>0&&filtered.every(function(a){return seleccionados.has(a.id)})?new Set():new Set(filtered.map(function(a){return a.id})))}}/></th><th className="col-rn">#</th><th>Codigo</th><th>Categoria</th><th>Nombre</th><th>UN</th><th>Vr. Unitario</th><th>Fecha</th><th className="col-act">Acciones</th></tr></thead>
 
               <tbody>
 
-                {filtered.length===0&&<tr className="empty-row"><td colSpan={8}>Sin APU. Agregue uno.</td></tr>}
+                {filtered.length===0&&<tr className="empty-row"><td colSpan={9}>Sin APU. Agregue uno.</td></tr>}
 
                 {filteredWithIdx.map(function(item,fi){
 
@@ -4195,6 +4351,8 @@ function APUTab({data,onChange,cargosCalc,cargoMap,esHora,eqMap,insMap,cuadrilla
                   return(
 
                     <tr key={a.id} style={selectedIdx===origIdx?{background:'var(--bg2)'}:undefined}>
+
+                      <td style={{textAlign:'center',padding:'6px 2px'}}><input type="checkbox" checked={seleccionados.has(a.id)} onChange={function(e){e.stopPropagation();toggleSel(a.id)}} onClick={function(e){e.stopPropagation()}}/></td>
 
                       <td className="col-rn" style={{padding:'6px 2px'}}>{fi+1}</td>
 
@@ -4237,6 +4395,7 @@ function APUTab({data,onChange,cargosCalc,cargoMap,esHora,eqMap,insMap,cuadrilla
           <div className="xl-foot" style={{display:'flex',alignItems:'center',flexWrap:'wrap',gap:6,flex:'0 0 auto',overflow:'visible',height:'auto'}}>
 
             <button className="btn" onClick={add} style={{fontSize:11,border:'1px solid var(--ok)',borderRadius:4,display:'inline-flex',alignItems:'center',gap:4}}><IconPlus/> Nuevo APU</button><button className="btn" onClick={addBasico} style={{fontSize:11,border:'1px solid var(--ac)',borderRadius:4,display:'inline-flex',alignItems:'center',gap:4,marginLeft:4}}><IconPlus/> Nuevo APU Basico</button>
+            {seleccionados.size>0&&<button className="btn" onClick={eliminarSeleccionados} style={{fontSize:11,border:'1px solid #f87171',borderRadius:4,color:'#f87171',display:'inline-flex',alignItems:'center',gap:4,marginLeft:4}}>🗑 Eliminar {seleccionados.size} seleccionado(s)</button>}
 
             <select className="ni" value={catFilter} onChange={function(e){setCatFilter(e.target.value)}} style={{width:160,height:22,fontSize:11,border:'1px solid var(--ac)',borderRadius:4}}>
 
@@ -7923,16 +8082,16 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
             </tbody>
           </table>
         </div>
-        <div style={{display:'flex',alignItems:'center',gap:8,padding:'6px 12px',borderTop:'1px solid var(--bdr)',fontSize:11,color:'var(--tx3)',width:FORM_TABLE_INNERW,boxSizing:'border-box'}}>
+        <div style={{display:'flex',alignItems:'center',gap:8,padding:'6px 12px',borderTop:'1px solid var(--bdr)',fontSize:11,color:'var(--tx3)',width:'100%',boxSizing:'border-box'}}>
           <button disabled={page===0} onClick={function(){setPage(page-1)}} style={{padding:'2px 8px',fontSize:10,opacity:page===0?0.4:1,cursor:page===0?'not-allowed':'pointer'}}>{'← Anterior'}</button>
           <span>Página {page+1} de {totalPaginas} ({itemsFiltrados.length} ítems)</span>
           <button disabled={page>=totalPaginas-1} onClick={function(){setPage(page+1)}} style={{padding:'2px 8px',fontSize:10,opacity:page>=totalPaginas-1?0.4:1,cursor:page>=totalPaginas-1?'not-allowed':'pointer'}}>{'Siguiente →'}</button>
         </div>
       </div>
       {fo&&
-        <div style={{flexShrink:0,display:'flex',alignItems:'center',gap:10,padding:'6px 12px',background:fo.archivo_adjunto?'rgba(74,222,128,.07)':'rgba(230,168,0,.08)',border:'1px solid '+(fo.archivo_adjunto?'rgba(74,222,128,.25)':'rgba(230,168,0,.3)'),borderRadius:6}}>
+        <div style={{flexShrink:0,display:'flex',alignItems:'center',gap:10,padding:'6px 12px',background:fo.archivo_adjunto?'rgba(74,222,128,.07)':'rgba(230,168,0,.08)',border:'1px solid '+(fo.archivo_adjunto?'rgba(74,222,128,.25)':'rgba(230,168,0,.3)'),borderRadius:6,width:'100%',boxSizing:'border-box'}}>
           <span style={{fontSize:11,fontWeight:700,color:fo.archivo_adjunto?'var(--ok)':'var(--warn)'}}>{fo.archivo_adjunto?'✓ Formulario cargado':'⚠ Ítems importados sin archivo adjunto'}</span>
-          <span style={{fontSize:10,color:'var(--tx2)'}}>{fo.nombre_archivo} — {fmtDate(fo.fecha_importacion)} — {fo.total_filas} filas · {itemsReales.length} ítems · {nCapitulos} capítulos</span>
+          <span style={{fontSize:10,color:'var(--tx)',fontWeight:600}}>{fo.nombre_archivo} — {fmtDate(fo.fecha_importacion)} — {fo.total_filas} filas · {itemsReales.length} ítems · {nCapitulos} capítulos</span>
         </div>
       }
       {showImportApuPres&&(function(){

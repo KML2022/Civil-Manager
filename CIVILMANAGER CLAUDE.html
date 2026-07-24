@@ -8096,6 +8096,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
           {!readOnly&&<button className="btn" onClick={addCapitulo} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--ok)',borderRadius:4,background:'rgba(74,222,128,.06)',color:'var(--ok)',cursor:'pointer'}}>+ Capitulo</button>}
           {!readOnly&&<button className="btn" onClick={reimportar} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--bdr)',borderRadius:4,background:'none',color:'var(--tx2)',cursor:'pointer'}}>{'↩ '+(fo?'Reimportar':'Subir Excel')}</button>}
           {!readOnly&&<button className="btn" onClick={function(){setShowImportApuPres(true)}} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--ac)',borderRadius:4,background:'rgba(77,143,247,.08)',color:'var(--ac)',cursor:'pointer'}}>📥 Importar APU (Excel)</button>}
+          <button onClick={function(){setTab(14)}} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--bdr)',borderRadius:4,background:'transparent',color:'var(--tx2)',cursor:'pointer'}}>📦 Ver recursos del proyecto</button>
           <input className="ni" placeholder="Buscar item..." value={busq} onChange={function(e){setBusq(e.target.value);setPage(0)}} style={{width:160,height:22,fontSize:10,border:'1px solid var(--ac)',borderRadius:4,marginLeft:8}}/>
           {readOnly&&<span style={{fontSize:10,color:'var(--warn)',marginLeft:8,padding:'2px 8px',border:'1px solid var(--warn)',borderRadius:3}}>Solo lectura (presupuesto {estadoLabel(pres.estado).toLowerCase()})</span>}
         </div>
@@ -8285,11 +8286,12 @@ var CATALOGO_PROYECTO_TABS=[
   {tipo:'cargos',label:'Colaboradores'},
   {tipo:'apus',label:'APU'}
 ];
-function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange}){
+function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,cargosCalcSnap,equiposSnapEfectivo,insumosSnapEfectivo,factorPrestSnap,personMapSnap,eqMapSnap,insMapSnap,herrPct,usarFpEnApu,esHora,abCalcList,apusBasico}){
   var readOnly=pres.estado!=='borrador';
   var[tipo,setTipo]=useState('insumos');
   var arr=pres[tipo+'_snap']||[];
   var[seleccionados,setSeleccionados]=useState(new Set());
+  var[filaExpandidaId,setFilaExpandidaId]=useState(null);
 
   var toggleSel=function(id){
     setSeleccionados(function(prev){
@@ -8316,7 +8318,7 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange})
     setSeleccionados(new Set());
   };
 
-  var cambiarTipo=function(t){setTipo(t);setSeleccionados(new Set())};
+  var cambiarTipo=function(t){setTipo(t);setSeleccionados(new Set());setFilaExpandidaId(null)};
 
   var sincronizar=async function(){
     var r=sincronizarSnapshotAditivo(pres,data);
@@ -8333,7 +8335,7 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange})
 
   return(
     <div>
-      <TituloSubTab pres={pres} presupuestos={presupuestos} tituloSubTab="Catálogo del Proyecto" extra={!readOnly&&(
+      <TituloSubTab pres={pres} presupuestos={presupuestos} tituloSubTab="Recursos del Proyecto" extra={!readOnly&&(
         <button onClick={sincronizar} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--ac)',borderRadius:4,background:'transparent',color:'var(--ac)',cursor:'pointer'}}>
           🔄 Actualizar desde catálogo general
         </button>
@@ -8371,17 +8373,32 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange})
               {arr.length===0&&<tr className="empty-row"><td colSpan={readOnly?5:6}>Sin registros en esta categoría para este proyecto.</td></tr>}
               {arr.map(function(item){
                 var nombre=item.nombre||item.descripcion||'—';
-                var precio=item.costo_unitario!=null?item.costo_unitario:(item.costo_hora!=null?item.costo_hora:(item.num_salarios_base!=null?item.num_salarios_base:null));
+                var esApu=tipo==='apus';
+                var precio=esApu
+                  ?calcAPU(item,cargosCalcSnap,equiposSnapEfectivo,insumosSnapEfectivo,abCalcList,herrPct,factorPrestSnap,usarFpEnApu,esHora,personMapSnap,eqMapSnap,insMapSnap).totalDirecto
+                  :(item.costo_unitario!=null?item.costo_unitario:(item.costo_hora!=null?item.costo_hora:(item.num_salarios_base!=null?item.num_salarios_base:null)));
                 var fantasma=esFantasmaProbable(item,tipo,data);
+                var expandida=filaExpandidaId===item.id;
                 return(
-                  <tr key={item.id}>
-                    {!readOnly&&<td style={{textAlign:'center'}}><input type="checkbox" checked={seleccionados.has(item.id)} onChange={function(){toggleSel(item.id)}}/></td>}
+                  <React.Fragment key={item.id}>
+                  <tr onClick={esApu?function(){setFilaExpandidaId(expandida?null:item.id)}:undefined} style={esApu?{cursor:'pointer'}:undefined}>
+                    {!readOnly&&<td style={{textAlign:'center'}} onClick={function(e){e.stopPropagation()}}><input type="checkbox" checked={seleccionados.has(item.id)} onChange={function(){toggleSel(item.id)}}/></td>}
                     <td style={{fontSize:10,padding:'0 6px'}}>{item.codigo||'—'}</td>
                     <td style={{fontSize:10,padding:'0 6px'}}>{nombre} {fantasma&&<span style={{fontSize:8,color:'var(--tx3)'}} title="No tiene equivalente en el catálogo general — creado solo para este proyecto o ya no existe en general">◌ solo en proyecto</span>}</td>
                     <td style={{fontSize:10,padding:'0 6px',textAlign:'center'}}>{item.unidad||'—'}</td>
-                    <td style={{fontSize:10,padding:'0 6px',textAlign:'right'}}>{precio!=null?fmt(precio):'—'}</td>
+                    <td style={{fontSize:10,padding:'0 6px',textAlign:'right'}}>{precio!=null?fmt(r2(precio)):'—'}</td>
                     <td style={{fontSize:9,padding:'0 6px',color:'var(--tx3)'}}>{fantasma?'Solo proyecto':'Catálogo general'}</td>
                   </tr>
+                  {esApu&&expandida&&(
+                    <tr><td colSpan={readOnly?5:6} style={{padding:0}}>
+                      <div style={{maxHeight:400,overflowY:'auto',border:'1px solid var(--bdr)'}}>
+                        <ApuDetallePreview apu={item} cargosCalc={cargosCalcSnap} personMap={personMapSnap} eqMap={eqMapSnap}
+                          insMap={insMapSnap} equipos={equiposSnapEfectivo} insumos={insumosSnapEfectivo}
+                          factorPrest={factorPrestSnap} usarFpEnApu={usarFpEnApu} esHora={esHora} herrPct={herrPct} apusBasico={apusBasico}/>
+                      </div>
+                    </td></tr>
+                  )}
+                  </React.Fragment>
                 );
               })}
             </tbody>
@@ -8424,7 +8441,15 @@ function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,i
   var equiposSnapEfectivo=(pres&&pres.equipos_snap&&pres.equipos_snap.length)?pres.equipos_snap:equipos;
   var insMapSnap=useMemo(function(){return new Map(insumosSnapEfectivo.map(function(i){return[i.id,i]}))},[insumosSnapEfectivo]);
   var eqMapSnap=useMemo(function(){return new Map(equiposSnapEfectivo.map(function(e){return[e.id,e]}))},[equiposSnapEfectivo]);
-  var personMapSnap=useMemo(function(){return new Map(cargosCalcSnap.map(function(c){return[c.id,c]}))},[cargosCalcSnap]);
+  var personMapSnapCargos=useMemo(function(){return new Map(cargosCalcSnap.map(function(c){return[c.id,c]}))},[cargosCalcSnap]);
+  var cuadrillasCalcSnap=useMemo(function(){
+    return (pres&&pres.cuadrillas_snap&&pres.cuadrillas_snap.length)?calcCuadrillasDesde(pres.cuadrillas_snap,personMapSnapCargos,config,factorPrestSnap,esHora):cuadrillasCalc;
+  },[pres&&pres.cuadrillas_snap,personMapSnapCargos,config,factorPrestSnap,cuadrillasCalc,esHora]);
+  var personMapSnap=useMemo(function(){
+    var m=new Map(cargosCalcSnap.map(function(c){return[c.id,c]}));
+    cuadrillasCalcSnap.forEach(function(c){m.set(c.id,c)});
+    return m;
+  },[cargosCalcSnap,cuadrillasCalcSnap]);
   var abCalcList=useMemo(function(){
     var list=[];
     (apusBasico||[]).forEach(function(a){
@@ -8453,6 +8478,7 @@ function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,i
       cargos_snap:(data.cargos||[]).map(function(c){return Object.assign({},c)}),
       insumos_snap:(data.insumos||[]).map(function(i){return Object.assign({},i)}),
       equipos_snap:(data.equipos||[]).map(function(e){return Object.assign({},e)}),
+      cuadrillas_snap:(data.cuadrillas||[]).map(function(c){return Object.assign({},c)}),
       apus_snap:[]
     };
     var n=presupuestos.concat([nuevo]);
@@ -8475,6 +8501,7 @@ function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,i
       cargos_snap:(data.cargos||[]).map(function(c){return Object.assign({},c)}),
       insumos_snap:(data.insumos||[]).map(function(i){return Object.assign({},i)}),
       equipos_snap:(data.equipos||[]).map(function(e){return Object.assign({},e)}),
+      cuadrillas_snap:(data.cuadrillas||[]).map(function(c){return Object.assign({},c)}),
       apus_snap:[]
     };
     var n=presupuestos.concat([nuevo]);
@@ -8593,11 +8620,15 @@ function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,i
     var cargosCalcSnapP=(p&&p.cargos_snap&&p.cargos_snap.length)?calcCargosDesde(p.cargos_snap,config,data.config_listas,factorPrestSnapP):cargosCalc;
     var insumosSnapP=(p&&p.insumos_snap&&p.insumos_snap.length)?p.insumos_snap:insumos;
     var equiposSnapP=(p&&p.equipos_snap&&p.equipos_snap.length)?p.equipos_snap:equipos;
+    var personMapSnapCargosP=new Map(cargosCalcSnapP.map(function(c){return[c.id,c]}));
+    var cuadrillasCalcSnapP=(p&&p.cuadrillas_snap&&p.cuadrillas_snap.length)?calcCuadrillasDesde(p.cuadrillas_snap,personMapSnapCargosP,config,factorPrestSnapP,esHora):cuadrillasCalc;
+    var personMapSnapP=new Map(cargosCalcSnapP.map(function(c){return[c.id,c]}));
+    cuadrillasCalcSnapP.forEach(function(c){personMapSnapP.set(c.id,c)});
     return{
       factorPrestSnap:factorPrestSnapP,cargosCalcSnap:cargosCalcSnapP,insumosSnap:insumosSnapP,equiposSnap:equiposSnapP,
       insMapSnap:new Map(insumosSnapP.map(function(i){return[i.id,i]})),
       eqMapSnap:new Map(equiposSnapP.map(function(e){return[e.id,e]})),
-      personMapSnap:new Map(cargosCalcSnapP.map(function(c){return[c.id,c]}))
+      personMapSnap:personMapSnapP
     };
   }
 
@@ -8640,12 +8671,12 @@ function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,i
     {tab:10,label:'2. FORMULARIO DE CANTIDADES Y PRECIOS'},
     {tab:12,label:'3. RESUMEN FINANCIERO'},
     {tab:13,label:'4. ENTREGABLES'},
-    {tab:14,label:'5. CATALOGO DEL PROYECTO'}
+    {tab:14,label:'5. RECURSOS DEL PROYECTO'}
   ];
   var presContent=tab===10?<PresFormularioPanel pres={pres} presupuestos={presupuestos} selPresIdx={selPresIdx} data={data} onChange={onChange} apuModal={apuModal} setApuModal={setApuModal} apus={apus} categorias_apu={categorias_apu} calcItemVal={calcItemVal} setTab={setTab} estadoLabel={estadoLabel} cargosCalc={cargosCalc} cargosCalcSnap={cargosCalcSnap} personMap={personMap} esHora={esHora} eqMap={eqMap} insMap={insMap} factorPrest={factorPrest} factorPrestSnap={factorPrestSnap} usarFpEnApu={usarFpEnApu} equipos={equipos} insumos={insumos} apusBasico={apusBasico}/>
     :tab===12?<PresResumenPanel pres={pres} presupuestos={presupuestos} selPresIdx={selPresIdx} data={data} onChange={onChange} calcResumenPres={calcResumenPres} setTab={setTab}/>
     :tab===13?<PresEntregablesPanel pres={pres} presupuestos={presupuestos} calcResumenPres={calcResumenPres} calcItemVal={calcItemVal} calcResumenFor={calcResumenFor} calcItemValFor={calcItemValFor} buildSnapCtx={buildSnapCtx} setTab={setTab}/>
-    :tab===14?<PresCatalogoProyectoPanel pres={pres} presupuestos={presupuestos} selPresIdx={selPresIdx} data={data} onChange={onChange}/>
+    :tab===14?<PresCatalogoProyectoPanel pres={pres} presupuestos={presupuestos} selPresIdx={selPresIdx} data={data} onChange={onChange} cargosCalcSnap={cargosCalcSnap} equiposSnapEfectivo={equiposSnapEfectivo} insumosSnapEfectivo={insumosSnapEfectivo} factorPrestSnap={factorPrestSnap} personMapSnap={personMapSnap} eqMapSnap={eqMapSnap} insMapSnap={insMapSnap} herrPct={herrPct} usarFpEnApu={usarFpEnApu} esHora={esHora} abCalcList={abCalcList} apusBasico={apusBasico}/>
     :<PresProyectosPanel presupuestos={presupuestos} selPresIdx={selPresIdx} setSelPresIdx={setSelPresIdx} data={data} onChange={onChange} estadoColor={estadoColor} estadoLabel={estadoLabel} addPresupuesto={addPresupuesto} addSubProyecto={addSubProyecto} toggleEstado={toggleEstado} delPresupuesto={delPresupuesto} setTab={setTab}/>;
 
   return(
@@ -8680,6 +8711,26 @@ function calcCargosDesde(cargosArr,config,configListas,factorPrestValue){
     var costoTotalDia=esHora?total:r2(total/dias);
     var costoTotalHora=esHora?total:r2(total/horas);
     return Object.assign({},c,{costo_total_dia:costoTotalDia,costo_base_dia:costoBaseDia,costo_base_hora:costoBaseHora,costo_total_hora:costoTotalHora,valorBasico:valorBasico});
+  });
+}
+
+/* Misma formula que el calculo inline de cuadrillasCalc, extraida para reutilizar tambien contra
+   cuadrillas_snap del proyecto (necesario para que un APU cerrado no recalcule en vivo desde el
+   catalogo global cuando usa una Cuadrilla como recurso de mano de obra). */
+function calcCuadrillasDesde(cuadrillasArr,cargoMapUsado,config,factorPrestValue,esHora){
+  var dias=config.dias_mes||30,horas=config.horas_mes||210;
+  return (cuadrillasArr||[]).map(function(q){
+    var vBase=(q.integrantes||[]).reduce(function(s,int){
+      var cargo=cargoMapUsado.get(int.cargo_id);
+      var cant=safeFloat(int.cantidad);
+      return s+(cargo?safeFloat(cargo.valorBasico)*cant:0);
+    },0);
+    var valorBasico=r2(vBase);
+    var vrPrest=r2(valorBasico*(factorPrestValue/100));
+    var total=r2(valorBasico+vrPrest);
+    return{id:'CU-'+q.id,codigo:q.codigo,descripcion:q.descripcion||'Sin descripcion',
+      costo_base_dia:r2(valorBasico/dias),costo_base_hora:esHora?valorBasico:r2(valorBasico/horas),
+      costo_total_dia:esHora?total:r2(total/dias),costo_total_hora:esHora?total:r2(total/horas),valorBasico:valorBasico};
   });
 }
 
@@ -8748,7 +8799,7 @@ var factorPrest=useMemo(function(){return r2(factoresPrestaciones.reduce(functio
 
   var _unidades=(_cl.unidades||UNIDADES).map(function(u){return typeof u==='string'?u:u.abreviatura});
 
-  var cuadrillasCalc=useMemo(function(){var cuadrillas=data.cuadrillas||[];var dias=config.dias_mes||30;var horas=config.horas_mes||210;return cuadrillas.map(function(q){var vBase=q.integrantes.reduce(function(s,int){var cargo=cargoMap.get(int.cargo_id);var cant=safeFloat(int.cantidad);return s+(cargo?safeFloat(cargo.valorBasico)*cant:0)},0);var valorBasico=r2(vBase);var vrPrest=r2(valorBasico*(factorPrest/100));var total=r2(valorBasico+vrPrest);return{id:'CU-'+q.id,codigo:q.codigo,descripcion:q.descripcion||'Sin descripcion',costo_base_dia:r2(valorBasico/dias),costo_base_hora:esHora?valorBasico:r2(valorBasico/horas),costo_total_dia:esHora?total:r2(total/dias),costo_total_hora:esHora?total:r2(total/horas),valorBasico:valorBasico}})},[data.cuadrillas,cargoMap,factorPrest,config.salario_base,config.dias_mes,config.horas_mes,esHora]);
+  var cuadrillasCalc=useMemo(function(){return calcCuadrillasDesde(data.cuadrillas,cargoMap,config,factorPrest,esHora)},[data.cuadrillas,cargoMap,factorPrest,config.salario_base,config.dias_mes,config.horas_mes,esHora]);
 
 
 

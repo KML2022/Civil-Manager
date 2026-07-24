@@ -3758,15 +3758,40 @@ function ImportApuModal({repositorio,contextoCalc,onAplicar,onClose,origenProyec
                                         <input className="ni" value={nombreVal} onChange={function(e){st.editarRecurso(key,'nombre',e.target.value)}} style={{fontSize:10,background:'var(--bg3)',border:'1px solid var(--bdr)',borderRadius:4,padding:'4px 8px',width:320}}/>
                                       </div>
                                       <div>
-                                        <div style={{fontSize:9,color:'var(--tx2)',marginBottom:2}}>
-                                          3. {ru.severidad==='bloqueante'?'Es necesario completar primero el % de Desperdicio en la tabla — la búsqueda de coincidencias se activa después.':(ru.candidatos&&ru.candidatos.length>0?'O elegir una de las coincidencias encontradas:':'No se encontraron coincidencias parecidas en el catálogo.')}
+                                        <div style={{fontSize:9,color:'var(--tx2)',marginBottom:4}}>
+                                          3. {ru.severidad==='bloqueante'?'Es necesario completar primero el % de Desperdicio en la tabla — la búsqueda de coincidencias se activa después.':(ru.candidatos&&ru.candidatos.length>0?'Comparar y elegir una coincidencia:':'No se encontraron coincidencias parecidas en el catálogo.')}
                                         </div>
+
+                                        {ru.candidatos&&ru.candidatos.length>0&&(
+                                          <div style={{border:'1px solid var(--bdr)',borderRadius:4,overflow:'hidden',marginBottom:6}}>
+                                            <div style={{display:'grid',gridTemplateColumns:'1fr 60px 90px 60px',gap:0,fontSize:9,fontWeight:700,background:'var(--bg3)',padding:'4px 6px',borderBottom:'1px solid var(--bdr)'}}>
+                                              <span>Importado</span><span style={{textAlign:'center'}}>UN</span>
+                                              <span style={{textAlign:'right'}}>Precio</span><span></span>
+                                            </div>
+                                            <div style={{display:'grid',gridTemplateColumns:'1fr 60px 90px 60px',gap:0,fontSize:9,padding:'4px 6px',background:'rgba(77,143,247,.06)'}}>
+                                              <span>{nombreVal}</span><span style={{textAlign:'center'}}>{unidadVal}</span>
+                                              <span style={{textAlign:'right'}}>{fmt(r2(ru.precio_excel))}</span><span></span>
+                                            </div>
+                                          </div>
+                                        )}
+
                                         {ru.candidatos&&ru.candidatos.length>0?(
-                                          <div style={{display:'flex',flexDirection:'column',gap:2,maxWidth:400}}>
+                                          <div style={{border:'1px solid var(--bdr)',borderRadius:4,overflow:'hidden'}}>
+                                            <div style={{display:'grid',gridTemplateColumns:'1fr 60px 90px 60px 60px',gap:0,fontSize:9,fontWeight:700,background:'var(--bg3)',padding:'4px 6px',borderBottom:'1px solid var(--bdr)'}}>
+                                              <span>Nombre en catálogo</span><span style={{textAlign:'center'}}>UN</span>
+                                              <span style={{textAlign:'right'}}>Precio</span><span style={{textAlign:'center'}}>% Similar</span><span></span>
+                                            </div>
                                             {ru.candidatos.map(function(c){
+                                              var elegido=ru.match&&c.id===ru.match.id;
                                               return(
-                                                <div key={c.id} onClick={function(){st.elegirCandidato(key,c);setPopoverResolver(null)}} style={{padding:'4px 6px',cursor:'pointer',borderRadius:3,fontSize:9,background:ru.match&&c.id===ru.match.id?'rgba(74,222,128,.12)':'var(--bg3)'}}>
-                                                  {c.nombre} — {c.unidad} · {fmt(r2(c.precio))} ({c.sim.toFixed(0)}% similar)
+                                                <div key={c.id} style={{display:'grid',gridTemplateColumns:'1fr 60px 90px 60px 60px',gap:0,fontSize:9,padding:'4px 6px',alignItems:'center',borderTop:'1px solid var(--bdr)',background:elegido?'rgba(74,222,128,.14)':'transparent'}}>
+                                                  <span>{c.nombre}</span>
+                                                  <span style={{textAlign:'center'}}>{c.unidad}</span>
+                                                  <span style={{textAlign:'right'}}>{fmt(r2(c.precio))}</span>
+                                                  <span style={{textAlign:'center'}}>{c.sim.toFixed(0)}%</span>
+                                                  <button onClick={function(){st.elegirCandidato(key,c)}} style={{fontSize:8,padding:'2px 6px',border:'1px solid '+(elegido?'var(--ok)':'var(--ac)'),borderRadius:3,background:'transparent',color:elegido?'var(--ok)':'var(--ac)',cursor:'pointer'}}>
+                                                    {elegido?'✓ Elegido':'Elegir'}
+                                                  </button>
                                                 </div>
                                               );
                                             })}

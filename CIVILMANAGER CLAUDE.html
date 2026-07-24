@@ -3477,7 +3477,7 @@ var SEVERIDAD_AYUDA={
   baja:{texto:'Vinculado automáticamente por coincidencia exacta. No requiere acción.',campo:null}
 };
 var TIPO_LABEL={INSUMO:'▌ INSUMOS',EQUIPO:'▌ EQUIPO',MO:'▌ MANO DE OBRA',TRANSPORTE:'▌ TRANSPORTE'};
-var TIPO_ORDEN=['INSUMO','EQUIPO','MO','TRANSPORTE'];
+var TIPO_ORDEN=['EQUIPO','INSUMO','TRANSPORTE','MO'];
 function estiloCampoRelevante(ru,nombreCampo){
   var relevante=SEVERIDAD_AYUDA[ru.severidad]&&SEVERIDAD_AYUDA[ru.severidad].campo===nombreCampo;
   return relevante?{borderColor:'#f59e0b',borderStyle:'dashed',background:'rgba(245,158,11,.06)'}:{};
@@ -3492,7 +3492,7 @@ function useApuBlockImport(repositorio,contextoCalc){
   var recursosSt=useState([]);var recursosUnicos=recursosSt[0],setRecursosUnicos=recursosSt[1];
   var procesandoSt=useState(false);var procesando=procesandoSt[0],setProcesando=procesandoSt[1];
 
-  var baseMatch=function(){return{insumos:repositorio.leer('insumos'),equipos:repositorio.leer('equipos'),colaboradores:repositorio.leer('colaboradores')}};
+  var baseMatch=function(){return{insumos:repositorio.leer('insumos'),equipos:repositorio.leer('equipos'),colaboradores:contextoCalc.cargosCalc||repositorio.leer('colaboradores')}};
 
   var procesarArchivo=function(file){
     setProcesando(true);
@@ -4961,7 +4961,7 @@ function APUTab({data,onChange,cargosCalc,cargoMap,esHora,eqMap,insMap,cuadrilla
 
       {showImportModal&&<ImportApuModal
         repositorio={crearRepositorio({modo:'catalogo_global',data:data,presupuesto:null,setData:onChange,setPresupuesto:function(){}})}
-        contextoCalc={{config:config,factorPrest:factorPrest,usarFpEnApu:usarFpEnApu,esHora:esHora}}
+        contextoCalc={{config:config,factorPrest:factorPrest,usarFpEnApu:usarFpEnApu,esHora:esHora,cargosCalc:cargosCalc}}
         onAplicar={function(resultado){onChange(Object.assign({},data,{apus:apus.concat(resultado.nuevosApus),insumos:resultado.insumos,equipos:resultado.equipos,cargos:resultado.colaboradores}))}}
         onClose={function(){setShowImportModal(false)}}
       />}
@@ -7619,7 +7619,7 @@ function PresBannerProyecto({pres,presupuestos,setTab}){
 var FORM_TABLE_MAXW=1055; /* debe igualar la suma del colgroup de la tabla de items (fase revision) */
 var SCROLLBAR_W=16; /* ancho tipico de scrollbar vertical webkit/blink; xl-scroll usa scrollbarGutter:'stable' para reservarlo siempre, asi esta resta es valida haya o no overflow vertical */
 var FORM_TABLE_INNERW=FORM_TABLE_MAXW-2-SCROLLBAR_W; /* xl-wrap tiene border 1px+1px; tabla/footer deben usar el ancho interno real, no el externo, para no forzar scroll horizontal */
-function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModal,setApuModal,apus,categorias_apu,calcItemVal,setTab,estadoLabel,cargosCalc,personMap,esHora,eqMap,insMap,factorPrest,factorPrestSnap,usarFpEnApu,equipos,insumos,apusBasico}){
+function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModal,setApuModal,apus,categorias_apu,calcItemVal,setTab,estadoLabel,cargosCalc,cargosCalcSnap,personMap,esHora,eqMap,insMap,factorPrest,factorPrestSnap,usarFpEnApu,equipos,insumos,apusBasico}){
   var faseState=useState('inicio');var fase=faseState[0],setFase=faseState[1];
   var archivoRawState=useState(null);var archivoRaw=archivoRawState[0],setArchivoRaw=archivoRawState[1];
   var nombreArchivoState=useState('');var nombreArchivo=nombreArchivoState[0],setNombreArchivo=nombreArchivoState[1];
@@ -8108,7 +8108,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
               setData:onChange,setPresupuesto:function(nuevoPres){
                 var n=presupuestos.slice();n[idxPres]=nuevoPres;onChange(Object.assign({},data,{presupuestos:n}));
               }})}
-            contextoCalc={{config:config,factorPrest:factorPrestSnap,usarFpEnApu:usarFpEnApu,esHora:esHora}}
+            contextoCalc={{config:config,factorPrest:factorPrestSnap,usarFpEnApu:usarFpEnApu,esHora:esHora,cargosCalc:cargosCalcSnap}}
             onAplicar={function(resultado){
               var n=presupuestos.slice();
               n[idxPres]=Object.assign({},pres,{
@@ -8445,7 +8445,7 @@ function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,i
     {tab:12,label:'3. RESUMEN FINANCIERO'},
     {tab:13,label:'4. ENTREGABLES'}
   ];
-  var presContent=tab===10?<PresFormularioPanel pres={pres} presupuestos={presupuestos} selPresIdx={selPresIdx} data={data} onChange={onChange} apuModal={apuModal} setApuModal={setApuModal} apus={apus} categorias_apu={categorias_apu} calcItemVal={calcItemVal} setTab={setTab} estadoLabel={estadoLabel} cargosCalc={cargosCalc} personMap={personMap} esHora={esHora} eqMap={eqMap} insMap={insMap} factorPrest={factorPrest} factorPrestSnap={factorPrestSnap} usarFpEnApu={usarFpEnApu} equipos={equipos} insumos={insumos} apusBasico={apusBasico}/>
+  var presContent=tab===10?<PresFormularioPanel pres={pres} presupuestos={presupuestos} selPresIdx={selPresIdx} data={data} onChange={onChange} apuModal={apuModal} setApuModal={setApuModal} apus={apus} categorias_apu={categorias_apu} calcItemVal={calcItemVal} setTab={setTab} estadoLabel={estadoLabel} cargosCalc={cargosCalc} cargosCalcSnap={cargosCalcSnap} personMap={personMap} esHora={esHora} eqMap={eqMap} insMap={insMap} factorPrest={factorPrest} factorPrestSnap={factorPrestSnap} usarFpEnApu={usarFpEnApu} equipos={equipos} insumos={insumos} apusBasico={apusBasico}/>
     :tab===12?<PresResumenPanel pres={pres} presupuestos={presupuestos} selPresIdx={selPresIdx} data={data} onChange={onChange} calcResumenPres={calcResumenPres} setTab={setTab}/>
     :tab===13?<PresEntregablesPanel pres={pres} presupuestos={presupuestos} calcResumenPres={calcResumenPres} calcItemVal={calcItemVal} calcResumenFor={calcResumenFor} calcItemValFor={calcItemValFor} buildSnapCtx={buildSnapCtx} setTab={setTab}/>
     :<PresProyectosPanel presupuestos={presupuestos} selPresIdx={selPresIdx} setSelPresIdx={setSelPresIdx} data={data} onChange={onChange} estadoColor={estadoColor} estadoLabel={estadoLabel} addPresupuesto={addPresupuesto} addSubProyecto={addSubProyecto} toggleEstado={toggleEstado} delPresupuesto={delPresupuesto} setTab={setTab}/>;

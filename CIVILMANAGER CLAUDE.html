@@ -8286,12 +8286,84 @@ var CATALOGO_PROYECTO_TABS=[
   {tipo:'cargos',label:'Colaboradores'},
   {tipo:'apus',label:'APU'}
 ];
+var COLUMNAS_POR_TIPO={
+  insumos:[
+    {key:'categoria',label:'Categoria',w:100,align:'left'},
+    {key:'unidad',label:'UND',w:60,align:'center'},
+    {key:'precio',label:'Costo/UND',w:100,align:'right'},
+    {key:'fecha_cotizacion',label:'F. Cotizacion',w:100,align:'center',fmt:'fecha'},
+    {key:'origen',label:'Origen',w:80,align:'left'},
+    {key:'marca_referencia',label:'Marca',w:110,align:'left'},
+    {key:'proveedor_id',label:'Proveedor',w:150,align:'left',fmt:'proveedor'}
+  ],
+  equipos:[
+    {key:'tipo',label:'Categoria',w:110,align:'left'},
+    {key:'unidad',label:'Und',w:60,align:'center'},
+    {key:'precio',label:'Costo/Und',w:100,align:'right'},
+    {key:'fecha_cotizacion',label:'F. Cotizacion',w:100,align:'center',fmt:'fecha'},
+    {key:'proveedor_id',label:'Proveedor',w:150,align:'left',fmt:'proveedor'}
+  ],
+  cargos:[
+    {key:'num_salarios_base',label:'# S.B.',w:70,align:'center'},
+    {key:'valorBasico',label:'Vr. Basico',w:110,align:'right',fmt:'moneda'},
+    {key:'costo_base_dia',label:'Costo/Dia',w:100,align:'right',fmt:'moneda',ocultarSiEsHora:true},
+    {key:'precio',label:'Costo/Hora',w:100,align:'right'}
+  ],
+  apus:[
+    {key:'categoria',label:'Categoria',w:110,align:'left'},
+    {key:'unidad',label:'UN',w:50,align:'center'},
+    {key:'precio',label:'Vr. Unitario',w:110,align:'right'},
+    {key:'fecha_creacion',label:'Fecha',w:90,align:'center',fmt:'fecha'}
+  ]
+};
+function renderCeldaCatalogoProyecto(item,col,data,precio,calcCargo){
+  var val=col.key==='precio'?precio
+    :col.key==='valorBasico'?(calcCargo?calcCargo.valorBasico:null)
+    :col.key==='costo_base_dia'?(calcCargo?calcCargo.costo_base_dia:null)
+    :col.key==='proveedor_id'?null
+    :item[col.key];
+  if(col.fmt==='fecha')return val?fmtDate(val):'—';
+  if(col.fmt==='moneda')return val!=null?fmt(r2(val)):'—';
+  if(col.fmt==='proveedor'){
+    var prov=(data.proveedores||[]).find(function(p){return p.id===item.proveedor_id});
+    return prov?prov.nombre:'—';
+  }
+  if(col.key==='precio')return val!=null?fmt(r2(val)):'—';
+  return val||'—';
+}
 function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,cargosCalcSnap,equiposSnapEfectivo,insumosSnapEfectivo,factorPrestSnap,personMapSnap,eqMapSnap,insMapSnap,herrPct,usarFpEnApu,esHora,abCalcList,apusBasico}){
   var readOnly=pres.estado!=='borrador';
   var[tipo,setTipo]=useState('insumos');
   var arr=pres[tipo+'_snap']||[];
   var[seleccionados,setSeleccionados]=useState(new Set());
   var[filaExpandidaId,setFilaExpandidaId]=useState(null);
+  var[busq,setBusq]=useState('');
+  var[catFiltro,setCatFiltro]=useState('Todas');
+  var[page,setPage]=useState(1);
+  var PAGE_SIZE=50;
+
+  var categoriasDisponibles=useMemo(function(){
+    var set=new Set();
+    (pres.insumos_snap||[]).forEach(function(i){if(i.categoria)set.add(i.categoria)});
+    return Array.from(set).sort();
+  },[pres.insumos_snap]);
+
+  var arrFiltrado=useMemo(function(){
+    var base=arr;
+    if(tipo==='insumos'&&catFiltro!=='Todas')base=base.filter(function(item){return item.categoria===catFiltro});
+    if(!busq.trim())return base;
+    var q=normalizarTexto(busq);
+    return base.filter(function(item){
+      var nombre=normalizarTexto(item.nombre||item.descripcion||'');
+      var codigo=normalizarTexto(item.codigo||'');
+      return nombre.indexOf(q)>=0||codigo.indexOf(q)>=0;
+    });
+  },[arr,busq,tipo,catFiltro]);
+
+  var totalPaginas=Math.max(1,Math.ceil(arrFiltrado.length/PAGE_SIZE));
+  var arrPagina=arrFiltrado.slice((page-1)*PAGE_SIZE,page*PAGE_SIZE);
+
+  useEffect(function(){setPage(1)},[tipo,busq,catFiltro]);
 
   var toggleSel=function(id){
     setSeleccionados(function(prev){
@@ -8319,6 +8391,9 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,c
   };
 
   var cambiarTipo=function(t){setTipo(t);setSeleccionados(new Set());setFilaExpandidaId(null)};
+
+  var columnas=(COLUMNAS_POR_TIPO[tipo]||[]).filter(function(c){return !(c.ocultarSiEsHora&&esHora)});
+  var anchoTabla=24+24+90+250+columnas.reduce(function(s,c){return s+c.w},0)+(readOnly?0:24);
 
   var sincronizar=async function(){
     var r=sincronizarSnapshotAditivo(pres,data);
@@ -8349,48 +8424,64 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,c
           );
         })}
       </div>
+      <div style={{display:'flex',gap:6,alignItems:'center',marginBottom:8}}>
+        <input className="ni" placeholder="Buscar..." value={busq} onChange={function(e){setBusq(e.target.value)}}
+          style={{width:200,background:'var(--bg2)',border:'1px solid var(--bdr)',borderRadius:4,padding:'6px 10px',fontSize:11}}/>
+        {tipo==='insumos'&&(
+          <select className="sel" value={catFiltro} onChange={function(e){setCatFiltro(e.target.value)}} style={{fontSize:11}}>
+            <option value="Todas">Todas las categorías</option>
+            {categoriasDisponibles.map(function(c){return <option key={c} value={c}>{c}</option>})}
+          </select>
+        )}
+      </div>
       {!readOnly&&seleccionados.size>0&&(
         <button onClick={eliminarSeleccionados} style={{fontSize:11,padding:'4px 10px',border:'1px solid #f87171',borderRadius:4,color:'#f87171',background:'transparent',cursor:'pointer',marginBottom:8}}>
           🗑 Eliminar {seleccionados.size} seleccionado(s)
         </button>
       )}
-      <div className="xl-wrap" style={{width:900}}>
+      <div className="xl-wrap" style={{width:anchoTabla}}>
         <div className="xl-scroll" style={{maxHeight:'calc(100vh - 380px)'}}>
-          <table style={{tableLayout:'fixed',width:'900px'}}>
+          <table style={{tableLayout:'fixed',width:anchoTabla+'px'}}>
             <colgroup>
               {!readOnly&&<col style={{width:'24px'}}/>}
+              <col style={{width:'24px'}}/>
               <col style={{width:'90px'}}/>
               <col/>
-              <col style={{width:'90px'}}/>
-              <col style={{width:'120px'}}/>
-              <col style={{width:'110px'}}/>
+              {columnas.map(function(c,i){return <col key={i} style={{width:c.w+'px'}}/>})}
             </colgroup>
             <thead><tr>
-              {!readOnly&&<th style={{textAlign:'center'}}><input type="checkbox" checked={arr.length>0&&arr.every(function(x){return seleccionados.has(x.id)})} onChange={function(){setSeleccionados(arr.length>0&&arr.every(function(x){return seleccionados.has(x.id)})?new Set():new Set(arr.map(function(x){return x.id})))}}/></th>}
-              <th>Codigo</th><th>Nombre</th><th>Unidad</th><th>Precio</th><th>Origen</th>
+              {!readOnly&&<th style={{textAlign:'center'}}><input type="checkbox" checked={arrPagina.length>0&&arrPagina.every(function(x){return seleccionados.has(x.id)})} onChange={function(){setSeleccionados(arrPagina.length>0&&arrPagina.every(function(x){return seleccionados.has(x.id)})?new Set():new Set(arrPagina.map(function(x){return x.id})))}}/></th>}
+              <th className="col-rn">#</th>
+              <th>Codigo</th><th>Nombre</th>
+              {columnas.map(function(c,i){return <th key={i} style={{textAlign:c.align,fontSize:11}}>{c.label}</th>})}
             </tr></thead>
             <tbody>
-              {arr.length===0&&<tr className="empty-row"><td colSpan={readOnly?5:6}>Sin registros en esta categoría para este proyecto.</td></tr>}
-              {arr.map(function(item){
+              {arrPagina.length===0&&<tr className="empty-row"><td colSpan={3+columnas.length+(readOnly?0:1)}>{arrFiltrado.length===0&&arr.length>0?'Sin resultados para la búsqueda/filtro.':'Sin registros en esta categoría para este proyecto.'}</td></tr>}
+              {arrPagina.map(function(item,idx){
                 var nombre=item.nombre||item.descripcion||'—';
                 var esApu=tipo==='apus';
+                var esCargo=tipo==='cargos';
+                var calcCargo=esCargo?(cargosCalcSnap.find(function(c){return c.id===item.id})||null):null;
                 var precio=esApu
                   ?calcAPU(item,cargosCalcSnap,equiposSnapEfectivo,insumosSnapEfectivo,abCalcList,herrPct,factorPrestSnap,usarFpEnApu,esHora,personMapSnap,eqMapSnap,insMapSnap).totalDirecto
-                  :(item.costo_unitario!=null?item.costo_unitario:(item.costo_hora!=null?item.costo_hora:(item.num_salarios_base!=null?item.num_salarios_base:null)));
+                  :esCargo
+                  ?(calcCargo?calcCargo.costo_total_hora:null)
+                  :(item.costo_unitario!=null?item.costo_unitario:(item.costo_hora!=null?item.costo_hora:null));
                 var fantasma=esFantasmaProbable(item,tipo,data);
                 var expandida=filaExpandidaId===item.id;
                 return(
                   <React.Fragment key={item.id}>
                   <tr onClick={esApu?function(){setFilaExpandidaId(expandida?null:item.id)}:undefined} style={esApu?{cursor:'pointer'}:undefined}>
                     {!readOnly&&<td style={{textAlign:'center'}} onClick={function(e){e.stopPropagation()}}><input type="checkbox" checked={seleccionados.has(item.id)} onChange={function(){toggleSel(item.id)}}/></td>}
+                    <td className="col-rn" style={{fontSize:10}}>{(page-1)*PAGE_SIZE+idx+1}</td>
                     <td style={{fontSize:10,padding:'0 6px'}}>{item.codigo||'—'}</td>
                     <td style={{fontSize:10,padding:'0 6px'}}>{nombre} {fantasma&&<span style={{fontSize:8,color:'var(--tx3)'}} title="No tiene equivalente en el catálogo general — creado solo para este proyecto o ya no existe en general">◌ solo en proyecto</span>}</td>
-                    <td style={{fontSize:10,padding:'0 6px',textAlign:'center'}}>{item.unidad||'—'}</td>
-                    <td style={{fontSize:10,padding:'0 6px',textAlign:'right'}}>{precio!=null?fmt(r2(precio)):'—'}</td>
-                    <td style={{fontSize:9,padding:'0 6px',color:'var(--tx3)'}}>{fantasma?'Solo proyecto':'Catálogo general'}</td>
+                    {columnas.map(function(c,i){
+                      return <td key={i} style={{textAlign:c.align,fontSize:10,padding:'0 6px'}}>{renderCeldaCatalogoProyecto(item,c,data,precio,calcCargo)}</td>;
+                    })}
                   </tr>
                   {esApu&&expandida&&(
-                    <tr><td colSpan={readOnly?5:6} style={{padding:0}}>
+                    <tr><td colSpan={3+columnas.length+(readOnly?0:1)} style={{padding:0}}>
                       <div style={{maxHeight:400,overflowY:'auto',border:'1px solid var(--bdr)'}}>
                         <ApuDetallePreview apu={item} cargosCalc={cargosCalcSnap} personMap={personMapSnap} eqMap={eqMapSnap}
                           insMap={insMapSnap} equipos={equiposSnapEfectivo} insumos={insumosSnapEfectivo}
@@ -8403,6 +8494,11 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,c
               })}
             </tbody>
           </table>
+        </div>
+        <div style={{display:'flex',alignItems:'center',gap:8,padding:'6px 12px',borderTop:'1px solid var(--bdr)',fontSize:11,color:'var(--tx3)'}}>
+          <button disabled={page<=1} onClick={function(){setPage(page-1)}} style={{padding:'2px 8px',fontSize:10,opacity:page<=1?0.4:1,cursor:page<=1?'not-allowed':'pointer'}}>{'← Anterior'}</button>
+          <span>Página {page} de {totalPaginas} ({arrFiltrado.length} registros)</span>
+          <button disabled={page>=totalPaginas} onClick={function(){setPage(page+1)}} style={{padding:'2px 8px',fontSize:10,opacity:page>=totalPaginas?0.4:1,cursor:page>=totalPaginas?'not-allowed':'pointer'}}>{'Siguiente →'}</button>
         </div>
       </div>
     </div>

@@ -3093,6 +3093,60 @@ function crearRepositorio(contexto){
   };
 }
 
+/* Sincroniza el snapshot de un proyecto (Borrador) contra el catalogo general, EXCLUSIVAMENTE de forma
+   aditiva: nunca elimina ni sobrescribe un recurso que solo existe en el snapshot (creado con
+   decision crear_nuevo o via Camino B "solo este proyecto"). Solo actualiza precio de recursos ya
+   vinculados por id, y agrega los que existan en el catalogo general pero no en el snapshot. */
+function sincronizarSnapshotAditivo(pres,data){
+  function sincronizarCategoria(snapArr,globalArr,campoPrecio){
+    var porId=new Map(globalArr.map(function(g){return[g.id,g]}));
+    var snapIds=new Set(snapArr.map(function(s){return s.id}));
+    var actualizados=snapArr.map(function(s){
+      var enGlobal=porId.get(s.id);
+      if(enGlobal&&enGlobal[campoPrecio]!==s[campoPrecio]){
+        return Object.assign({},s,{[campoPrecio]:enGlobal[campoPrecio]});
+      }
+      return s;
+    });
+    var nuevos=globalArr.filter(function(g){return !snapIds.has(g.id)});
+    return{arr:actualizados.concat(nuevos),nNuevos:nuevos.length,
+      nActualizados:actualizados.filter(function(s,i){return s!==snapArr[i]}).length};
+  }
+  var resIns=sincronizarCategoria(pres.insumos_snap||[],data.insumos||[],'costo_unitario');
+  var resEq=sincronizarCategoria(pres.equipos_snap||[],data.equipos||[],'costo_hora');
+  var resCa=sincronizarCategoria(pres.cargos_snap||[],data.cargos||[],'num_salarios_base');
+  return{
+    insumos_snap:resIns.arr,equipos_snap:resEq.arr,cargos_snap:resCa.arr,
+    resumen:{
+      nuevos:resIns.nNuevos+resEq.nNuevos+resCa.nNuevos,
+      actualizados:resIns.nActualizados+resEq.nActualizados+resCa.nActualizados
+    }
+  };
+}
+
+/* Un recurso del snapshot del proyecto esta en uso si algun APU del propio apus_snap lo referencia
+   (insumo/equipo/cargo), o si es un APU y algun item del formulario del proyecto lo referencia
+   via apu_id (ver itemValMap/calcItemValFor, que resuelven apu_id primero contra apus_snap). */
+function recursoSnapEnUso(recurso,tab,pres){
+  if(tab==='apus'){
+    return(pres.items||[]).some(function(it){return it.apu_id===recurso.id});
+  }
+  var campoId={insumos:'insumo_id',equipos:'equipo_id',cargos:'cargo_id'}[tab];
+  if(!campoId)return false;
+  return(pres.apus_snap||[]).some(function(apu){
+    var secciones=[apu.recursos_ins,apu.recursos_eq,apu.recursos_mo,apu.recursos_transporte];
+    return secciones.some(function(sec){return(sec||[]).some(function(r){return r[campoId]===recurso.id})});
+  });
+}
+
+/* Informativo: marca recursos del snapshot sin equivalente por id en el catalogo general actual
+   (creados solo para el proyecto, o el original ya fue borrado del catalogo general). No implica
+   que deban eliminarse. */
+function esFantasmaProbable(recurso,tab,data){
+  var campoGlobal={insumos:'insumos',equipos:'equipos',cargos:'cargos',apus:'apus'}[tab];
+  return !(data[campoGlobal]||[]).some(function(g){return g.id===recurso.id});
+}
+
 /* Misma logica de agrupacion que consolidarRecursosApu: por codigo si esta presente, si no por
    tipo+nombre+unidad normalizados. Debe coincidir siempre con la clave usada alla para que
    idPorKey (aplicarImportacion) y idDe (buildApuFromBlock) resuelvan al mismo recurso. */
@@ -8221,6 +8275,123 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
   );
 }
 
+/* Visor y eliminacion del catalogo PROPIO de un proyecto (pres.insumos_snap/equipos_snap/cargos_snap/apus_snap).
+   No toca los catalogos globales (data.insumos/equipos/cargos/apus), que ya tienen su propia
+   eliminacion en bloque. Mismo patron de seleccion+eliminarSeleccionados que useCrudTable, pero
+   apuntando a pres[tab+'_snap'] en vez de data[tab]. */
+var CATALOGO_PROYECTO_TABS=[
+  {tipo:'insumos',label:'Insumos'},
+  {tipo:'equipos',label:'Equipos'},
+  {tipo:'cargos',label:'Colaboradores'},
+  {tipo:'apus',label:'APU'}
+];
+function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange}){
+  var readOnly=pres.estado!=='borrador';
+  var[tipo,setTipo]=useState('insumos');
+  var arr=pres[tipo+'_snap']||[];
+  var[seleccionados,setSeleccionados]=useState(new Set());
+
+  var toggleSel=function(id){
+    setSeleccionados(function(prev){
+      var next=new Set(prev);
+      if(next.has(id))next.delete(id);else next.add(id);
+      return next;
+    });
+  };
+
+  var eliminarSeleccionados=async function(){
+    if(seleccionados.size===0)return;
+    var seleccionadosArr=arr.filter(function(x){return seleccionados.has(x.id)});
+    var bloqueados=seleccionadosArr.filter(function(x){return recursoSnapEnUso(x,tipo,pres)});
+    var aEliminar=seleccionadosArr.filter(function(x){return bloqueados.indexOf(x)===-1});
+    if(aEliminar.length===0){showToast('Ningún registro se puede eliminar: todos están en uso en algún APU/item de este proyecto.',{type:'err'});return}
+    var msg='¿Eliminar '+aEliminar.length+' registro(s) del catálogo de este proyecto? Esta acción no se puede deshacer y solo afecta a '+pres.codigo+', no al catálogo general.';
+    if(bloqueados.length>0)msg+=' ('+bloqueados.length+' se omiten por estar en uso.)';
+    if(!(await askConfirm(msg)))return;
+    var idsAEliminar=new Set(aEliminar.map(function(x){return x.id}));
+    var nuevosArr=arr.filter(function(x){return !idsAEliminar.has(x.id)});
+    var n=presupuestos.slice();
+    n[selPresIdx]=Object.assign({},pres,{[tipo+'_snap']:nuevosArr});
+    onChange(Object.assign({},data,{presupuestos:n}));
+    setSeleccionados(new Set());
+  };
+
+  var cambiarTipo=function(t){setTipo(t);setSeleccionados(new Set())};
+
+  var sincronizar=async function(){
+    var r=sincronizarSnapshotAditivo(pres,data);
+    if(r.resumen.nuevos===0&&r.resumen.actualizados===0){
+      showToast('El catálogo del proyecto ya está al día.',{type:'ok'});
+      return;
+    }
+    if(!(await askConfirm('Se agregarán '+r.resumen.nuevos+' recurso(s) nuevo(s) y se actualizará el precio de '+r.resumen.actualizados+' recurso(s) ya existente(s) en este proyecto. Nada de lo creado exclusivamente para este proyecto se modifica ni se elimina. ¿Continuar?')))return;
+    var n=presupuestos.slice();
+    n[selPresIdx]=Object.assign({},pres,{insumos_snap:r.insumos_snap,equipos_snap:r.equipos_snap,cargos_snap:r.cargos_snap});
+    onChange(Object.assign({},data,{presupuestos:n}));
+    showToast('Catálogo del proyecto actualizado: '+r.resumen.nuevos+' nuevo(s), '+r.resumen.actualizados+' precio(s) actualizado(s).',{type:'ok'});
+  };
+
+  return(
+    <div>
+      <TituloSubTab pres={pres} presupuestos={presupuestos} tituloSubTab="Catálogo del Proyecto" extra={!readOnly&&(
+        <button onClick={sincronizar} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--ac)',borderRadius:4,background:'transparent',color:'var(--ac)',cursor:'pointer'}}>
+          🔄 Actualizar desde catálogo general
+        </button>
+      )}/>
+      <div style={{display:'flex',gap:6,margin:'8px 0'}}>
+        {CATALOGO_PROYECTO_TABS.map(function(t){
+          return(
+            <button key={t.tipo} onClick={function(){cambiarTipo(t.tipo)}} style={{fontSize:11,padding:'5px 12px',border:'1px solid '+(tipo===t.tipo?'var(--ok)':'var(--bdr)'),borderRadius:4,background:tipo===t.tipo?'rgba(74,222,128,.1)':'transparent',color:tipo===t.tipo?'var(--ok)':'var(--tx2)',cursor:'pointer'}}>
+              {t.label} ({(pres[t.tipo+'_snap']||[]).length})
+            </button>
+          );
+        })}
+      </div>
+      {!readOnly&&seleccionados.size>0&&(
+        <button onClick={eliminarSeleccionados} style={{fontSize:11,padding:'4px 10px',border:'1px solid #f87171',borderRadius:4,color:'#f87171',background:'transparent',cursor:'pointer',marginBottom:8}}>
+          🗑 Eliminar {seleccionados.size} seleccionado(s)
+        </button>
+      )}
+      <div className="xl-wrap" style={{width:900}}>
+        <div className="xl-scroll" style={{maxHeight:'calc(100vh - 380px)'}}>
+          <table style={{tableLayout:'fixed',width:'900px'}}>
+            <colgroup>
+              {!readOnly&&<col style={{width:'24px'}}/>}
+              <col style={{width:'90px'}}/>
+              <col/>
+              <col style={{width:'90px'}}/>
+              <col style={{width:'120px'}}/>
+              <col style={{width:'110px'}}/>
+            </colgroup>
+            <thead><tr>
+              {!readOnly&&<th style={{textAlign:'center'}}><input type="checkbox" checked={arr.length>0&&arr.every(function(x){return seleccionados.has(x.id)})} onChange={function(){setSeleccionados(arr.length>0&&arr.every(function(x){return seleccionados.has(x.id)})?new Set():new Set(arr.map(function(x){return x.id})))}}/></th>}
+              <th>Codigo</th><th>Nombre</th><th>Unidad</th><th>Precio</th><th>Origen</th>
+            </tr></thead>
+            <tbody>
+              {arr.length===0&&<tr className="empty-row"><td colSpan={readOnly?5:6}>Sin registros en esta categoría para este proyecto.</td></tr>}
+              {arr.map(function(item){
+                var nombre=item.nombre||item.descripcion||'—';
+                var precio=item.costo_unitario!=null?item.costo_unitario:(item.costo_hora!=null?item.costo_hora:(item.num_salarios_base!=null?item.num_salarios_base:null));
+                var fantasma=esFantasmaProbable(item,tipo,data);
+                return(
+                  <tr key={item.id}>
+                    {!readOnly&&<td style={{textAlign:'center'}}><input type="checkbox" checked={seleccionados.has(item.id)} onChange={function(){toggleSel(item.id)}}/></td>}
+                    <td style={{fontSize:10,padding:'0 6px'}}>{item.codigo||'—'}</td>
+                    <td style={{fontSize:10,padding:'0 6px'}}>{nombre} {fantasma&&<span style={{fontSize:8,color:'var(--tx3)'}} title="No tiene equivalente en el catálogo general — creado solo para este proyecto o ya no existe en general">◌ solo en proyecto</span>}</td>
+                    <td style={{fontSize:10,padding:'0 6px',textAlign:'center'}}>{item.unidad||'—'}</td>
+                    <td style={{fontSize:10,padding:'0 6px',textAlign:'right'}}>{precio!=null?fmt(precio):'—'}</td>
+                    <td style={{fontSize:9,padding:'0 6px',color:'var(--tx3)'}}>{fantasma?'Solo proyecto':'Catálogo general'}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,insMap,factorPrest,usarFpEnApu,equipos,insumos,apusBasico,categorias_apu,tab,setTab}){
   data=data||{};
   equipos=equipos||[];
@@ -8468,11 +8639,13 @@ function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,i
     {tab:9,label:'1. CATALOGO DE PROYECTOS'},
     {tab:10,label:'2. FORMULARIO DE CANTIDADES Y PRECIOS'},
     {tab:12,label:'3. RESUMEN FINANCIERO'},
-    {tab:13,label:'4. ENTREGABLES'}
+    {tab:13,label:'4. ENTREGABLES'},
+    {tab:14,label:'5. CATALOGO DEL PROYECTO'}
   ];
   var presContent=tab===10?<PresFormularioPanel pres={pres} presupuestos={presupuestos} selPresIdx={selPresIdx} data={data} onChange={onChange} apuModal={apuModal} setApuModal={setApuModal} apus={apus} categorias_apu={categorias_apu} calcItemVal={calcItemVal} setTab={setTab} estadoLabel={estadoLabel} cargosCalc={cargosCalc} cargosCalcSnap={cargosCalcSnap} personMap={personMap} esHora={esHora} eqMap={eqMap} insMap={insMap} factorPrest={factorPrest} factorPrestSnap={factorPrestSnap} usarFpEnApu={usarFpEnApu} equipos={equipos} insumos={insumos} apusBasico={apusBasico}/>
     :tab===12?<PresResumenPanel pres={pres} presupuestos={presupuestos} selPresIdx={selPresIdx} data={data} onChange={onChange} calcResumenPres={calcResumenPres} setTab={setTab}/>
     :tab===13?<PresEntregablesPanel pres={pres} presupuestos={presupuestos} calcResumenPres={calcResumenPres} calcItemVal={calcItemVal} calcResumenFor={calcResumenFor} calcItemValFor={calcItemValFor} buildSnapCtx={buildSnapCtx} setTab={setTab}/>
+    :tab===14?<PresCatalogoProyectoPanel pres={pres} presupuestos={presupuestos} selPresIdx={selPresIdx} data={data} onChange={onChange}/>
     :<PresProyectosPanel presupuestos={presupuestos} selPresIdx={selPresIdx} setSelPresIdx={setSelPresIdx} data={data} onChange={onChange} estadoColor={estadoColor} estadoLabel={estadoLabel} addPresupuesto={addPresupuesto} addSubProyecto={addSubProyecto} toggleEstado={toggleEstado} delPresupuesto={delPresupuesto} setTab={setTab}/>;
 
   return(
@@ -8675,7 +8848,7 @@ var factorPrest=useMemo(function(){return r2(factoresPrestaciones.reduce(functio
         {!isFuture&&tab===4&&<ProveedoresTab {...tabProps}/>}
 
 {!isFuture&&tab===6&&<APUTab view="catalog" {...tabProps}/>}
-        {!isFuture&&tab===8&&<ConfigListasTab {...tabProps}/>}{!isFuture&&tab>=9&&tab<=13&&<PresupuestosTab {...tabProps}/>}
+        {!isFuture&&tab===8&&<ConfigListasTab {...tabProps}/>}{!isFuture&&tab>=9&&tab<=14&&<PresupuestosTab {...tabProps}/>}
         {isFuture&&<div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',height:'100%',gap:12}}>
 
           <div style={{fontSize:40,opacity:0.3}}>ðŸš§</div>

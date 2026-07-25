@@ -3093,10 +3093,27 @@ function crearRepositorio(contexto){
   };
 }
 
+/* Aditivo puro: si algun recurso referenciado por un APU (insumo/equipo/cargo) no existe todavia
+   en el snapshot de la categoria correspondiente, lo copia desde el catalogo global. Usada tanto
+   al asignar un APU a un item (assignApu) como al reparar snapshots ya afectados por el bug donde
+   assignApu no copiaba estos recursos (sincronizarSnapshotAditivo). Muta snapArr in-place. */
+function asegurarEnSnapshot(snapArr,catalogoGlobal,idCampo,recursos){
+  (recursos||[]).forEach(function(r){
+    var id=r[idCampo];
+    if(!id)return;
+    if(!snapArr.some(function(x){return x.id===id})){
+      var enGlobal=catalogoGlobal.find(function(x){return x.id===id});
+      if(enGlobal)snapArr.push(Object.assign({},enGlobal));
+    }
+  });
+}
+
 /* Sincroniza el snapshot de un proyecto (Borrador) contra el catalogo general, EXCLUSIVAMENTE de forma
    aditiva: nunca elimina ni sobrescribe un recurso que solo existe en el snapshot (creado con
    decision crear_nuevo o via Camino B "solo este proyecto"). Solo actualiza precio de recursos ya
-   vinculados por id, y agrega los que existan en el catalogo general pero no en el snapshot. */
+   vinculados por id, y agrega los que existan en el catalogo general pero no en el snapshot.
+   Tambien repara snapshots afectados por el bug de assignApu que no copiaba los recursos
+   referenciados por un APU asignado (ver seccion 3 de CIVILMANAGER_Fix_AssignApu_Recursos_Faltantes). */
 function sincronizarSnapshotAditivo(pres,data){
   function sincronizarCategoria(snapArr,globalArr,campoPrecio){
     var porId=new Map(globalArr.map(function(g){return[g.id,g]}));
@@ -3115,6 +3132,12 @@ function sincronizarSnapshotAditivo(pres,data){
   var resIns=sincronizarCategoria(pres.insumos_snap||[],data.insumos||[],'costo_unitario');
   var resEq=sincronizarCategoria(pres.equipos_snap||[],data.equipos||[],'costo_hora');
   var resCa=sincronizarCategoria(pres.cargos_snap||[],data.cargos||[],'num_salarios_base');
+  (pres.apus_snap||[]).forEach(function(apu){
+    asegurarEnSnapshot(resIns.arr,data.insumos||[],'insumo_id',apu.recursos_ins);
+    asegurarEnSnapshot(resEq.arr,data.equipos||[],'equipo_id',apu.recursos_eq);
+    asegurarEnSnapshot(resEq.arr,data.equipos||[],'equipo_id',apu.recursos_transporte);
+    asegurarEnSnapshot(resCa.arr,data.cargos||[],'cargo_id',apu.recursos_mo);
+  });
   return{
     insumos_snap:resIns.arr,equipos_snap:resEq.arr,cargos_snap:resCa.arr,
     resumen:{
@@ -7775,9 +7798,18 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
       clon=Object.assign({},apuOrig,{id:uid(),apu_origen_id:apuOrig.id});
       snap.push(clon);
     }
+    // Asegurar que todo recurso referenciado por el APU exista en el snapshot del proyecto — si no
+    // se copia aqui, calcAPU no lo encuentra dentro del proyecto (bug: assignApu solo clonaba el APU).
+    var insumosSnap=(pres.insumos_snap||[]).slice();
+    var equiposSnap=(pres.equipos_snap||[]).slice();
+    var cargosSnap=(pres.cargos_snap||[]).slice();
+    asegurarEnSnapshot(insumosSnap,data.insumos||[],'insumo_id',clon.recursos_ins);
+    asegurarEnSnapshot(equiposSnap,data.equipos||[],'equipo_id',clon.recursos_eq);
+    asegurarEnSnapshot(equiposSnap,data.equipos||[],'equipo_id',clon.recursos_transporte);
+    asegurarEnSnapshot(cargosSnap,data.cargos||[],'cargo_id',clon.recursos_mo);
     var arr=pres.items.slice();
     arr[i]=Object.assign({},arr[i],{apu_id:clon.id,tiene_apu:true,alerta_sin_apu:false});
-    saveItems(arr,{apus_snap:snap});
+    saveItems(arr,{apus_snap:snap,insumos_snap:insumosSnap,equipos_snap:equiposSnap,cargos_snap:cargosSnap});
     closeApuModal();
     showToast('APU asignado',{type:'ok',dur:2000});
   };

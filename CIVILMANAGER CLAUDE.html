@@ -3108,13 +3108,11 @@ function asegurarEnSnapshot(snapArr,catalogoGlobal,idCampo,recursos){
   });
 }
 
-/* Sincroniza el snapshot de un proyecto (Borrador) contra el catalogo general, EXCLUSIVAMENTE de forma
-   aditiva: nunca elimina ni sobrescribe un recurso que solo existe en el snapshot (creado con
-   decision crear_nuevo o via Camino B "solo este proyecto"). Solo actualiza precio de recursos ya
-   vinculados por id, y agrega los que existan en el catalogo general pero no en el snapshot.
-   Tambien repara snapshots afectados por el bug de assignApu que no copiaba los recursos
-   referenciados por un APU asignado (ver seccion 3 de CIVILMANAGER_Fix_AssignApu_Recursos_Faltantes). */
-function sincronizarSnapshotAditivo(pres,data){
+/* Trae del catalogo general SOLO lo que ya existia como sincronizacion aditiva original (Opcion A):
+   agrega recursos nuevos por id y actualiza precio de los ya vinculados, sin tocar nada creado
+   exclusivamente para el proyecto. NO toca apus_snap — ver repararRecursosFaltantesDeApus() para
+   la reparacion acotada a lo que los APU del proyecto realmente referencian. */
+function sincronizarDesdeCatalogoGeneral(pres,data){
   function sincronizarCategoria(snapArr,globalArr,campoPrecio){
     var porId=new Map(globalArr.map(function(g){return[g.id,g]}));
     var snapIds=new Set(snapArr.map(function(s){return s.id}));
@@ -3132,18 +3130,34 @@ function sincronizarSnapshotAditivo(pres,data){
   var resIns=sincronizarCategoria(pres.insumos_snap||[],data.insumos||[],'costo_unitario');
   var resEq=sincronizarCategoria(pres.equipos_snap||[],data.equipos||[],'costo_hora');
   var resCa=sincronizarCategoria(pres.cargos_snap||[],data.cargos||[],'num_salarios_base');
-  (pres.apus_snap||[]).forEach(function(apu){
-    asegurarEnSnapshot(resIns.arr,data.insumos||[],'insumo_id',apu.recursos_ins);
-    asegurarEnSnapshot(resEq.arr,data.equipos||[],'equipo_id',apu.recursos_eq);
-    asegurarEnSnapshot(resEq.arr,data.equipos||[],'equipo_id',apu.recursos_transporte);
-    asegurarEnSnapshot(resCa.arr,data.cargos||[],'cargo_id',apu.recursos_mo);
-  });
   return{
     insumos_snap:resIns.arr,equipos_snap:resEq.arr,cargos_snap:resCa.arr,
     resumen:{
       nuevos:resIns.nNuevos+resEq.nNuevos+resCa.nNuevos,
       actualizados:resIns.nActualizados+resEq.nActualizados+resCa.nActualizados
     }
+  };
+}
+
+/* Reparacion acotada: completa SOLO los insumos/equipos/cargos que los APU ya asignados en este
+   proyecto referencian y todavia les faltan en el snapshot (bug de assignApu previo al fix de
+   CIVILMANAGER_Fix_AssignApu_Recursos_Faltantes). No trae nada del catalogo general que ningun
+   APU de este proyecto este usando. */
+function repararRecursosFaltantesDeApus(pres,data){
+  var insumosSnap=(pres.insumos_snap||[]).slice();
+  var equiposSnap=(pres.equipos_snap||[]).slice();
+  var cargosSnap=(pres.cargos_snap||[]).slice();
+  var contadorAntes=insumosSnap.length+equiposSnap.length+cargosSnap.length;
+  (pres.apus_snap||[]).forEach(function(apu){
+    asegurarEnSnapshot(insumosSnap,data.insumos||[],'insumo_id',apu.recursos_ins);
+    asegurarEnSnapshot(equiposSnap,data.equipos||[],'equipo_id',apu.recursos_eq);
+    asegurarEnSnapshot(equiposSnap,data.equipos||[],'equipo_id',apu.recursos_transporte);
+    asegurarEnSnapshot(cargosSnap,data.cargos||[],'cargo_id',apu.recursos_mo);
+  });
+  var contadorDespues=insumosSnap.length+equiposSnap.length+cargosSnap.length;
+  return{
+    insumos_snap:insumosSnap,equipos_snap:equiposSnap,cargos_snap:cargosSnap,
+    resumen:{completados:contadorDespues-contadorAntes,apusRevisados:(pres.apus_snap||[]).length}
   };
 }
 
@@ -8353,16 +8367,29 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
   var cambiarTipo=function(t){setTipo(t);setCuadrillaLocalIdx(null);setPrevTipo(undefined)};
 
   var sincronizar=async function(){
-    var r=sincronizarSnapshotAditivo(pres,data);
+    var r=sincronizarDesdeCatalogoGeneral(pres,data);
     if(r.resumen.nuevos===0&&r.resumen.actualizados===0){
       showToast('El catálogo del proyecto ya está al día.',{type:'ok'});
       return;
     }
-    if(!(await askConfirm('Se agregarán '+r.resumen.nuevos+' recurso(s) nuevo(s) y se actualizará el precio de '+r.resumen.actualizados+' recurso(s) ya existente(s) en este proyecto. Nada de lo creado exclusivamente para este proyecto se modifica ni se elimina. ¿Continuar?')))return;
+    if(!(await askConfirm('Se agregarán '+r.resumen.nuevos+' recurso(s) nuevo(s) del catálogo general y se actualizará el precio de '+r.resumen.actualizados+' recurso(s) ya vinculado(s). Nada de lo creado exclusivamente para este proyecto se modifica ni se elimina. ¿Continuar?')))return;
     var n=presupuestos.slice();
     n[selPresIdx]=Object.assign({},pres,{insumos_snap:r.insumos_snap,equipos_snap:r.equipos_snap,cargos_snap:r.cargos_snap});
     onChange(Object.assign({},data,{presupuestos:n}));
     showToast('Catálogo del proyecto actualizado: '+r.resumen.nuevos+' nuevo(s), '+r.resumen.actualizados+' precio(s) actualizado(s).',{type:'ok'});
+  };
+
+  var reparar=async function(){
+    var r=repararRecursosFaltantesDeApus(pres,data);
+    if(r.resumen.completados===0){
+      showToast('Todos los APU de este proyecto ya tienen sus recursos completos.',{type:'ok'});
+      return;
+    }
+    if(!(await askConfirm('Se completarán '+r.resumen.completados+' recurso(s) faltante(s) en '+r.resumen.apusRevisados+' APU de este proyecto (equipos/insumos/cargos que el APU necesita y no estaban copiados). No se agrega nada del catálogo general que no esté siendo usado por un APU de aquí. ¿Continuar?')))return;
+    var n=presupuestos.slice();
+    n[selPresIdx]=Object.assign({},pres,{insumos_snap:r.insumos_snap,equipos_snap:r.equipos_snap,cargos_snap:r.cargos_snap});
+    onChange(Object.assign({},data,{presupuestos:n}));
+    showToast('Se completaron '+r.resumen.completados+' recurso(s) faltante(s).',{type:'ok'});
   };
 
   var readOnly=pres.estado!=='borrador';
@@ -8370,9 +8397,14 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
   return(
     <div>
       <TituloSubTab pres={pres} presupuestos={presupuestos} tituloSubTab="Recursos del Proyecto" extra={!readOnly&&(
-        <button onClick={sincronizar} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--ac)',borderRadius:4,background:'transparent',color:'var(--ac)',cursor:'pointer'}}>
-          🔄 Actualizar desde catálogo general
-        </button>
+        <div style={{display:'flex',gap:6}}>
+          <button onClick={sincronizar} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--ac)',borderRadius:4,background:'transparent',color:'var(--ac)',cursor:'pointer'}}>
+            🔄 Actualizar desde catálogo general
+          </button>
+          <button onClick={reparar} style={{fontSize:10,padding:'4px 10px',border:'1px solid #fbbf24',borderRadius:4,background:'transparent',color:'#fbbf24',cursor:'pointer'}}>
+            🔧 Reparar recursos faltantes de APU
+          </button>
+        </div>
       )}/>
       <div style={{display:'flex',gap:6,margin:'8px 0'}}>
         {TABS_PROYECTO.map(function(t){

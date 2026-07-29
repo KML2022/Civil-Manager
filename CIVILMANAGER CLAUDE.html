@@ -132,6 +132,18 @@ table,.xl-wrap,.xl-scroll{font-variant-numeric:tabular-nums}
 
 .xl-foot{display:flex;align-items:center;gap:6px;padding:6px 8px;border-top:1px solid var(--bdr);background:var(--bg3);overflow:hidden;flex-shrink:0}
 
+/* Los catalogos reales reutilizados dentro del Visor de Proyecto (PresCatalogoProyectoPanel) traen
+   su propio xl-wrap/xl-scroll dimensionado para uso standalone, con su thead/footer ya funcionando
+   bien ahi mismo sin necesitar sticky: el UNICO que scrollea es su propio .xl-scroll interno (su
+   max-height inline original, sin tocar). Se probo forzar relleno total del alto disponible via
+   flex:1 en toda la cadena para que el footer quedara siempre pegado al fondo de la pantalla, pero
+   con pocas filas dejaba un espacio en blanco grande entre la tabla y el footer — no deseado. Ahora
+   cada tab simplemente se ajusta a su contenido real (igual que standalone): footer queda pegado
+   justo debajo de la ultima fila. Si el contenido es mas alto que el espacio disponible del Visor,
+   el panel completo (titulo+tabs+tabla) scrollea junto, en vez de forzar relleno artificial. */
+.visor-catalogo-embed .xl-wrap{height:auto!important}
+.visor-catalogo-embed .xl-foot{flex:0 0 auto}
+
 
 
 table{width:100%;border-collapse:collapse;font-family:'Inter',sans-serif;font-size:11px;table-layout:fixed}
@@ -995,7 +1007,7 @@ const handleTabKeyDown=function(setEditIdx){return function(i,e){if(e.key==='Ent
 
 
 
-function useCrudTable({data,onChange,dataKey,prefix,defaultItem,searchKeys,confirmDel,excelConfig,esReferenciado}){
+function useCrudTable({data,onChange,dataKey,prefix,defaultItem,searchKeys,confirmDel,excelConfig,esReferenciado,onBloqueado}){
 
   var items=data[dataKey]||[];
 
@@ -1023,7 +1035,12 @@ function useCrudTable({data,onChange,dataKey,prefix,defaultItem,searchKeys,confi
     if(seleccionados.size===0)return;
     var bloqueados=esReferenciado?items.filter(function(x){return seleccionados.has(x.id)&&esReferenciado(x)}):[];
     var aEliminar=items.filter(function(x){return seleccionados.has(x.id)&&!bloqueados.includes(x)});
-    if(aEliminar.length===0){showToast('Ningún registro se puede eliminar: todos están en uso en algún APU.',{type:'err'});return}
+    if(aEliminar.length===0){
+      var msgBloqueo='Ningún registro se puede eliminar: todos están en uso en algún APU.';
+      if(onBloqueado)onBloqueado(msgBloqueo);else showToast(msgBloqueo,{type:'err'});
+      return;
+    }
+    if(onBloqueado)onBloqueado('');
     var msg='¿Eliminar '+aEliminar.length+' registro(s) seleccionado(s)? Esta acción no se puede deshacer.';
     if(bloqueados.length>0)msg+=' ('+bloqueados.length+' se omiten por estar en uso en algún APU.)';
     if(!(await askConfirm(msg)))return;
@@ -1108,7 +1125,10 @@ function useExcelImportExport({items,data,onChange,dataKey,prefix,title,sheetNam
 
 
 
-function FactorPrestacionalTab({data,onChange,factorPrest,cargosCalc,cargoMap,esHora,tab,setTab,setSelCuadrillaIdx,setPrevTab}){
+function FactorPrestacionalTab({data,onChange,factorPrest,cargosCalc,cargoMap,esHora,tab,setTab,setSelCuadrillaIdx,setPrevTab,contextoProyecto}){
+
+  var tituloExportCargos=contextoProyecto?'CATALOGO DE COLABORADORES — '+contextoProyecto.codigo+' '+contextoProyecto.nombre:'CATALOGO DE COLABORADORES';
+  var filenameExportCargos=contextoProyecto?'colaboradores_'+contextoProyecto.codigo+'.xlsx':'colaboradores.xlsx';
 
   var cargos=data.cargos||[];
 
@@ -1145,7 +1165,8 @@ function FactorPrestacionalTab({data,onChange,factorPrest,cargosCalc,cargoMap,es
     var seleccionadosCargos=cargos.filter(function(c){return cargoSel.has(c.id)});
     var bloqueados=seleccionadosCargos.filter(cargoTieneReferencia);
     var aEliminar=seleccionadosCargos.filter(function(c){return bloqueados.indexOf(c)===-1});
-    if(aEliminar.length===0){showToast('Ning\u00fan colaborador se puede eliminar: todos est\u00e1n en uso en alguna cuadrilla o APU.',{type:'err'});return}
+    if(aEliminar.length===0){setCargoDelErr('Ning\u00fan colaborador se puede eliminar: todos est\u00e1n en uso en alguna cuadrilla o APU.');return}
+    setCargoDelErr('');
     var msg='\u00bfEliminar '+aEliminar.length+' colaborador(es) seleccionado(s)? Esta acci\u00f3n no se puede deshacer.';
     if(bloqueados.length>0)msg+=' ('+bloqueados.length+' se omiten por estar en uso.)';
     if(!(await askConfirm(msg)))return;
@@ -1157,7 +1178,7 @@ function FactorPrestacionalTab({data,onChange,factorPrest,cargosCalc,cargoMap,es
 
   var handleCargosKeyDown=handleTabKeyDown(setCargosEditIdx);
 
-  var cargosExcel=useExcelImportExport({items:cargos,data:data,onChange:onChange,dataKey:'cargos',prefix:'MO',title:'CATALOGO DE COLABORADORES',sheetName:'Colaboradores',filename:'colaboradores.xlsx',headers:esHora?['Codigo','Descripcion','# S.B.','Vr. Basico','Costo/Hora']:['Codigo','Descripcion','# S.B.','Vr. Basico','Costo/Dia','Costo/Hora'],colWidths:esHora?[{wch:10},{wch:30},{wch:10},{wch:14},{wch:14}]:[{wch:10},{wch:30},{wch:10},{wch:14},{wch:14},{wch:14}],mapRow:function(c){var calc=cargoMap.get(c.id)||{};return esHora?[c.codigo||'',c.descripcion||'',c.num_salarios_base||1,calc.valorBasico||0,calc.costo_base_hora||0]:[c.codigo||'',c.descripcion||'',c.num_salarios_base||1,calc.valorBasico||0,calc.costo_base_dia||0,calc.costo_base_hora||0]},parseRow:function(r){return[String(r[0]||'').trim(),String(r[1]||'').trim(),String(r[2]||1).trim()]},buildItem:function(r,idx,existing,genCode){return{codigo:idx>=0?existing[idx].codigo:genCode(),id:idx>=0?existing[idx].id:uid(),descripcion:r[1]||'',num_salarios_base:safeFloat(r[2])||1}},matchKey:'codigo'});
+  var cargosExcel=useExcelImportExport({items:cargos,data:data,onChange:onChange,dataKey:'cargos',prefix:'MO',title:tituloExportCargos,sheetName:'Colaboradores',filename:filenameExportCargos,headers:esHora?['Codigo','Descripcion','# S.B.','Vr. Basico','Costo/Hora']:['Codigo','Descripcion','# S.B.','Vr. Basico','Costo/Dia','Costo/Hora'],colWidths:esHora?[{wch:10},{wch:30},{wch:10},{wch:14},{wch:14}]:[{wch:10},{wch:30},{wch:10},{wch:14},{wch:14},{wch:14}],mapRow:function(c){var calc=cargoMap.get(c.id)||{};return esHora?[c.codigo||'',c.descripcion||'',c.num_salarios_base||1,calc.valorBasico||0,calc.costo_base_hora||0]:[c.codigo||'',c.descripcion||'',c.num_salarios_base||1,calc.valorBasico||0,calc.costo_base_dia||0,calc.costo_base_hora||0]},parseRow:function(r){return[String(r[0]||'').trim(),String(r[1]||'').trim(),String(r[2]||1).trim()]},buildItem:function(r,idx,existing,genCode){return{codigo:idx>=0?existing[idx].codigo:genCode(),id:idx>=0?existing[idx].id:uid(),descripcion:r[1]||'',num_salarios_base:safeFloat(r[2])||1}},matchKey:'codigo'});
 
   var filteredCargos=cargoSearch?cargos.filter(function(c){return norm(c.codigo||'').includes(norm(cargoSearch))||norm(c.descripcion||'').includes(norm(cargoSearch))}):cargos;
 
@@ -1179,7 +1200,7 @@ function FactorPrestacionalTab({data,onChange,factorPrest,cargosCalc,cargoMap,es
 
   return(
 
-    <div>
+    <div className="xl-tab-root">
 
       <div className="sec-hdr" style={{border:'1px solid var(--bdr)',borderRadius:4,padding:'2px 10px',marginBottom:5,flex:'0 0 auto',flexDirection:'row',alignItems:'center',gap:8,width:tblW}}>
 
@@ -1544,9 +1565,9 @@ function CuadrillasTab({data,onChange,cargosCalc,cargoMap,esHora,selCuadrillaIdx
 
   return(<React.Fragment>
 
-    <div style={{display:'flex',gap:16,alignItems:'flex-start'}}>
+    <div className="xl-tab-root-row" style={{display:'flex',gap:16,alignItems:'flex-start'}}>
 
-        <div style={{flex:'0 0 550px'}}>
+        <div className="xl-tab-col" style={{flex:'0 0 650px'}}>
 
         <div className="sec-hdr" style={{border:'1px solid var(--bdr)',borderRadius:4,padding:'2px 10px',marginBottom:8,flex:'0 0 auto',flexDirection:'row',alignItems:'center',gap:8,width:650}}>
 
@@ -1906,13 +1927,16 @@ const ExcelPreviewModal=React.memo(function ExcelPreviewModal({excel}){
 
 
 
-function EquiposTab({data,onChange,provMap,_unidades}){
+function EquiposTab({data,onChange,provMap,_unidades,contextoProyecto}){
 
   var proveedores=data.proveedores;
 
   var _cl=data.config_listas||{};
 
   var _tipoEq=(_cl.tipos_equipo||TIPO_EQUIPO).map(function(t){return typeof t==='string'?t:t.nombre});
+
+  var tituloExportEq=contextoProyecto?'CATALOGO DE EQUIPOS Y MAQUINARIA — '+contextoProyecto.codigo+' '+contextoProyecto.nombre:'CATALOGO DE EQUIPOS Y MAQUINARIA';
+  var filenameExportEq=contextoProyecto?'equipos_'+contextoProyecto.codigo+'.xlsx':'catalogo_equipos.xlsx';
 
   var[equipoDelErr,setEquipoDelErr]=useState('');
 
@@ -1929,7 +1953,7 @@ function EquiposTab({data,onChange,provMap,_unidades}){
     return false;
   };
 
-  var{items:equipos,editIdx,setEditIdx,search,setSearch,upd,add,del,filtered:filteredEquipos,handleKeyDown,excel:eqExcel,seleccionados:eqSel,toggleSel:eqToggleSel,setSeleccionados:setEqSel,eliminarSeleccionados:eqEliminarSeleccionados}=useCrudTable({data,onChange,dataKey:'equipos',prefix:'EQ',defaultItem:function(){return{id:uid(),codigo:genCodeFor(data.equipos,'EQ'),nombre:'',tipo:'Equipo menor',unidad:'hr',costo_hora:0,fecha_cotizacion:'',proveedor_id:''}},searchKeys:['codigo','nombre'],confirmDel:"Eliminar este equipo?",esReferenciado:equipoTieneReferencia,excelConfig:{title:'CATALOGO DE EQUIPOS Y MAQUINARIA',sheetName:'Equipos',filename:'catalogo_equipos.xlsx',headers:['Codigo','Descripcion','Tipo','Und','Costo/Und','F.Cotizacion','Proveedor'],colWidths:[{wch:10},{wch:30},{wch:18},{wch:6},{wch:14},{wch:14},{wch:20}],mapRow:function(e){var prov=proveedores.find(function(p){return p.id===e.proveedor_id});return[e.codigo||'',e.nombre||'',e.tipo||'',e.unidad||'',e.costo_hora||0,fmtDate(e.fecha_cotizacion),prov?prov.nombre:'']},parseRow:function(r){return[String(r[0]||'').trim(),String(r[1]||'').trim(),String(r[2]||'').trim(),String(r[3]||'').trim(),String(r[4]||0).trim(),String(r[5]||'').trim(),String(r[6]||'').trim()]},buildItem:function(r,idx,existing){var provNombre=(r[6]||'').trim();var provId=provNombre?((proveedores.find(function(p){return(p.nombre||'').toLowerCase()===provNombre.toLowerCase()})||{}).id||''):(idx>=0&&existing[idx]?existing[idx].proveedor_id:'');return{id:uid(),codigo:genCodeFor(equipos,'EQ',r[0]),nombre:r[1]||'',tipo:r[2]||'Equipo menor',unidad:r[3]||'hr',costo_hora:safeFloat(r[4])||0,fecha_cotizacion:toISODate(r[5]),proveedor_id:provId}}}});
+  var{items:equipos,editIdx,setEditIdx,search,setSearch,upd,add,del,filtered:filteredEquipos,handleKeyDown,excel:eqExcel,seleccionados:eqSel,toggleSel:eqToggleSel,setSeleccionados:setEqSel,eliminarSeleccionados:eqEliminarSeleccionados}=useCrudTable({data,onChange,dataKey:'equipos',prefix:'EQ',defaultItem:function(){return{id:uid(),codigo:genCodeFor(data.equipos,'EQ'),nombre:'',tipo:'Equipo menor',unidad:'hr',costo_hora:0,fecha_cotizacion:'',proveedor_id:''}},searchKeys:['codigo','nombre'],confirmDel:"Eliminar este equipo?",esReferenciado:equipoTieneReferencia,onBloqueado:setEquipoDelErr,excelConfig:{title:tituloExportEq,sheetName:'Equipos',filename:filenameExportEq,headers:['Codigo','Descripcion','Tipo','Und','Costo/Und','F.Cotizacion','Proveedor'],colWidths:[{wch:10},{wch:30},{wch:18},{wch:6},{wch:14},{wch:14},{wch:20}],mapRow:function(e){var prov=proveedores.find(function(p){return p.id===e.proveedor_id});return[e.codigo||'',e.nombre||'',e.tipo||'',e.unidad||'',e.costo_hora||0,fmtDate(e.fecha_cotizacion),prov?prov.nombre:'']},parseRow:function(r){return[String(r[0]||'').trim(),String(r[1]||'').trim(),String(r[2]||'').trim(),String(r[3]||'').trim(),String(r[4]||0).trim(),String(r[5]||'').trim(),String(r[6]||'').trim()]},buildItem:function(r,idx,existing){var provNombre=(r[6]||'').trim();var provId=provNombre?((proveedores.find(function(p){return(p.nombre||'').toLowerCase()===provNombre.toLowerCase()})||{}).id||''):(idx>=0&&existing[idx]?existing[idx].proveedor_id:'');return{id:uid(),codigo:genCodeFor(equipos,'EQ',r[0]),nombre:r[1]||'',tipo:r[2]||'Equipo menor',unidad:r[3]||'hr',costo_hora:safeFloat(r[4])||0,fecha_cotizacion:toISODate(r[5]),proveedor_id:provId}}}});
 
   var filteredEquiposF=tipoFilter==='Todos'?filteredEquipos:filteredEquipos.filter(function(e){return e.tipo===tipoFilter});
 
@@ -1971,7 +1995,7 @@ function EquiposTab({data,onChange,provMap,_unidades}){
 
   return(
 
-    <div>
+    <div className="xl-tab-root">
 
       <div className="sec-hdr" style={{border:'1px solid var(--bdr)',borderRadius:4,padding:'2px 10px',marginBottom:8,flex:'0 0 auto',width:1161}}>
 
@@ -2109,7 +2133,7 @@ function EquiposTab({data,onChange,provMap,_unidades}){
 
       </div>
 
-      <div className="banner" style={{width:1137,display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical',overflow:'hidden',fontSize:11,padding:'6px 10px'}}><b className="c-warn">Nota:</b> Las herramientas menores no se registran aqui. Se calculan automaticamente como <b>un porcentaje del total de la mano de obra</b> dentro de cada APU.</div>
+      <div className="banner" style={{width:1161,boxSizing:'border-box',display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical',overflow:'hidden',fontSize:11,padding:'6px 10px'}}><b className="c-warn">Nota:</b> Las herramientas menores no se registran aqui. Se calculan automaticamente como <b>un porcentaje del total de la mano de obra</b> dentro de cada APU.</div>
 
       <ExcelPreviewModal excel={eqExcel}/>
 
@@ -2121,7 +2145,10 @@ function EquiposTab({data,onChange,provMap,_unidades}){
 
 
 
-function InsumosTab({data,onChange,provMap,cargosCalc,cargoMap,esHora,_unidades,equipos,factorPrest,usarFpEnApu,apusBasico}){
+function InsumosTab({data,onChange,provMap,cargosCalc,cargoMap,esHora,_unidades,equipos,factorPrest,usarFpEnApu,apusBasico,contextoProyecto}){
+
+  var tituloExportIns=contextoProyecto?'CATALOGO DE INSUMOS — '+contextoProyecto.codigo+' '+contextoProyecto.nombre:'CATALOGO DE INSUMOS';
+  var filenameExportIns=contextoProyecto?'insumos_'+contextoProyecto.codigo+'.xlsx':'catalogo_insumos.xlsx';
 
   var proveedores=data.proveedores;
 
@@ -2144,7 +2171,7 @@ function InsumosTab({data,onChange,provMap,cargosCalc,cargoMap,esHora,_unidades,
     return false;
   };
 
-  var{items:insumos,editIdx,setEditIdx,search,setSearch,upd,add,del,filtered:hookFiltered,handleKeyDown,excel:insExcel,seleccionados:insSel,toggleSel:insToggleSel,setSeleccionados:setInsSel,eliminarSeleccionados:insEliminarSeleccionados}=useCrudTable({data,onChange,dataKey:'insumos',prefix:'IN',defaultItem:function(){return{id:uid(),codigo:genCodeFor(data.insumos,'IN'),nombre:'',unidad:'un',origen:'Local',categoria:'Pétreos',subcategoria:'otros',marca_referencia:'',costo_unitario:0,fecha_cotizacion:'',apu_basico_id:'',proveedor_id:''}},searchKeys:['codigo','nombre'],confirmDel:"Eliminar este insumo?",esReferenciado:insumoTieneReferencia,excelConfig:{title:'CATALOGO DE INSUMOS',sheetName:'Insumos',filename:'catalogo_insumos.xlsx',headers:['Codigo','Categoria','Descripcion','UND','Vr. Cotizacion','F. Cotizacion','Origen','Marca','Proveedor'],colWidths:[{wch:10},{wch:14},{wch:30},{wch:6},{wch:14},{wch:14},{wch:16},{wch:20},{wch:20}],mapRow:function(ins){var prov=proveedores.find(function(p){return p.id===ins.proveedor_id});return[ins.codigo||'',ins.categoria||'',ins.nombre||'',ins.unidad||'',ins.costo_unitario||0,fmtDate(ins.fecha_cotizacion),ins.origen||'',ins.marca_referencia||'',prov?prov.nombre:'']},parseRow:function(r){return[String(r[0]||'').trim(),String(r[1]||'').trim(),String(r[2]||'').trim(),String(r[3]||'').trim(),String(r[4]||0).trim(),String(r[5]||'').trim(),String(r[6]||'').trim(),String(r[7]||'').trim(),String(r[8]||'').trim()]},buildItem:function(r,idx,existing,genCode){var provNombre=(r[8]||'').trim();var provId=provNombre?((proveedores.find(function(p){return(p.nombre||'').toLowerCase()===provNombre.toLowerCase()})||{}).id||''):(idx>=0?existing[idx].proveedor_id:'');return{codigo:idx>=0?existing[idx].codigo:genCode(),id:idx>=0?existing[idx].id:uid(),nombre:r[2]||'',unidad:r[3]||'un',categoria:r[1]||'Pétreos',subcategoria:'',origen:(r[6]||'Local').trim(),marca_referencia:r[7]||'',costo_unitario:safeFloat(r[4])||0,fecha_cotizacion:toISODate(r[5]),apu_basico_id:'',proveedor_id:provId}}}});
+  var{items:insumos,editIdx,setEditIdx,search,setSearch,upd,add,del,filtered:hookFiltered,handleKeyDown,excel:insExcel,seleccionados:insSel,toggleSel:insToggleSel,setSeleccionados:setInsSel,eliminarSeleccionados:insEliminarSeleccionados}=useCrudTable({data,onChange,dataKey:'insumos',prefix:'IN',defaultItem:function(){return{id:uid(),codigo:genCodeFor(data.insumos,'IN'),nombre:'',unidad:'un',origen:'Local',categoria:'Pétreos',subcategoria:'otros',marca_referencia:'',costo_unitario:0,fecha_cotizacion:'',apu_basico_id:'',proveedor_id:''}},searchKeys:['codigo','nombre'],confirmDel:"Eliminar este insumo?",esReferenciado:insumoTieneReferencia,onBloqueado:setInsDelErr,excelConfig:{title:tituloExportIns,sheetName:'Insumos',filename:filenameExportIns,headers:['Codigo','Categoria','Descripcion','UND','Vr. Cotizacion','F. Cotizacion','Origen','Marca','Proveedor'],colWidths:[{wch:10},{wch:14},{wch:30},{wch:6},{wch:14},{wch:14},{wch:16},{wch:20},{wch:20}],mapRow:function(ins){var prov=proveedores.find(function(p){return p.id===ins.proveedor_id});return[ins.codigo||'',ins.categoria||'',ins.nombre||'',ins.unidad||'',ins.costo_unitario||0,fmtDate(ins.fecha_cotizacion),ins.origen||'',ins.marca_referencia||'',prov?prov.nombre:'']},parseRow:function(r){return[String(r[0]||'').trim(),String(r[1]||'').trim(),String(r[2]||'').trim(),String(r[3]||'').trim(),String(r[4]||0).trim(),String(r[5]||'').trim(),String(r[6]||'').trim(),String(r[7]||'').trim(),String(r[8]||'').trim()]},buildItem:function(r,idx,existing,genCode){var provNombre=(r[8]||'').trim();var provId=provNombre?((proveedores.find(function(p){return(p.nombre||'').toLowerCase()===provNombre.toLowerCase()})||{}).id||''):(idx>=0?existing[idx].proveedor_id:'');return{codigo:idx>=0?existing[idx].codigo:genCode(),id:idx>=0?existing[idx].id:uid(),nombre:r[2]||'',unidad:r[3]||'un',categoria:r[1]||'Pétreos',subcategoria:'',origen:(r[6]||'Local').trim(),marca_referencia:r[7]||'',costo_unitario:safeFloat(r[4])||0,fecha_cotizacion:toISODate(r[5]),apu_basico_id:'',proveedor_id:provId}}}});
 
   /* ── Mapas para cálculo de APU Básicos ── */
 
@@ -2244,7 +2271,7 @@ function InsumosTab({data,onChange,provMap,cargosCalc,cargoMap,esHora,_unidades,
 
   return(
 
-    <div>
+    <div className="xl-tab-root">
 
       <div className="sec-hdr" style={{border:'1px solid var(--bdr)',borderRadius:4,padding:'2px 10px',marginBottom:8,flex:'0 0 auto',width:1594}}>
 
@@ -2272,7 +2299,7 @@ function InsumosTab({data,onChange,provMap,cargosCalc,cargoMap,esHora,_unidades,
 
               <col className="cw-300"/>
 
-              <col className="cw-60"/>
+              <col className="cw-80"/>
 
               <col className="cw-110"/>
 
@@ -2440,7 +2467,7 @@ function InsumosTab({data,onChange,provMap,cargosCalc,cargoMap,esHora,_unidades,
 
       </div>
 
-      <div className="banner" style={{width:1570,fontSize:12,padding:'6px 10px',boxSizing:'border-box'}}><b style={{color:'var(--warn)'}}>NOTA:</b> Todos los Costos/UN deben incluir todos los impuestos vigentes.</div>
+      <div className="banner" style={{width:1594,fontSize:12,padding:'6px 10px',boxSizing:'border-box'}}><b style={{color:'var(--warn)'}}>NOTA:</b> Todos los Costos/UN deben incluir todos los impuestos vigentes.</div>
 
       <ExcelPreviewModal excel={insExcel}/>
 
@@ -3342,7 +3369,7 @@ function calcAPU(a,cargosCalc,equipos,insumos,allCalc,herrPct,factorPrest,usarFP
 
 var PREVIEW_COLS_SPAN=[283,70,90,90,85,90]; /* DATA_COLS sin Codigo(70) ni Acciones(80); Descripcion ocupa col0+col1 */
 var PREVIEW_COLS_PLAIN=[283,70,90,90,85,90]; /* mismos anchos, Descripcion usa solo col0 (sin colSpan) */
-function ApuDetallePreview({apu,cargosCalc,personMap,eqMap,insMap,equipos,insumos,factorPrest,usarFpEnApu,esHora,herrPct,apusBasico}){
+function ApuDetallePreview({apu,cargosCalc,personMap,eqMap,insMap,equipos,insumos,factorPrest,usarFpEnApu,esHora,herrPct,apusBasico,maxHeight}){
   if(!apu)return(
     <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100%',color:'var(--tx3)',fontSize:11,textAlign:'center',padding:20}}>
       ← Selecciona un APU de la lista para ver su detalle completo
@@ -3361,7 +3388,7 @@ function ApuDetallePreview({apu,cargosCalc,personMap,eqMap,insMap,equipos,insumo
   var TD_LAST_VAL=Object.assign({},TD_R,{fontWeight:600,borderRight:PV_BR,borderLeft:PV_BR});
   var TD_LAST_VAL_B=Object.assign({},TD_R,{fontWeight:700,borderRight:PV_BR,borderLeft:PV_BR});
   return(
-    <div className="apu-preview-scope" style={{display:'flex',flexDirection:'column',height:'100%',minHeight:0}}>
+    <div className="apu-preview-scope" style={maxHeight!=null?{display:'flex',flexDirection:'column',maxHeight:maxHeight,minHeight:0}:{display:'flex',flexDirection:'column',height:'100%',minHeight:0}}>
       <div style={{flexShrink:0,padding:'8px 8px 0 8px'}}>
         <div style={{fontSize:13,fontWeight:700,marginBottom:2}}>{apu.codigo} — {apu.nombre}</div>
         <div style={{fontSize:11,marginBottom:8}}>Unidad: <span style={{fontWeight:800,color:'var(--ok)'}}>{apu.unidad}</span></div>
@@ -3951,7 +3978,7 @@ function ImportApuModal({repositorio,contextoCalc,onAplicar,onClose,origenProyec
   );
 }
 
-function APUTab({data,onChange,cargosCalc,cargoMap,esHora,eqMap,insMap,cuadrillasCalc,_unidades,equipos,insumos,factorPrest,usarFpEnApu,view,apusBasico}){
+function APUTab({data,onChange,cargosCalc,cargoMap,esHora,eqMap,insMap,cuadrillasCalc,_unidades,equipos,insumos,factorPrest,usarFpEnApu,view,apusBasico,contextoProyecto}){
 
   var apus=data.apus;
 
@@ -3971,13 +3998,15 @@ function APUTab({data,onChange,cargosCalc,cargoMap,esHora,eqMap,insMap,cuadrilla
 
   var[isEditing,setIsEditing]=useState(false);
 
+  var[apuDelErr,setApuDelErr]=useState('');
+
   var personMap=useMemo(function(){var m=new Map(cargoMap);cuadrillasCalc.forEach(function(c){m.set(c.id,c)});return m},[cargoMap,cuadrillasCalc]);
 
   var herrPct=config.herr_pct!=null?Number(config.herr_pct):5;
 
   var add=useCallback(function(){var now=new Date().toISOString();var newIdx=apus.length;onChange(Object.assign({},data,{apus:apus.concat([{id:uid(),codigo:genCodeFor(apus,'APU'),nombre:'',categoria:'',unidad:'m2',fecha_creacion:now,recursos_mo:[],recursos_eq:[],recursos_ins:[],recursos_transporte:[]}])}));setSelectedIdx(newIdx)},[data,apus,onChange]);var addBasico=useCallback(function(){var now=new Date().toISOString();var newIdx=apus.length;onChange(Object.assign({},data,{apus:apus.concat([{id:uid(),codigo:genCodeFor(apus,'APU-BAS'),nombre:'',categoria:'Preparado en Obra',unidad:'m2',es_basico:true,fecha_creacion:now,recursos_mo:[],recursos_eq:[],recursos_ins:[],recursos_transporte:[]}])}));setSelectedIdx(newIdx)},[data,apus,onChange]);
 
-  var del=useCallback(async function(i){var a=apus[i];if(a&&a.es_basico===true){var linkedIns=(data.insumos||[]).filter(function(x){return x.apu_basico_id===a.id});if(linkedIns.length>0){var usedInAPU=false;for(var li=0;li<linkedIns.length;li++){var insId=linkedIns[li].id;for(var ai=0;ai<apus.length;ai++){if(apus[ai].es_basico===true)continue;var rIns=apus[ai].recursos_ins||[];for(var ri=0;ri<rIns.length;ri++){if(rIns[ri].insumo_id===insId){usedInAPU=true;break}}if(usedInAPU)break}if(usedInAPU)break}if(usedInAPU){showToast("Este APU Basico tiene insumos ligados usados en otros APU. No se puede eliminar.",{type:'err',dur:4000});return}}}if(!(await askConfirm('¿Desea eliminar "'+(a.nombre||'este APU')+'"? Esta acción no se puede deshacer.')))return;if(selectedIdx===i)setSelectedIdx(null);else if(selectedIdx!==null&&selectedIdx>i)setSelectedIdx(selectedIdx-1);onChange(Object.assign({},data,{apus:apus.filter(function(_,j){return j!==i})}))},[data,apus,selectedIdx,onChange]);
+  var del=useCallback(async function(i){var a=apus[i];if(a&&a.es_basico===true){var linkedIns=(data.insumos||[]).filter(function(x){return x.apu_basico_id===a.id});if(linkedIns.length>0){var usedInAPU=false;for(var li=0;li<linkedIns.length;li++){var insId=linkedIns[li].id;for(var ai=0;ai<apus.length;ai++){if(apus[ai].es_basico===true)continue;var rIns=apus[ai].recursos_ins||[];for(var ri=0;ri<rIns.length;ri++){if(rIns[ri].insumo_id===insId){usedInAPU=true;break}}if(usedInAPU)break}if(usedInAPU)break}if(usedInAPU){setApuDelErr("Este APU Basico tiene insumos ligados usados en otros APU. No se puede eliminar.");return}}}setApuDelErr('');if(!(await askConfirm('¿Desea eliminar "'+(a.nombre||'este APU')+'"? Esta acción no se puede deshacer.')))return;if(selectedIdx===i)setSelectedIdx(null);else if(selectedIdx!==null&&selectedIdx>i)setSelectedIdx(selectedIdx-1);onChange(Object.assign({},data,{apus:apus.filter(function(_,j){return j!==i})}))},[data,apus,selectedIdx,onChange]);
 
   var closeDetail=useCallback(function(){setSelectedIdx(null)},[]);
 
@@ -4008,7 +4037,8 @@ function APUTab({data,onChange,cargosCalc,cargoMap,esHora,eqMap,insMap,cuadrilla
     var seleccionadosApus=apus.filter(function(a){return seleccionados.has(a.id)});
     var bloqueados=seleccionadosApus.filter(apuEsReferenciado);
     var aEliminar=seleccionadosApus.filter(function(a){return bloqueados.indexOf(a)===-1});
-    if(aEliminar.length===0){showToast('Ningún APU se puede eliminar: son Básicos con insumos ligados usados en otros APU.',{type:'err'});return}
+    if(aEliminar.length===0){setApuDelErr('Ningún APU se puede eliminar: son Básicos con insumos ligados usados en otros APU.');return}
+    setApuDelErr('');
     var msg='¿Eliminar '+aEliminar.length+' APU seleccionado(s)? Esta acción no se puede deshacer.';
     if(bloqueados.length>0)msg+=' ('+bloqueados.length+' se omiten por ser APU Básico con insumos ligados en uso.)';
     if(!(await askConfirm(msg)))return;
@@ -4100,7 +4130,7 @@ function APUTab({data,onChange,cargosCalc,cargoMap,esHora,eqMap,insMap,cuadrilla
 
     /* Título (row 0) */
 
-    push(['CIVILMANAGER - ANALISIS DE PRECIOS UNITARIOS','','','','','Exportado: '+new Date().toLocaleDateString('es-CO'),'']);
+    push([contextoProyecto?'CIVILMANAGER - ANALISIS DE PRECIOS UNITARIOS — '+contextoProyecto.codigo+' '+contextoProyecto.nombre:'CIVILMANAGER - ANALISIS DE PRECIOS UNITARIOS','','','','','Exportado: '+new Date().toLocaleDateString('es-CO'),'']);
 
     mg(0,0,0,4);
 
@@ -4314,11 +4344,11 @@ function APUTab({data,onChange,cargosCalc,cargoMap,esHora,eqMap,insMap,cuadrilla
 
     XLSX.utils.book_append_sheet(wb,ws2,'Resumen');
 
-    XLSX.writeFile(wb,'APU_CIVILMANAGER_'+new Date().toISOString().slice(0,10)+'.xlsx');
+    XLSX.writeFile(wb,(contextoProyecto?'apus_'+contextoProyecto.codigo:'APU_CIVILMANAGER_'+new Date().toISOString().slice(0,10))+'.xlsx');
 
     showToast(apus.length+' APU exportados a Excel con fórmulas',{type:'ok'});
 
-  },[apus,apuCalcMap,abCalcList,eqMap,insMap,personMap,config,factorPrest,usarFpEnApu,esHora,categorias_apu,herrPct]);
+  },[apus,apuCalcMap,abCalcList,eqMap,insMap,personMap,config,factorPrest,usarFpEnApu,esHora,categorias_apu,herrPct,contextoProyecto]);
 
   var descargarPlantillaApu=useCallback(function(){
     /* Plantilla en blanco, visualmente identica al export real (mismos estilos/bordes/colores —
@@ -4387,17 +4417,19 @@ function APUTab({data,onChange,cargosCalc,cargoMap,esHora,eqMap,insMap,cuadrilla
 
   return(
 
-    <div style={{display:'flex',gap:16,alignItems:'stretch',overflow:'hidden'}}>
+    <div className="xl-tab-root-row" style={{display:'flex',gap:16,alignItems:'stretch',overflow:'visible'}}>
 
           {view==='catalog'&&<React.Fragment>
 
-          <div style={{width:959,display:'flex',flexDirection:'column',overflow:'hidden'}}>
+          <div className="xl-tab-col" style={{width:959,flexShrink:0,display:'flex',flexDirection:'column',overflow:'hidden'}}>
 
             <div className="sec-hdr" style={{border:'1px solid var(--bdr)',borderRadius:4,padding:'2px 10px',height:25,marginBottom:8,flex:'0 0 auto'}}>
 
               <span className="title" style={{fontSize:15,lineHeight:'21px',fontFamily:'Inter, sans-serif'}}>CATALOGO DE APU</span>
 
         </div>
+
+        {apuDelErr&&<div style={{padding:'8px 10px',fontSize:12,color:'#f87171',background:'rgba(248,113,113,0.08)',border:'1px solid rgba(248,113,113,0.2)',borderRadius:4,marginBottom:8,width:959,display:'flex',alignItems:'center',justifyContent:'space-between'}}><span>{apuDelErr}</span><button onClick={function(){setApuDelErr('')}} style={{background:'none',border:'none',color:'#f87171',cursor:'pointer',fontSize:16,lineHeight:1,padding:'0 4px'}} title="Cerrar">✕</button></div>}
 
         <div className="xl-wrap" style={{width:959,display:'flex',flexDirection:'column'}}>
 
@@ -7656,15 +7688,29 @@ function mapeoVacio(){return{fila_inicio:0,col_item:null,col_codigo_1:null,col_c
 
 /* Banner unificado: reemplaza PresBannerProyecto + sec-hdr por elemento (usado en los 4 sub-tabs de Presupuestos
    cuando ya hay un proyecto seleccionado). Reusa el mismo svg de carpeta y la linea de subproyecto de PresBannerProyecto. */
-function TituloSubTab({pres,presupuestos,tituloSubTab,extra}){
+function TituloSubTab({pres,presupuestos,tituloSubTab,extra,width,stacked}){
   var padre=(pres.parent_id&&presupuestos)?presupuestos.find(function(p){return p.id===pres.parent_id}):null;
+  var titulo=(
+    <span className="title" style={{fontSize:15,display:'flex',alignItems:'center',gap:6}}>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--ok)" strokeWidth="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+      {pres.codigo} — {pres.nombre||'(sin nombre)'} &middot; {tituloSubTab}
+    </span>
+  );
+  if(stacked){
+    return(
+      <div className="sec-hdr" style={{border:'1px solid var(--bdr)',borderRadius:4,padding:'6px 10px',flexDirection:'column',alignItems:'stretch',width:width}}>
+        {titulo}
+        {extra&&<div style={{display:'flex',alignItems:'center',gap:10,marginTop:6}}>
+          {extra}
+        </div>}
+        {padre&&<div style={{fontSize:10,color:'var(--tx3)',marginTop:2}}>Subproyecto de: {padre.codigo} {padre.nombre||''}</div>}
+      </div>
+    );
+  }
   return(
-    <div className="sec-hdr" style={{border:'1px solid var(--bdr)',borderRadius:4,padding:'6px 10px'}}>
+    <div className="sec-hdr" style={{border:'1px solid var(--bdr)',borderRadius:4,padding:'6px 10px',width:width}}>
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',flex:1,minWidth:0}}>
-        <span className="title" style={{fontSize:15,display:'flex',alignItems:'center',gap:6}}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--ok)" strokeWidth="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-          {pres.codigo} — {pres.nombre||'(sin nombre)'} &middot; {tituloSubTab}
-        </span>
+        {titulo}
         <div style={{display:'flex',alignItems:'center',gap:10}}>
           {extra}
         </div>
@@ -8394,9 +8440,19 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
 
   var readOnly=pres.estado!=='borrador';
 
+  var anchoPorTipo={cargos:854,cuadrillas:undefined,equipos:1161,insumos:1594,apus:undefined};
+  var anchoTitulo=anchoPorTipo[tipo];
+
   return(
     <div>
-      <TituloSubTab pres={pres} presupuestos={presupuestos} tituloSubTab="Recursos del Proyecto" extra={!readOnly&&(
+      {/* TituloSubTab, tabs y el contenido reutilizado (InsumosTab/EquiposTab/etc) viven TODOS dentro
+         de este contenedor: es el unico asi que tiene un contexto de scroll REAL propio (height fijo,
+         no maxHeight condicional) al que position:sticky puede pegar el titulo/tabs/footer. Fuera de
+         este div no hay overflow:hidden ni altura definida en la cadena de ancestros (PresupuestosTab
+         usa alignItems:'flex-start' sin recortar), asi que sin este wrapper el scroll termina cayendo
+         en la ventana completa del navegador en vez de quedar contenido aqui. */}
+      <div className="visor-catalogo-embed" style={{maxHeight:'calc(100vh - 150px)',width:'fit-content',maxWidth:'100%',overflow:'auto',display:'flex',flexDirection:'column'}}>
+      <TituloSubTab pres={pres} presupuestos={presupuestos} tituloSubTab="Recursos del Proyecto" width={anchoTitulo} stacked extra={!readOnly&&(
         <div style={{display:'flex',gap:6}}>
           <button onClick={sincronizar} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--ac)',borderRadius:4,background:'transparent',color:'var(--ac)',cursor:'pointer'}}>
             🔄 Actualizar desde catálogo general
@@ -8406,7 +8462,7 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
           </button>
         </div>
       )}/>
-      <div style={{display:'flex',gap:6,margin:'8px 0'}}>
+      <div style={{display:'flex',gap:6,margin:'8px 0',flex:'0 0 auto'}}>
         {TABS_PROYECTO.map(function(t){
           return(
             <button key={t.tipo} onClick={function(){cambiarTipo(t.tipo)}} style={{fontSize:11,padding:'5px 12px',border:'1px solid '+(tipo===t.tipo?'var(--ok)':'var(--bdr)'),borderRadius:4,background:tipo===t.tipo?'rgba(74,222,128,.1)':'transparent',color:tipo===t.tipo?'var(--ok)':'var(--tx2)',cursor:'pointer'}}>
@@ -8415,26 +8471,30 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
           );
         })}
       </div>
+        {tipo==='insumos'&&<InsumosTab data={adaptado.data} onChange={adaptado.onChange} provMap={provMap}
+          cargosCalc={cargosCalcSnap} cargoMap={personMapSnap} esHora={esHora} _unidades={_unidades}
+          equipos={equiposSnapEfectivo} factorPrest={factorPrestSnap} usarFpEnApu={usarFpEnApu} apusBasico={apusBasico}
+          contextoProyecto={{codigo:pres.codigo,nombre:pres.nombre}}/>}
 
-      {tipo==='insumos'&&<InsumosTab data={adaptado.data} onChange={adaptado.onChange} provMap={provMap}
-        cargosCalc={cargosCalcSnap} cargoMap={personMapSnap} esHora={esHora} _unidades={_unidades}
-        equipos={equiposSnapEfectivo} factorPrest={factorPrestSnap} usarFpEnApu={usarFpEnApu} apusBasico={apusBasico}/>}
+        {tipo==='equipos'&&<EquiposTab data={adaptado.data} onChange={adaptado.onChange} provMap={provMap} _unidades={_unidades}
+          contextoProyecto={{codigo:pres.codigo,nombre:pres.nombre}}/>}
 
-      {tipo==='equipos'&&<EquiposTab data={adaptado.data} onChange={adaptado.onChange} provMap={provMap} _unidades={_unidades}/>}
+        {tipo==='cargos'&&<FactorPrestacionalTab data={adaptado.data} onChange={adaptado.onChange}
+          factorPrest={factorPrestSnap} cargosCalc={cargosCalcSnap} cargoMap={personMapSnap} esHora={esHora}
+          tab={tipo} setTab={function(){setTipo('cuadrillas')}} setSelCuadrillaIdx={setCuadrillaLocalIdx} setPrevTab={setPrevTipo}
+          contextoProyecto={{codigo:pres.codigo,nombre:pres.nombre}}/>}
 
-      {tipo==='cargos'&&<FactorPrestacionalTab data={adaptado.data} onChange={adaptado.onChange}
-        factorPrest={factorPrestSnap} cargosCalc={cargosCalcSnap} cargoMap={personMapSnap} esHora={esHora}
-        tab={tipo} setTab={function(){setTipo('cuadrillas')}} setSelCuadrillaIdx={setCuadrillaLocalIdx} setPrevTab={setPrevTipo}/>}
+        {tipo==='cuadrillas'&&<CuadrillasTab data={adaptado.data} onChange={adaptado.onChange}
+          cargosCalc={cargosCalcSnap} cargoMap={personMapSnap} esHora={esHora}
+          selCuadrillaIdx={cuadrillaLocalIdx} setSelCuadrillaIdx={setCuadrillaLocalIdx}
+          tab={tipo} setTab={function(t){setTipo(t)}} prevTab={prevTipo} setPrevTab={setPrevTipo}/>}
 
-      {tipo==='cuadrillas'&&<CuadrillasTab data={adaptado.data} onChange={adaptado.onChange}
-        cargosCalc={cargosCalcSnap} cargoMap={personMapSnap} esHora={esHora}
-        selCuadrillaIdx={cuadrillaLocalIdx} setSelCuadrillaIdx={setCuadrillaLocalIdx}
-        tab={tipo} setTab={function(t){setTipo(t)}} prevTab={prevTipo} setPrevTab={setPrevTipo}/>}
-
-      {tipo==='apus'&&<APUTab data={adaptado.data} onChange={adaptado.onChange} cargosCalc={cargosCalcSnap}
-        cargoMap={personMapSnap} esHora={esHora} eqMap={eqMapSnap} insMap={insMapSnap} cuadrillasCalc={cuadrillasCalcSnap}
-        _unidades={_unidades} equipos={equiposSnapEfectivo} insumos={insumosSnapEfectivo} factorPrest={factorPrestSnap}
-        usarFpEnApu={usarFpEnApu} view="catalog" apusBasico={apusBasico}/>}
+        {tipo==='apus'&&<APUTab data={adaptado.data} onChange={adaptado.onChange} cargosCalc={cargosCalcSnap}
+          cargoMap={personMapSnap} esHora={esHora} eqMap={eqMapSnap} insMap={insMapSnap} cuadrillasCalc={cuadrillasCalcSnap}
+          _unidades={_unidades} equipos={equiposSnapEfectivo} insumos={insumosSnapEfectivo} factorPrest={factorPrestSnap}
+          usarFpEnApu={usarFpEnApu} view="catalog" apusBasico={apusBasico}
+          contextoProyecto={{codigo:pres.codigo,nombre:pres.nombre}}/>}
+      </div>
     </div>
   );
 }

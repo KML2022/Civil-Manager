@@ -137,11 +137,16 @@ table,.xl-wrap,.xl-scroll{font-variant-numeric:tabular-nums}
    bien ahi mismo sin necesitar sticky: el UNICO que scrollea es su propio .xl-scroll interno (su
    max-height inline original, sin tocar). Se probo forzar relleno total del alto disponible via
    flex:1 en toda la cadena para que el footer quedara siempre pegado al fondo de la pantalla, pero
-   con pocas filas dejaba un espacio en blanco grande entre la tabla y el footer — no deseado. Ahora
-   cada tab simplemente se ajusta a su contenido real (igual que standalone): footer queda pegado
-   justo debajo de la ultima fila. Si el contenido es mas alto que el espacio disponible del Visor,
-   el panel completo (titulo+tabs+tabla) scrollea junto, en vez de forzar relleno artificial. */
+   con pocas filas dejaba un espacio en blanco grande entre la tabla y el footer (no deseado) — y
+   dejar el max-height original SIN recalibrar hacia el alto extra que consume el titulo+tabs del
+   Visor (~140px) tampoco sirve: con muchas filas (ej. 32 APU) el contenido termina excediendo el
+   alto real disponible, y como .main tiene overflow:hidden, es el propio .visor-catalogo-embed el
+   que debe poder scrollear como ultimo recurso — arrastrando el titulo con el (bug reportado).
+   Se resta ese extra aqui para que el .xl-scroll de cada tab se tope ANTES de llegar a ese punto:
+   con poca data se ajusta al contenido (footer pegado, sin hueco), con mucha data scrollea el
+   mismo internamente (title/tabs nunca se mueven, footer queda justo debajo del scroll interno). */
 .visor-catalogo-embed .xl-wrap{height:auto!important}
+.visor-catalogo-embed .xl-scroll{max-height:calc(100vh - 520px)!important}
 .visor-catalogo-embed .xl-foot{flex:0 0 auto}
 
 

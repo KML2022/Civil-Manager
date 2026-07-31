@@ -8,7 +8,7 @@
 
 <meta name="viewport" content="width=device-width,initial-scale=1">
 
-<title>CIVILCORE - CIVILMANAGER</title>
+<title>CIVILCARDEX - CIVILMANAGER</title>
 
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600;700&family=Bebas+Neue&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
 
@@ -77,13 +77,13 @@ table,.xl-wrap,.xl-scroll{font-variant-numeric:tabular-nums}
 
 .topbar{flex-shrink:0;height:38px;background:linear-gradient(90deg,var(--bg),var(--bg2));border-bottom:1px solid var(--bd);display:flex;align-items:center;padding:0 14px;gap:10px}
 
-.topbar .logo{font-family:'Bebas Neue',sans-serif;font-size:17px;letter-spacing:2px}
+.topbar .logo{font-family:'Bebas Neue',sans-serif;font-size:25.5px;letter-spacing:2px}
 
-.topbar .logo .c1{color:var(--ac)}
+.topbar .logo .c1{color:#C4CCDA}
 
-.topbar .logo .c2{color:var(--tx)}
+.topbar .logo .c2{color:#F0B93D}
 
-.topbar .badge{font-family:'JetBrains Mono',monospace;font-size:7px;background:var(--bg3);border:1px solid var(--bd);padding:1px 7px;border-radius:10px;color:var(--tx3);letter-spacing:.5px}
+.topbar .badge{font-family:'JetBrains Mono',monospace;font-size:10.5px;background:var(--bg3);border:1px solid var(--bd);padding:1px 7px;border-radius:10px;color:#F0B93D;letter-spacing:.5px}
 
 
 
@@ -256,7 +256,7 @@ select.ni option{background:var(--bg3);color:var(--tx);padding:4px 8px}
 
 
 
-.mn8{font-size:8px}
+.mn8{font-size:12px}
 
 .c-tx3{color:var(--tx3)}.c-warn{color:var(--warn)}.c-ok{color:var(--ok)}
 
@@ -987,7 +987,7 @@ function ConfirmDialog(){
 
         <div style={{padding:'8px 14px',background:'var(--bg3)',borderBottom:'1px solid var(--bdr)',borderRadius:'6px 6px 0 0',fontSize:12,fontWeight:700,color:'var(--tx2)',letterSpacing:'.5px'}}>CIVILMANAGER PREGUNTA:</div>
 
-        <div style={{padding:'16px 14px',fontSize:12,color:'var(--tx)',lineHeight:1.5}}>{req}</div>
+        <div style={{padding:'16px 14px',fontSize:12,color:'var(--tx)',lineHeight:1.5,whiteSpace:'pre-line'}}>{req}</div>
 
         <div style={{padding:'10px 14px',borderTop:'1px solid var(--bdr)',display:'flex',justifyContent:'flex-end',gap:8}}>
 
@@ -3194,6 +3194,80 @@ function repararRecursosFaltantesDeApus(pres,data){
     insumos_snap:insumosSnap,equipos_snap:equiposSnap,cargos_snap:cargosSnap,
     resumen:{completados:contadorDespues-contadorAntes,apusRevisados:(pres.apus_snap||[]).length}
   };
+}
+
+/* Analisis read-only (no muta nada) de los recursos que los APU del proyecto realmente referencian,
+   contra el catalogo general, en 3 pasos por recurso: match por ID (actualizable automaticamente),
+   match por codigo (solo se sugiere, requiere confirmacion del usuario), o huerfano (sin equivalente).
+   Cuadrillas (cargo_id que empieza con 'CU-') no tienen equivalente en el catalogo general de
+   colaboradores y se excluyen: son un agregado calculado desde cuadrillas_snap, no un recurso propio. */
+function analizarActualizacionCatalogo(pres,data){
+  var insSnapMap=new Map((pres.insumos_snap||[]).map(function(s){return[s.id,s]}));
+  var eqSnapMap=new Map((pres.equipos_snap||[]).map(function(s){return[s.id,s]}));
+  var caSnapMap=new Map((pres.cargos_snap||[]).map(function(s){return[s.id,s]}));
+  var insGlobalPorId=new Map((data.insumos||[]).map(function(g){return[g.id,g]}));
+  var eqGlobalPorId=new Map((data.equipos||[]).map(function(g){return[g.id,g]}));
+  var caGlobalPorId=new Map((data.cargos||[]).map(function(g){return[g.id,g]}));
+  var insGlobalPorCod=new Map((data.insumos||[]).filter(function(g){return g.codigo}).map(function(g){return[g.codigo.trim().toLowerCase(),g]}));
+  var eqGlobalPorCod=new Map((data.equipos||[]).filter(function(g){return g.codigo}).map(function(g){return[g.codigo.trim().toLowerCase(),g]}));
+  var caGlobalPorCod=new Map((data.cargos||[]).filter(function(g){return g.codigo}).map(function(g){return[g.codigo.trim().toLowerCase(),g]}));
+
+  var porId=[],porCodigo=[],huerfanos=[];
+  var vistos=new Set();
+
+  function procesar(tipo,id,snapMap,globalPorId,globalPorCod,campoPrecio){
+    if(!id)return;
+    var key=tipo+'|'+id;
+    if(vistos.has(key))return;
+    vistos.add(key);
+    var snapReg=snapMap.get(id);
+    if(!snapReg)return; // recurso aun no copiado al snapshot: lo cubre repararRecursosFaltantesDeApus()
+    var enGlobal=globalPorId.get(id);
+    if(enGlobal){
+      if(!snapReg._editado_local&&enGlobal[campoPrecio]!==snapReg[campoPrecio]){
+        porId.push({tipo:tipo,id:id,campoPrecio:campoPrecio,precioNuevo:enGlobal[campoPrecio]});
+      }
+      return;
+    }
+    var cod=(snapReg.codigo||'').trim().toLowerCase();
+    var enGlobalPorCodigo=cod?globalPorCod.get(cod):null;
+    if(enGlobalPorCodigo){
+      porCodigo.push({tipo:tipo,id:id,snapReg:snapReg,globalReg:enGlobalPorCodigo,campoPrecio:campoPrecio});
+      return;
+    }
+    huerfanos.push({tipo:tipo,id:id,snapReg:snapReg});
+  }
+
+  (pres.apus_snap||[]).forEach(function(apu){
+    (apu.recursos_ins||[]).forEach(function(r){procesar('insumo',r.insumo_id,insSnapMap,insGlobalPorId,insGlobalPorCod,'costo_unitario')});
+    (apu.recursos_eq||[]).forEach(function(r){procesar('equipo',r.equipo_id,eqSnapMap,eqGlobalPorId,eqGlobalPorCod,'costo_hora')});
+    (apu.recursos_transporte||[]).forEach(function(r){procesar('equipo',r.equipo_id,eqSnapMap,eqGlobalPorId,eqGlobalPorCod,'costo_hora')});
+    (apu.recursos_mo||[]).forEach(function(r){
+      if(!r.cargo_id||r.cargo_id.indexOf('CU-')===0)return;
+      procesar('cargo',r.cargo_id,caSnapMap,caGlobalPorId,caGlobalPorCod,'num_salarios_base');
+    });
+  });
+
+  return{porId:porId,porCodigo:porCodigo,huerfanos:huerfanos};
+}
+
+/* Aplica SOLO las actualizaciones de precio por ID exacto detectadas por analizarActualizacionCatalogo.
+   Los match por codigo (porCodigo) no se tocan aqui: requieren confirmacion explicita del usuario
+   (UI de revision pendiente para una fase posterior). */
+function aplicarActualizacionesPorId(pres,porId){
+  var campoSnap={insumo:'insumos_snap',equipo:'equipos_snap',cargo:'cargos_snap'};
+  var porTipo={insumo:new Map(),equipo:new Map(),cargo:new Map()};
+  porId.forEach(function(c){porTipo[c.tipo].set(c.id,c)});
+  var out={};
+  ['insumo','equipo','cargo'].forEach(function(tipo){
+    var campo=campoSnap[tipo];
+    var cambios=porTipo[tipo];
+    out[campo]=(pres[campo]||[]).map(function(s){
+      var c=cambios.get(s.id);
+      return c?Object.assign({},s,{[c.campoPrecio]:c.precioNuevo}):s;
+    });
+  });
+  return out;
 }
 
 /* Misma logica de agrupacion que consolidarRecursosApu: por codigo si esta presente, si no por
@@ -8434,29 +8508,40 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
   var cambiarTipo=function(t){setTipo(t);setCuadrillaLocalIdx(null);setPrevTipo(undefined)};
 
   var sincronizar=async function(){
-    var r=sincronizarDesdeCatalogoGeneral(pres,data);
-    if(r.resumen.nuevos===0&&r.resumen.actualizados===0){
-      showToast('El catálogo del proyecto ya está al día.',{type:'ok'});
+    var an=analizarActualizacionCatalogo(pres,data);
+    if(an.porId.length===0&&an.porCodigo.length===0){
+      showToast('Los precios de los recursos vinculados en los APU de este proyecto ya están al día.',{type:'ok'});
       return;
     }
-    if(!(await askConfirm('Se agregarán '+r.resumen.nuevos+' recurso(s) nuevo(s) del catálogo general y se actualizará el precio de '+r.resumen.actualizados+' recurso(s) ya vinculado(s). Nada de lo creado exclusivamente para este proyecto se modifica ni se elimina. ¿Continuar?')))return;
+    var msg='Resultado del análisis:\n'
+      +'• '+an.porId.length+' recurso(s) se actualizarán por ID exacto\n'
+      +'• '+an.porCodigo.length+' recurso(s) tienen coincidencia por código — pendiente de revisión manual (próximamente)\n'
+      +'• '+an.huerfanos.length+' recurso(s) no tienen equivalente en el catálogo general (se ignoran, use "Reparar recursos faltantes")\n\n'
+      +'Nada creado exclusivamente para este proyecto se modifica. ¿Continuar?';
+    if(!(await askConfirm(msg)))return;
+    var cambios=aplicarActualizacionesPorId(pres,an.porId);
     var n=presupuestos.slice();
-    n[selPresIdx]=Object.assign({},pres,{insumos_snap:r.insumos_snap,equipos_snap:r.equipos_snap,cargos_snap:r.cargos_snap});
+    n[selPresIdx]=Object.assign({},pres,cambios);
     onChange(Object.assign({},data,{presupuestos:n}));
-    showToast('Catálogo del proyecto actualizado: '+r.resumen.nuevos+' nuevo(s), '+r.resumen.actualizados+' precio(s) actualizado(s).',{type:'ok'});
+    showToast('Actualización completada: '+an.porId.length+' precio(s) actualizado(s) por ID. '+an.porCodigo.length+' sugerido(s) por código y '+an.huerfanos.length+' sin equivalente quedaron pendientes.',{type:'ok'});
   };
 
   var reparar=async function(){
     var r=repararRecursosFaltantesDeApus(pres,data);
+    var an=analizarActualizacionCatalogo(Object.assign({},pres,{insumos_snap:r.insumos_snap,equipos_snap:r.equipos_snap,cargos_snap:r.cargos_snap}),data);
     if(r.resumen.completados===0){
-      showToast('Todos los APU de este proyecto ya tienen sus recursos completos.',{type:'ok'});
+      if(an.huerfanos.length===0){
+        showToast('Todos los recursos de los APU de este proyecto tienen equivalente en el catálogo general. No hay nada que reparar.',{type:'ok'});
+      }else{
+        showToast('No hay recursos por copiar desde el catálogo general. '+an.huerfanos.length+' recurso(s) sin equivalente en el catálogo general (huérfanos) — gestión manual disponible próximamente.',{type:'ok'});
+      }
       return;
     }
     if(!(await askConfirm('Se completarán '+r.resumen.completados+' recurso(s) faltante(s) en '+r.resumen.apusRevisados+' APU de este proyecto (equipos/insumos/cargos que el APU necesita y no estaban copiados). No se agrega nada del catálogo general que no esté siendo usado por un APU de aquí. ¿Continuar?')))return;
     var n=presupuestos.slice();
     n[selPresIdx]=Object.assign({},pres,{insumos_snap:r.insumos_snap,equipos_snap:r.equipos_snap,cargos_snap:r.cargos_snap});
     onChange(Object.assign({},data,{presupuestos:n}));
-    showToast('Se completaron '+r.resumen.completados+' recurso(s) faltante(s).',{type:'ok'});
+    showToast('Se completaron '+r.resumen.completados+' recurso(s) faltante(s). '+(an.huerfanos.length>0?an.huerfanos.length+' recurso(s) siguen sin equivalente en el catálogo general (huérfanos).':'Sin huérfanos restantes.'),{type:'ok'});
   };
 
   var readOnly=pres.estado!=='borrador';
@@ -8934,11 +9019,11 @@ var factorPrest=useMemo(function(){return r2(factoresPrestaciones.reduce(functio
 
       <div className="topbar">
 
-        <span className="logo"><span className="c1">CIVIL</span><span className="c2">CORE</span></span>
+        <span className="logo"><span className="c1">CIVIL</span><span className="c2">CARDEX</span></span>
 
         <span className="badge">CIVILMANAGER</span>
 
-        <span className="mn8 c-tx3">{isFuture?futureLabel:(SECTIONS[mainSection]||{}).label||''}</span>
+        <span className="mn8" style={{color:'#F0B93D'}}>{isFuture?futureLabel:(SECTIONS[mainSection]||{}).label||''}</span>
 
         <span className="f1"/>
 

@@ -3230,6 +3230,7 @@ function analizarActualizacionCatalogo(pres,data){
     vistos.add(key);
     var snapReg=snapMap.get(id);
     if(!snapReg)return; // recurso aun no copiado al snapshot: lo cubre repararRecursosFaltantesDeApus()
+    if(snapReg._mantenido)return; // decision del usuario en panel de huerfanos: no comparar precio, no listar
     var apus=Array.from(refs.get(key)||[]);
     var enGlobal=globalPorId.get(id);
     if(enGlobal){
@@ -8645,6 +8646,11 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
   };
 
   var mantenerHuerfano=function(item){
+    var campoSnap={insumo:'insumos_snap',equipo:'equipos_snap',cargo:'cargos_snap'}[item.tipo];
+    var arr=(pres[campoSnap]||[]).map(function(s){return s.id===item.id?Object.assign({},s,{_mantenido:true}):s});
+    var n=presupuestos.slice();
+    n[selPresIdx]=Object.assign({},pres,{[campoSnap]:arr});
+    onChange(Object.assign({},data,{presupuestos:n}));
     setPanelHuerfanos(function(prev){var rest=(prev||[]).filter(function(x){return x!==item});return rest.length?rest:null});
   };
   var eliminarHuerfano=async function(item){

@@ -3214,6 +3214,14 @@ function analizarActualizacionCatalogo(pres,data){
 
   var porId=[],porCodigo=[],huerfanos=[];
   var vistos=new Set();
+  var refs=new Map(); // key(tipo|id) -> Set de apu.codigo que lo referencian
+
+  function registrarRef(tipo,id,apuCodigo){
+    if(!id)return;
+    var key=tipo+'|'+id;
+    if(!refs.has(key))refs.set(key,new Set());
+    if(apuCodigo)refs.get(key).add(apuCodigo);
+  }
 
   function procesar(tipo,id,snapMap,globalPorId,globalPorCod,campoPrecio){
     if(!id)return;
@@ -3222,21 +3230,29 @@ function analizarActualizacionCatalogo(pres,data){
     vistos.add(key);
     var snapReg=snapMap.get(id);
     if(!snapReg)return; // recurso aun no copiado al snapshot: lo cubre repararRecursosFaltantesDeApus()
+    var apus=Array.from(refs.get(key)||[]);
     var enGlobal=globalPorId.get(id);
     if(enGlobal){
       if(!snapReg._editado_local&&enGlobal[campoPrecio]!==snapReg[campoPrecio]){
-        porId.push({tipo:tipo,id:id,campoPrecio:campoPrecio,precioNuevo:enGlobal[campoPrecio]});
+        porId.push({tipo:tipo,id:id,campoPrecio:campoPrecio,precioNuevo:enGlobal[campoPrecio],apus:apus});
       }
       return;
     }
     var cod=(snapReg.codigo||'').trim().toLowerCase();
     var enGlobalPorCodigo=cod?globalPorCod.get(cod):null;
     if(enGlobalPorCodigo){
-      porCodigo.push({tipo:tipo,id:id,snapReg:snapReg,globalReg:enGlobalPorCodigo,campoPrecio:campoPrecio});
+      porCodigo.push({tipo:tipo,id:id,snapReg:snapReg,globalReg:enGlobalPorCodigo,campoPrecio:campoPrecio,precioNuevo:enGlobalPorCodigo[campoPrecio],apus:apus});
       return;
     }
-    huerfanos.push({tipo:tipo,id:id,snapReg:snapReg});
+    huerfanos.push({tipo:tipo,id:id,snapReg:snapReg,apus:apus});
   }
+
+  (pres.apus_snap||[]).forEach(function(apu){
+    (apu.recursos_ins||[]).forEach(function(r){registrarRef('insumo',r.insumo_id,apu.codigo)});
+    (apu.recursos_eq||[]).forEach(function(r){registrarRef('equipo',r.equipo_id,apu.codigo)});
+    (apu.recursos_transporte||[]).forEach(function(r){registrarRef('equipo',r.equipo_id,apu.codigo)});
+    (apu.recursos_mo||[]).forEach(function(r){if(r.cargo_id&&r.cargo_id.indexOf('CU-')!==0)registrarRef('cargo',r.cargo_id,apu.codigo)});
+  });
 
   (pres.apus_snap||[]).forEach(function(apu){
     (apu.recursos_ins||[]).forEach(function(r){procesar('insumo',r.insumo_id,insSnapMap,insGlobalPorId,insGlobalPorCod,'costo_unitario')});
@@ -3267,6 +3283,67 @@ function aplicarActualizacionesPorId(pres,porId){
       return c?Object.assign({},s,{[c.campoPrecio]:c.precioNuevo}):s;
     });
   });
+  return out;
+}
+
+var _CAMPO_ARR_RECURSO={insumo:['recursos_ins'],equipo:['recursos_eq','recursos_transporte'],cargo:['recursos_mo']};
+var _CAMPO_ID_RECURSO={insumo:'insumo_id',equipo:'equipo_id',cargo:'cargo_id'};
+
+/* Elimina todas las referencias a un recurso huerfano (tipo+id) en todos los APU del proyecto que
+   lo usan. Devuelve el nuevo apus_snap y cuantos APU quedaron afectados (para el mensaje de
+   confirmacion secundaria). Los subtotales se recalculan solos: apuCalcMap es un useMemo derivado
+   de presupuesto.apus_snap. */
+function eliminarRecursoDeApusProyecto(pres,tipo,id){
+  var campos=_CAMPO_ARR_RECURSO[tipo];
+  var campoId=_CAMPO_ID_RECURSO[tipo];
+  var apusAfectados=0;
+  var nuevosApus=(pres.apus_snap||[]).map(function(apu){
+    var cambiado=false,upd={};
+    campos.forEach(function(c){
+      var arr=apu[c]||[];
+      var filtrado=arr.filter(function(r){return r[campoId]!==id});
+      if(filtrado.length!==arr.length)cambiado=true;
+      upd[c]=filtrado;
+    });
+    if(cambiado)apusAfectados++;
+    return cambiado?Object.assign({},apu,upd):apu;
+  });
+  return{apus_snap:nuevosApus,apusAfectados:apusAfectados};
+}
+
+function contarApusAfectados(pres,tipo,id){
+  var campos=_CAMPO_ARR_RECURSO[tipo];
+  var campoId=_CAMPO_ID_RECURSO[tipo];
+  return(pres.apus_snap||[]).filter(function(apu){
+    return campos.some(function(c){return(apu[c]||[]).some(function(r){return r[campoId]===id})});
+  }).length;
+}
+
+/* Asocia manualmente un recurso huerfano (id local sin match en catalogo general) a un recurso
+   elegido del catalogo general: copia/asegura el recurso elegido en el snapshot del proyecto y
+   reescribe la referencia en todos los APU que usaban el id huerfano. El registro huerfano no se
+   borra del snapshot (puede seguir siendo un dato historico), simplemente deja de estar referenciado. */
+function asociarRecursoManual(pres,data,tipo,huerfanoId,nuevoGlobalId){
+  var campoSnap={insumo:'insumos_snap',equipo:'equipos_snap',cargo:'cargos_snap'}[tipo];
+  var campoGlobal={insumo:'insumos',equipo:'equipos',cargo:'cargos'}[tipo];
+  var campos=_CAMPO_ARR_RECURSO[tipo];
+  var campoId=_CAMPO_ID_RECURSO[tipo];
+  var enGlobal=(data[campoGlobal]||[]).find(function(g){return g.id===nuevoGlobalId});
+  if(!enGlobal)return null;
+  var snapArr=(pres[campoSnap]||[]).slice();
+  if(!snapArr.some(function(s){return s.id===nuevoGlobalId}))snapArr.push(Object.assign({},enGlobal));
+  var nuevosApus=(pres.apus_snap||[]).map(function(apu){
+    var cambiado=false,upd={};
+    campos.forEach(function(c){
+      upd[c]=(apu[c]||[]).map(function(r){
+        if(r[campoId]===huerfanoId){cambiado=true;return Object.assign({},r,{[campoId]:nuevoGlobalId})}
+        return r;
+      });
+    });
+    return cambiado?Object.assign({},apu,upd):apu;
+  });
+  var out={apus_snap:nuevosApus};
+  out[campoSnap]=snapArr;
   return out;
 }
 
@@ -8507,49 +8584,100 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
 
   var cambiarTipo=function(t){setTipo(t);setCuadrillaLocalIdx(null);setPrevTipo(undefined)};
 
+  var analisis=useMemo(function(){return analizarActualizacionCatalogo(pres,data)},[pres,data]);
+  var[revisionCodigo,setRevisionCodigo]=useState(null); // [{tipo,id,snapReg,globalReg,campoPrecio,precioNuevo,apus}]
+  var[panelHuerfanos,setPanelHuerfanos]=useState(null); // [{tipo,id,snapReg,apus}]
+  var[buscarPara,setBuscarPara]=useState(null); // {tipo,id} — item del panel de huerfanos en modo "Buscar"
+
+  var nombreRecurso=function(reg){return reg&&(reg.nombre||reg.descripcion)||'—'};
+  var etiquetaTipo={insumo:'Insumo',equipo:'Equipo',cargo:'Personal'};
+
   var sincronizar=async function(){
-    var an=analizarActualizacionCatalogo(pres,data);
+    var an=analisis;
     if(an.porId.length===0&&an.porCodigo.length===0){
       showToast('Los precios de los recursos vinculados en los APU de este proyecto ya están al día.',{type:'ok'});
       return;
     }
     var msg='Resultado del análisis:\n'
       +'• '+an.porId.length+' recurso(s) se actualizarán por ID exacto\n'
-      +'• '+an.porCodigo.length+' recurso(s) tienen coincidencia por código — pendiente de revisión manual (próximamente)\n'
-      +'• '+an.huerfanos.length+' recurso(s) no tienen equivalente en el catálogo general (se ignoran, use "Reparar recursos faltantes")\n\n'
+      +'• '+an.porCodigo.length+' recurso(s) tienen coincidencia por código — se sugerirá asociación\n'
+      +'• '+an.huerfanos.length+' recurso(s) no tienen equivalente en el catálogo general (se ignoran)\n\n'
       +'Nada creado exclusivamente para este proyecto se modifica. ¿Continuar?';
     if(!(await askConfirm(msg)))return;
     var cambios=aplicarActualizacionesPorId(pres,an.porId);
     var n=presupuestos.slice();
     n[selPresIdx]=Object.assign({},pres,cambios);
     onChange(Object.assign({},data,{presupuestos:n}));
-    showToast('Actualización completada: '+an.porId.length+' precio(s) actualizado(s) por ID. '+an.porCodigo.length+' sugerido(s) por código y '+an.huerfanos.length+' sin equivalente quedaron pendientes.',{type:'ok'});
+    if(an.porCodigo.length>0){
+      setRevisionCodigo(an.porCodigo);
+      showToast(an.porId.length+' precio(s) actualizado(s) por ID. '+an.porCodigo.length+' con coincidencia por código requieren revisión.',{type:'ok'});
+    }else{
+      showToast('Actualización completada: '+an.porId.length+' precio(s) actualizado(s) por ID.',{type:'ok'});
+    }
   };
+
+  var confirmarCodigoItems=function(items){
+    if(items.length===0)return;
+    var cambios=aplicarActualizacionesPorId(pres,items);
+    var n=presupuestos.slice();
+    n[selPresIdx]=Object.assign({},pres,cambios);
+    onChange(Object.assign({},data,{presupuestos:n}));
+  };
+  var confirmarCodigoUno=function(item){
+    confirmarCodigoItems([item]);
+    setRevisionCodigo(function(prev){var rest=(prev||[]).filter(function(x){return x!==item});return rest.length?rest:null});
+  };
+  var confirmarCodigoTodas=function(){confirmarCodigoItems(revisionCodigo||[]);setRevisionCodigo(null)};
+  var ignorarCodigoUno=function(item){setRevisionCodigo(function(prev){var rest=(prev||[]).filter(function(x){return x!==item});return rest.length?rest:null})};
 
   var reparar=async function(){
     var r=repararRecursosFaltantesDeApus(pres,data);
-    var an=analizarActualizacionCatalogo(Object.assign({},pres,{insumos_snap:r.insumos_snap,equipos_snap:r.equipos_snap,cargos_snap:r.cargos_snap}),data);
+    var anPost=analizarActualizacionCatalogo(Object.assign({},pres,{insumos_snap:r.insumos_snap,equipos_snap:r.equipos_snap,cargos_snap:r.cargos_snap}),data);
     if(r.resumen.completados===0){
-      if(an.huerfanos.length===0){
-        showToast('Todos los recursos de los APU de este proyecto tienen equivalente en el catálogo general. No hay nada que reparar.',{type:'ok'});
-      }else{
-        showToast('No hay recursos por copiar desde el catálogo general. '+an.huerfanos.length+' recurso(s) sin equivalente en el catálogo general (huérfanos) — gestión manual disponible próximamente.',{type:'ok'});
-      }
+      showToast(anPost.huerfanos.length===0?'Todos los recursos de los APU de este proyecto tienen equivalente en el catálogo general. No hay nada que reparar.':'No hay recursos por copiar desde el catálogo general. '+anPost.huerfanos.length+' recurso(s) huérfano(s): use "Ver huérfanos" para gestionarlos.',{type:'ok'});
       return;
     }
     if(!(await askConfirm('Se completarán '+r.resumen.completados+' recurso(s) faltante(s) en '+r.resumen.apusRevisados+' APU de este proyecto (equipos/insumos/cargos que el APU necesita y no estaban copiados). No se agrega nada del catálogo general que no esté siendo usado por un APU de aquí. ¿Continuar?')))return;
     var n=presupuestos.slice();
     n[selPresIdx]=Object.assign({},pres,{insumos_snap:r.insumos_snap,equipos_snap:r.equipos_snap,cargos_snap:r.cargos_snap});
     onChange(Object.assign({},data,{presupuestos:n}));
-    showToast('Se completaron '+r.resumen.completados+' recurso(s) faltante(s). '+(an.huerfanos.length>0?an.huerfanos.length+' recurso(s) siguen sin equivalente en el catálogo general (huérfanos).':'Sin huérfanos restantes.'),{type:'ok'});
+    showToast('Se completaron '+r.resumen.completados+' recurso(s) faltante(s). '+(anPost.huerfanos.length>0?anPost.huerfanos.length+' recurso(s) siguen sin equivalente en el catálogo general (huérfanos).':'Sin huérfanos restantes.'),{type:'ok'});
+  };
+
+  var mantenerHuerfano=function(item){
+    setPanelHuerfanos(function(prev){var rest=(prev||[]).filter(function(x){return x!==item});return rest.length?rest:null});
+  };
+  var eliminarHuerfano=async function(item){
+    var n1=contarApusAfectados(pres,item.tipo,item.id);
+    if(!(await askConfirm('Esto eliminará "'+nombreRecurso(item.snapReg)+'" de '+n1+' APU de este proyecto y recalculará sus subtotales. Esta acción no se puede deshacer. ¿Continuar?')))return;
+    var r=eliminarRecursoDeApusProyecto(pres,item.tipo,item.id);
+    var n=presupuestos.slice();
+    n[selPresIdx]=Object.assign({},pres,{apus_snap:r.apus_snap});
+    onChange(Object.assign({},data,{presupuestos:n}));
+    setPanelHuerfanos(function(prev){var rest=(prev||[]).filter(function(x){return x!==item});return rest.length?rest:null});
+    showToast('Recurso eliminado de '+r.apusAfectados+' APU.',{type:'ok'});
+  };
+  var asociarManual=function(item,nuevoGlobalId){
+    if(!nuevoGlobalId)return;
+    var r=asociarRecursoManual(pres,data,item.tipo,item.id,nuevoGlobalId);
+    if(!r)return;
+    var n=presupuestos.slice();
+    n[selPresIdx]=Object.assign({},pres,r);
+    onChange(Object.assign({},data,{presupuestos:n}));
+    setPanelHuerfanos(function(prev){var rest=(prev||[]).filter(function(x){return x!==item});return rest.length?rest:null});
+    setBuscarPara(null);
+    showToast('Recurso asociado correctamente.',{type:'ok'});
   };
 
   var readOnly=pres.estado!=='borrador';
 
   var anchoPorTipo={cargos:854,cuadrillas:undefined,equipos:1161,insumos:1594,apus:undefined};
   var anchoTitulo=anchoPorTipo[tipo];
+  var MOD_TH={fontSize:10,padding:'5px 6px',textAlign:'left',borderBottom:'1px solid var(--bdr)'};
+  var MOD_TD={padding:'5px 6px',borderBottom:'1px solid var(--bdr)',whiteSpace:'nowrap'};
 
   return(
+    <React.Fragment>
     <div>
       {/* TituloSubTab, tabs y el contenido reutilizado (InsumosTab/EquiposTab/etc) viven TODOS dentro
          de este contenedor: es el unico asi que tiene un contexto de scroll REAL propio (height fijo,
@@ -8566,6 +8694,9 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
           <button onClick={reparar} style={{fontSize:10,padding:'4px 10px',border:'1px solid #fbbf24',borderRadius:4,background:'transparent',color:'#fbbf24',cursor:'pointer'}}>
             🔧 Reparar recursos faltantes de APU
           </button>
+          {analisis.huerfanos.length>0&&<button onClick={function(){setPanelHuerfanos(analisis.huerfanos)}} style={{fontSize:10,padding:'4px 10px',border:'1px solid #f87171',borderRadius:4,background:'transparent',color:'#f87171',cursor:'pointer'}}>
+            ⚠ {analisis.huerfanos.length} huérfano(s)
+          </button>}
         </div>
       )}/>
       <div style={{display:'flex',gap:6,margin:'8px 0',flex:'0 0 auto'}}>
@@ -8602,6 +8733,90 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
           contextoProyecto={{codigo:pres.codigo,nombre:pres.nombre}}/>}
       </div>
     </div>
+
+    {revisionCodigo&&ReactDOM.createPortal(
+      <div className="apu-modal-backdrop" onClick={function(){setRevisionCodigo(null)}}>
+        <div className="apu-modal-container" style={{maxWidth:1000,padding:16}} onClick={function(e){e.stopPropagation()}}>
+          <div style={{fontSize:13,fontWeight:700,color:'var(--ac)',marginBottom:10}}>Recursos con coincidencia por código — confirmar asociación</div>
+          <div style={{overflowX:'auto'}}>
+          <table style={{width:'100%',borderCollapse:'collapse',fontSize:11}}>
+            <thead><tr style={{background:'var(--bg3)'}}>
+              <th style={MOD_TH}>Tipo</th><th style={MOD_TH}>Código</th><th style={MOD_TH}>Nombre en proyecto</th><th style={MOD_TH}>Nombre en catálogo general</th><th style={MOD_TH}>Precio actual</th><th style={MOD_TH}>Precio nuevo</th><th style={MOD_TH}>APU(s)</th><th style={MOD_TH}>Acción</th>
+            </tr></thead>
+            <tbody>
+              {revisionCodigo.map(function(it){
+                return(<tr key={it.tipo+'|'+it.id}>
+                  <td style={MOD_TD}>{etiquetaTipo[it.tipo]}</td>
+                  <td style={MOD_TD}>{it.snapReg.codigo||'—'}</td>
+                  <td style={MOD_TD}>{nombreRecurso(it.snapReg)}</td>
+                  <td style={MOD_TD}>{nombreRecurso(it.globalReg)}</td>
+                  <td style={Object.assign({},MOD_TD,{textAlign:'right'})}>{fmt(it.snapReg[it.campoPrecio])}</td>
+                  <td style={Object.assign({},MOD_TD,{textAlign:'right',fontWeight:700,color:'var(--ok)'})}>{fmt(it.precioNuevo)}</td>
+                  <td style={MOD_TD}>{it.apus.join(', ')}</td>
+                  <td style={MOD_TD}>
+                    <button onClick={function(){confirmarCodigoUno(it)}} style={{fontSize:10,marginRight:4,padding:'2px 8px',border:'1px solid var(--ok)',borderRadius:4,background:'transparent',color:'var(--ok)',cursor:'pointer'}}>✓</button>
+                    <button onClick={function(){ignorarCodigoUno(it)}} style={{fontSize:10,padding:'2px 8px',border:'1px solid var(--bdr)',borderRadius:4,background:'transparent',color:'var(--tx2)',cursor:'pointer'}}>Ignorar</button>
+                  </td>
+                </tr>);
+              })}
+            </tbody>
+          </table>
+          </div>
+          <div style={{display:'flex',justifyContent:'flex-end',gap:8,marginTop:14}}>
+            <button onClick={confirmarCodigoTodas} style={{fontSize:11,fontWeight:700,padding:'6px 14px',border:'1px solid var(--ok)',borderRadius:4,background:'var(--ok)',color:'#08120b',cursor:'pointer'}}>✓ Confirmar todas</button>
+            <button onClick={function(){setRevisionCodigo(null)}} style={{fontSize:11,padding:'6px 14px',border:'1px solid var(--bdr)',borderRadius:4,background:'transparent',color:'var(--tx2)',cursor:'pointer'}}>Ignorar</button>
+          </div>
+        </div>
+      </div>,
+      document.body
+    )}
+
+    {panelHuerfanos&&ReactDOM.createPortal(
+      <div className="apu-modal-backdrop" onClick={function(){setPanelHuerfanos(null);setBuscarPara(null)}}>
+        <div className="apu-modal-container" style={{maxWidth:1000,padding:16}} onClick={function(e){e.stopPropagation()}}>
+          <div style={{fontSize:13,fontWeight:700,color:'#f87171',marginBottom:10}}>Recursos faltantes en el catálogo general</div>
+          <div style={{overflowX:'auto'}}>
+          <table style={{width:'100%',borderCollapse:'collapse',fontSize:11}}>
+            <thead><tr style={{background:'var(--bg3)'}}>
+              <th style={MOD_TH}>Tipo</th><th style={MOD_TH}>Código</th><th style={MOD_TH}>Descripción</th><th style={MOD_TH}>APU(s) afectado(s)</th><th style={MOD_TH}>Acción</th>
+            </tr></thead>
+            <tbody>
+              {panelHuerfanos.map(function(it){
+                var campoGlobal={insumo:'insumos',equipo:'equipos',cargo:'cargos'}[it.tipo];
+                var opciones=(data[campoGlobal]||[]);
+                var enBusqueda=buscarPara&&buscarPara.tipo===it.tipo&&buscarPara.id===it.id;
+                return(<tr key={it.tipo+'|'+it.id}>
+                  <td style={MOD_TD}>{etiquetaTipo[it.tipo]}</td>
+                  <td style={MOD_TD}>{it.snapReg.codigo||'—'}</td>
+                  <td style={MOD_TD}>{nombreRecurso(it.snapReg)}</td>
+                  <td style={MOD_TD}>{it.apus.join(', ')}</td>
+                  <td style={MOD_TD}>
+                    {enBusqueda?(
+                      <select className="sel" style={{fontSize:10}} onChange={function(e){asociarManual(it,e.target.value)}} defaultValue="">
+                        <option value="" disabled>-- elegir del catálogo --</option>
+                        {opciones.map(function(o){return <option key={o.id} value={o.id}>{nombreRecurso(o)}</option>})}
+                      </select>
+                    ):(
+                      <React.Fragment>
+                        <button onClick={function(){setBuscarPara({tipo:it.tipo,id:it.id})}} style={{fontSize:10,marginRight:4,padding:'2px 8px',border:'1px solid var(--ac)',borderRadius:4,background:'transparent',color:'var(--ac)',cursor:'pointer'}}>🔍 Buscar</button>
+                        <button onClick={function(){mantenerHuerfano(it)}} style={{fontSize:10,marginRight:4,padding:'2px 8px',border:'1px solid var(--ok)',borderRadius:4,background:'transparent',color:'var(--ok)',cursor:'pointer'}}>✓ Mantener</button>
+                        <button onClick={function(){eliminarHuerfano(it)}} style={{fontSize:10,padding:'2px 8px',border:'1px solid #f87171',borderRadius:4,background:'transparent',color:'#f87171',cursor:'pointer'}}>🗑 Eliminar</button>
+                      </React.Fragment>
+                    )}
+                  </td>
+                </tr>);
+              })}
+            </tbody>
+          </table>
+          </div>
+          <div style={{display:'flex',justifyContent:'flex-end',marginTop:14}}>
+            <button onClick={function(){setPanelHuerfanos(null);setBuscarPara(null)}} style={{fontSize:11,padding:'6px 14px',border:'1px solid var(--bdr)',borderRadius:4,background:'transparent',color:'var(--tx2)',cursor:'pointer'}}>Cerrar</button>
+          </div>
+        </div>
+      </div>,
+      document.body
+    )}
+    </React.Fragment>
   );
 }
 

@@ -28,6 +28,9 @@
 
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 
+.apu-modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:1000;display:flex;align-items:center;justify-content:center;padding:16px}
+.apu-modal-container{position:relative;width:95vw;max-width:1400px;max-height:90vh;overflow-y:auto;background:var(--bg2);border:1px solid var(--bdr);border-radius:8px;z-index:1001;padding:16px}
+
 :root{
 
 --bg:#060810;--bg2:#0D1525;--bg3:#131A2B;--bg4:#1A2438;
@@ -4015,6 +4018,13 @@ function APUTab({data,onChange,cargosCalc,cargoMap,esHora,eqMap,insMap,cuadrilla
 
   var closeDetail=useCallback(function(){setSelectedIdx(null)},[]);
 
+  useEffect(function(){
+    if(selectedIdx===null)return;
+    var onKey=function(e){if(e.key==='Escape')closeDetail()};
+    document.addEventListener('keydown',onKey);
+    return function(){document.removeEventListener('keydown',onKey)};
+  },[selectedIdx,closeDetail]);
+
   var[seleccionados,setSeleccionados]=useState(new Set());
 
   var toggleSel=useCallback(function(id){
@@ -4559,11 +4569,13 @@ function APUTab({data,onChange,cargosCalc,cargoMap,esHora,eqMap,insMap,cuadrilla
 
 
 
-      {view==='catalog'&&(selAPU?(
+      {view==='catalog'&&selAPU&&ReactDOM.createPortal(
 
-        <div style={{flex:'0 0 880px',minWidth:0,overflow:'hidden'}}>
+        <div className="apu-modal-backdrop" onClick={closeDetail}>
 
-          <div className="sec-hdr" style={{border:'1px solid var(--bdr)',borderRadius:4,padding:'6px 10px',marginBottom:8}}>
+        <div className="apu-modal-container" onClick={function(e){e.stopPropagation()}}>
+
+          <div className="sec-hdr" style={{border:'1px solid var(--bdr)',borderRadius:4,padding:'6px 10px',marginBottom:8,position:'sticky',top:0,background:'var(--bg2)',zIndex:10}}>
 
             <div style={{display:'flex',alignItems:'center',gap:8,width:'100%'}}>
 
@@ -4585,7 +4597,7 @@ function APUTab({data,onChange,cargosCalc,cargoMap,esHora,eqMap,insMap,cuadrilla
 
           </div>
 
-          <div className="xl-wrap" style={{width:'100%',display:'flex',flexDirection:'column',height:'calc(100vh - 245px)'}}>
+          <div className="xl-wrap" style={{width:'100%',display:'flex',flexDirection:'column',height:'70vh'}}>
 
             {/* Header APU - fijo arriba */}
 
@@ -5087,7 +5099,11 @@ function APUTab({data,onChange,cargosCalc,cargoMap,esHora,eqMap,insMap,cuadrilla
 
         </div>
 
-      ):null)}
+        </div>,
+
+        document.body
+
+      )}
 
       {showImportModal&&<ImportApuModal
         repositorio={crearRepositorio({modo:'catalogo_global',data:data,presupuesto:null,setData:onChange,setPresupuesto:function(){}})}

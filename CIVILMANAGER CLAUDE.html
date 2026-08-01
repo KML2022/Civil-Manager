@@ -8742,24 +8742,25 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
 
     {revisionCodigo&&ReactDOM.createPortal(
       <div className="apu-modal-backdrop" onClick={function(){setRevisionCodigo(null)}}>
-        <div className="apu-modal-container" style={{maxWidth:1000,padding:16,display:'flex',flexDirection:'column',maxHeight:'85vh',overflow:'hidden'}} onClick={function(e){e.stopPropagation()}}>
+        <div className="apu-modal-container" style={{padding:16,display:'flex',flexDirection:'column',maxHeight:'85vh',overflow:'hidden',width:'fit-content',maxWidth:'95vw'}} onClick={function(e){e.stopPropagation()}}>
           <div style={{fontSize:13,fontWeight:700,color:'var(--ac)',marginBottom:10,flex:'0 0 auto'}}>Recursos con coincidencia por código — confirmar asociación</div>
           <div style={{overflow:'auto',flex:'1 1 auto'}}>
-          <table style={{width:'100%',borderCollapse:'collapse',fontSize:11}}>
+          <table style={{width:1150,borderCollapse:'collapse',fontSize:11,tableLayout:'fixed'}}>
+            <colgroup><col style={{width:80}}/><col style={{width:90}}/><col style={{width:230}}/><col style={{width:230}}/><col style={{width:100}}/><col style={{width:100}}/><col style={{width:200}}/><col style={{width:120}}/></colgroup>
             <thead><tr style={{background:'var(--bg3)'}}>
-              <th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)'})}>Tipo</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)'})}>Código</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)'})}>Nombre en proyecto</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)'})}>Nombre en catálogo general</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)'})}>Precio actual</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)'})}>Precio nuevo</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)'})}>APU(s)</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)'})}>Acción</th>
+              <th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',border:'1px solid var(--bdr)'})}>Tipo</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',border:'1px solid var(--bdr)'})}>Código</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',border:'1px solid var(--bdr)'})}>Nombre en proyecto</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',border:'1px solid var(--bdr)'})}>Nombre en catálogo general</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',border:'1px solid var(--bdr)'})}>Precio actual</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',border:'1px solid var(--bdr)'})}>Precio nuevo</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',border:'1px solid var(--bdr)'})}>APU(s)</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',border:'1px solid var(--bdr)'})}>Acción</th>
             </tr></thead>
             <tbody>
               {revisionCodigo.map(function(it){
                 return(<tr key={it.tipo+'|'+it.id}>
-                  <td style={MOD_TD}>{etiquetaTipo[it.tipo]}</td>
-                  <td style={MOD_TD}>{it.snapReg.codigo||'—'}</td>
-                  <td style={MOD_TD}>{nombreRecurso(it.snapReg)}</td>
-                  <td style={MOD_TD}>{nombreRecurso(it.globalReg)}</td>
-                  <td style={Object.assign({},MOD_TD,{textAlign:'right'})}>{fmt(it.snapReg[it.campoPrecio])}</td>
-                  <td style={Object.assign({},MOD_TD,{textAlign:'right',fontWeight:700,color:'var(--ok)'})}>{fmt(it.precioNuevo)}</td>
-                  <td style={MOD_TD}>{it.apus.join(', ')}</td>
-                  <td style={MOD_TD}>
+                  <td style={Object.assign({},MOD_TD,{whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',border:'1px solid var(--bdr)'})}>{etiquetaTipo[it.tipo]}</td>
+                  <td style={Object.assign({},MOD_TD,{whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',border:'1px solid var(--bdr)'})}>{it.snapReg.codigo||'—'}</td>
+                  <td style={Object.assign({},MOD_TD,{whiteSpace:'normal',wordBreak:'break-word',border:'1px solid var(--bdr)'})}>{nombreRecurso(it.snapReg)}</td>
+                  <td style={Object.assign({},MOD_TD,{whiteSpace:'normal',wordBreak:'break-word',border:'1px solid var(--bdr)'})}>{nombreRecurso(it.globalReg)}</td>
+                  <td style={Object.assign({},MOD_TD,{textAlign:'right',border:'1px solid var(--bdr)'})}>{fmt(it.snapReg[it.campoPrecio])}</td>
+                  <td style={Object.assign({},MOD_TD,{textAlign:'right',fontWeight:700,color:'var(--ok)',border:'1px solid var(--bdr)'})}>{fmt(it.precioNuevo)}</td>
+                  <td style={Object.assign({},MOD_TD,{whiteSpace:'normal',wordBreak:'break-word',border:'1px solid var(--bdr)'})}>{it.apus.join(', ')}</td>
+                  <td style={Object.assign({},MOD_TD,{textAlign:'center',border:'1px solid var(--bdr)'})}>
                     <button onClick={function(){confirmarCodigoUno(it)}} style={{fontSize:10,marginRight:4,padding:'2px 8px',border:'1px solid var(--ok)',borderRadius:4,background:'transparent',color:'var(--ok)',cursor:'pointer'}}>✓</button>
                     <button onClick={function(){ignorarCodigoUno(it)}} style={{fontSize:10,padding:'2px 8px',border:'1px solid var(--bdr)',borderRadius:4,background:'transparent',color:'var(--tx2)',cursor:'pointer'}}>Ignorar</button>
                   </td>
@@ -8785,7 +8786,7 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
           <table style={{width:890,borderCollapse:'collapse',fontSize:11,tableLayout:'fixed'}}>
             <colgroup><col style={{width:110}}/><col style={{width:90}}/><col style={{width:220}}/><col style={{width:220}}/><col style={{width:250}}/></colgroup>
             <thead><tr style={{background:'var(--bg3)'}}>
-              <th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center'})}>Tipo</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center'})}>Código</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center'})}>Descripción</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center'})}>APU(s) afectado(s)</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',whiteSpace:'nowrap',textAlign:'center'})}>Acción</th>
+              <th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',border:'1px solid var(--bdr)'})}>Tipo</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',border:'1px solid var(--bdr)'})}>Código</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',border:'1px solid var(--bdr)'})}>Descripción</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',border:'1px solid var(--bdr)'})}>APU(s) afectado(s)</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',whiteSpace:'nowrap',textAlign:'center',border:'1px solid var(--bdr)'})}>Acción</th>
             </tr></thead>
             <tbody>
               {panelHuerfanos.map(function(it){
@@ -8793,11 +8794,11 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
                 var opciones=(data[campoGlobal]||[]);
                 var enBusqueda=buscarPara&&buscarPara.tipo===it.tipo&&buscarPara.id===it.id;
                 return(<tr key={it.tipo+'|'+it.id}>
-                  <td style={Object.assign({},MOD_TD,{whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'})}>{etiquetaTipo[it.tipo]}</td>
-                  <td style={Object.assign({},MOD_TD,{whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'})}>{it.snapReg.codigo||'—'}</td>
-                  <td style={Object.assign({},MOD_TD,{whiteSpace:'normal',wordBreak:'break-word'})}>{nombreRecurso(it.snapReg)}</td>
-                  <td style={Object.assign({},MOD_TD,{whiteSpace:'normal',wordBreak:'break-word'})} title={it.apus.join(', ')}>{it.apus.join(', ')}</td>
-                  <td style={Object.assign({},MOD_TD,{textAlign:'center'})}>
+                  <td style={Object.assign({},MOD_TD,{whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',border:'1px solid var(--bdr)'})}>{etiquetaTipo[it.tipo]}</td>
+                  <td style={Object.assign({},MOD_TD,{whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',border:'1px solid var(--bdr)'})}>{it.snapReg.codigo||'—'}</td>
+                  <td style={Object.assign({},MOD_TD,{whiteSpace:'normal',wordBreak:'break-word',border:'1px solid var(--bdr)'})}>{nombreRecurso(it.snapReg)}</td>
+                  <td style={Object.assign({},MOD_TD,{whiteSpace:'normal',wordBreak:'break-word',border:'1px solid var(--bdr)'})} title={it.apus.join(', ')}>{it.apus.join(', ')}</td>
+                  <td style={Object.assign({},MOD_TD,{textAlign:'center',border:'1px solid var(--bdr)'})}>
                     {enBusqueda?(
                       <select className="sel" style={{fontSize:10}} onChange={function(e){asociarManual(it,e.target.value)}} defaultValue="">
                         <option value="" disabled>-- elegir del catálogo --</option>

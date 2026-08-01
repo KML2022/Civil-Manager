@@ -3337,14 +3337,6 @@ function eliminarRecursoDeApusProyecto(pres,tipo,id){
   return{apus_snap:nuevosApus,apusAfectados:apusAfectados};
 }
 
-function contarApusAfectados(pres,tipo,id){
-  var campos=_CAMPO_ARR_RECURSO[tipo];
-  var campoId=_CAMPO_ID_RECURSO[tipo];
-  return(pres.apus_snap||[]).filter(function(apu){
-    return campos.some(function(c){return(apu[c]||[]).some(function(r){return r[campoId]===id})});
-  }).length;
-}
-
 /* Asocia manualmente un recurso huerfano (id local sin match en catalogo general) a un recurso
    elegido del catalogo general: copia/asegura el recurso elegido en el snapshot del proyecto y
    reescribe la referencia en todos los APU que usaban el id huerfano. El registro huerfano no se
@@ -8680,8 +8672,9 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
     setPanelHuerfanos(function(prev){var rest=(prev||[]).filter(function(x){return x!==item});return rest.length?rest:null});
   };
   var eliminarHuerfano=async function(item){
-    var n1=contarApusAfectados(pres,item.tipo,item.id);
-    if(!(await askConfirm('Esto eliminará "'+nombreRecurso(item.snapReg)+'" de '+n1+' APU de este proyecto y recalculará sus subtotales. Esta acción no se puede deshacer. ¿Continuar?')))return;
+    var apusLista=item.apus.join(' · ');
+    var msg='¿Eliminar "'+nombreRecurso(item.snapReg)+'" ('+(item.snapReg.codigo||'—')+') de los APU: '+apusLista+'?\n\nSe recalcularán los subtotales de los APU afectados.\nEsta acción no se puede deshacer.';
+    if(!(await askConfirm(msg)))return;
     var r=eliminarRecursoDeApusProyecto(pres,item.tipo,item.id);
     var n=presupuestos.slice();
     n[selPresIdx]=Object.assign({},pres,{apus_snap:r.apus_snap});
@@ -8771,6 +8764,15 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
         <div className="apu-modal-container" style={{padding:16,display:'flex',flexDirection:'column',maxHeight:'85vh',overflow:'hidden',width:1270,maxWidth:'95vw'}} onClick={function(e){e.stopPropagation()}}>
           <div style={{fontSize:13,fontWeight:700,color:'var(--ac)',marginBottom:10,flex:'0 0 auto'}}>Recursos con coincidencia por código — confirmar asociación</div>
           {revisionMsg&&<div style={{fontSize:11,padding:'6px 10px',marginBottom:10,border:'1px solid var(--ok)',borderRadius:4,background:'rgba(74,222,128,.1)',color:'var(--ok)',flex:'0 0 auto'}}>{revisionMsg}</div>}
+          <div style={{background:'rgba(251,191,36,.08)',border:'1px solid #fbbf24',borderRadius:4,padding:'10px 14px',marginBottom:12,fontSize:11,color:'#fbbf24',lineHeight:1.7,flex:'0 0 auto'}}>
+            <strong>⚠ Revisión requerida:</strong> Los recursos de la columna izquierda existen en este proyecto pero <strong>no tienen equivalente exacto por ID</strong> en el catálogo general. Se encontró una coincidencia por código — <strong>verifique que el recurso sea realmente el mismo</strong> antes de confirmar. El indicador 🟢/🟡 muestra el nivel de similitud entre los nombres.<br/>
+            <span style={{color:'var(--tx2)',marginTop:4,display:'block'}}>
+              <strong>✓ (por fila):</strong> actualiza el precio de ese recurso con el precio del catálogo general mostrado en "Precio nuevo".<br/>
+              <strong>Ignorar (por fila):</strong> descarta la sugerencia — el recurso conserva su precio actual.<br/>
+              <strong>✓ Confirmar todas:</strong> aplica la actualización a todos los recursos listados sin distinción.<br/>
+              <strong>Ignorar todas:</strong> descarta todas las sugerencias sin modificar nada.
+            </span>
+          </div>
           <div style={{overflow:'auto',flex:'1 1 auto'}}>
           <table style={{width:1220,borderCollapse:'separate',borderSpacing:0,fontSize:11,tableLayout:'fixed'}}>
             <colgroup><col style={{width:80}}/><col style={{width:90}}/><col style={{width:230}}/><col style={{width:230}}/><col style={{width:70}}/><col style={{width:100}}/><col style={{width:100}}/><col style={{width:200}}/><col style={{width:120}}/></colgroup>
@@ -8796,17 +8798,18 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
                   <td style={Object.assign({},MOD_TD,{textAlign:'right',fontWeight:700,color:'var(--ok)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>{fmt(it.precioNuevo)}</td>
                   <td style={Object.assign({},MOD_TD,{whiteSpace:'normal',wordBreak:'break-word',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>{it.apus.join(', ')}</td>
                   <td style={Object.assign({},MOD_TD,{textAlign:'center',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>
-                    <button onClick={function(){confirmarCodigoUno(it)}} style={{fontSize:10,marginRight:4,padding:'2px 8px',border:'1px solid var(--ok)',borderRadius:4,background:'transparent',color:'var(--ok)',cursor:'pointer'}}>✓</button>
-                    <button onClick={function(){ignorarCodigoUno(it)}} style={{fontSize:10,padding:'2px 8px',border:'1px solid var(--bdr)',borderRadius:4,background:'transparent',color:'var(--tx2)',cursor:'pointer'}}>Ignorar</button>
+                    <button onClick={function(){confirmarCodigoUno(it)}} title={'Actualizar precio de "'+nombreRecurso(it.snapReg)+'" con el precio del catálogo general'} style={{fontSize:10,marginRight:4,padding:'2px 8px',border:'1px solid var(--ok)',borderRadius:4,background:'transparent',color:'var(--ok)',cursor:'pointer'}}>✓</button>
+                    <button onClick={function(){ignorarCodigoUno(it)}} title={'Descartar sugerencia — "'+nombreRecurso(it.snapReg)+'" conserva su precio actual'} style={{fontSize:10,padding:'2px 8px',border:'1px solid var(--bdr)',borderRadius:4,background:'transparent',color:'var(--tx2)',cursor:'pointer'}}>Ignorar</button>
                   </td>
                 </tr>);
               })}
             </tbody>
           </table>
           </div>
-          <div style={{display:'flex',justifyContent:'flex-end',gap:8,marginTop:14,flex:'0 0 auto'}}>
+          <div style={{display:'flex',justifyContent:'flex-end',alignItems:'center',gap:8,marginTop:14,paddingTop:10,borderTop:'1px solid var(--bdr)',flex:'0 0 auto'}}>
+            <span style={{fontSize:10,color:'var(--tx3)',marginRight:8,flex:1}}>"Confirmar todas" actualiza el precio de todos los recursos listados. Use ✓ fila a fila para seleccionar individualmente.</span>
             <button onClick={confirmarCodigoTodas} style={{fontSize:11,fontWeight:700,padding:'6px 14px',border:'1px solid var(--ok)',borderRadius:4,background:'var(--ok)',color:'#08120b',cursor:'pointer'}}>✓ Confirmar todas</button>
-            <button onClick={function(){setRevisionCodigo(null);setRevisionMsg(null)}} style={{fontSize:11,padding:'6px 14px',border:'1px solid var(--bdr)',borderRadius:4,background:'transparent',color:'var(--tx2)',cursor:'pointer'}}>Ignorar</button>
+            <button onClick={function(){setRevisionCodigo(null);setRevisionMsg(null)}} style={{fontSize:11,padding:'6px 14px',border:'1px solid var(--bdr)',borderRadius:4,background:'transparent',color:'var(--tx2)',cursor:'pointer'}}>Ignorar todas</button>
           </div>
         </div>
       </div>,
@@ -8815,13 +8818,21 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
 
     {panelHuerfanos&&ReactDOM.createPortal(
       <div className="apu-modal-backdrop" onClick={function(){setPanelHuerfanos(null);setBuscarPara(null)}}>
-        <div className="apu-modal-container" style={{padding:16,display:'flex',flexDirection:'column',maxHeight:'85vh',overflow:'hidden',width:'fit-content',maxWidth:'95vw'}} onClick={function(e){e.stopPropagation()}}>
+        <div className="apu-modal-container" style={{padding:16,display:'flex',flexDirection:'column',maxHeight:'85vh',overflow:'hidden',width:940,maxWidth:'95vw'}} onClick={function(e){e.stopPropagation()}}>
           <div style={{fontSize:13,fontWeight:700,color:'#f87171',marginBottom:10,flex:'0 0 auto'}}>Recursos faltantes en el catálogo general</div>
+          <div style={{background:'rgba(248,113,113,.08)',border:'1px solid #f87171',borderRadius:4,padding:'10px 14px',marginBottom:12,fontSize:11,color:'#f87171',lineHeight:1.7,flex:'0 0 auto'}}>
+            <strong>Estos recursos están siendo usados en los APU de este proyecto</strong> pero no tienen equivalente en el catálogo general (ni por ID ni por código con similitud suficiente). Pueden ser recursos creados directamente en el proyecto o eliminados del catálogo general.<br/>
+            <span style={{color:'var(--tx2)',marginTop:4,display:'block'}}>
+              <strong>🔍 Buscar:</strong> asociar manualmente a un recurso del catálogo general — se reemplazarán todas las referencias en los APU afectados y se actualizará el precio.<br/>
+              <strong>✓ Mantener:</strong> conservar el recurso tal como está con su precio actual. No se modifica nada y <strong>no volverá a aparecer en este panel</strong>.<br/>
+              <strong style={{color:'#f87171'}}>🗑 Eliminar:</strong> quitar este recurso de todos los APU afectados y recalcular sus subtotales.<strong style={{color:'#f87171'}}> Esta acción no se puede deshacer.</strong>
+            </span>
+          </div>
           <div style={{overflow:'auto',flex:'1 1 auto'}}>
-          <table style={{width:890,borderCollapse:'collapse',fontSize:11,tableLayout:'fixed'}}>
+          <table style={{width:890,borderCollapse:'separate',borderSpacing:0,fontSize:11,tableLayout:'fixed'}}>
             <colgroup><col style={{width:110}}/><col style={{width:90}}/><col style={{width:220}}/><col style={{width:220}}/><col style={{width:250}}/></colgroup>
             <thead><tr style={{background:'var(--bg3)'}}>
-              <th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',border:'1px solid var(--bdr)'})}>Tipo</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',border:'1px solid var(--bdr)'})}>Código</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',border:'1px solid var(--bdr)'})}>Descripción</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',border:'1px solid var(--bdr)'})}>APU(s) afectado(s)</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',whiteSpace:'nowrap',textAlign:'center',border:'1px solid var(--bdr)'})}>Acción</th>
+              <th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',borderTop:'1px solid var(--bdr)',borderLeft:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Tipo</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Código</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Descripción</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>APU(s) afectado(s)</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',whiteSpace:'nowrap',textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Acción</th>
             </tr></thead>
             <tbody>
               {panelHuerfanos.map(function(it){
@@ -8829,11 +8840,11 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
                 var opciones=(data[campoGlobal]||[]);
                 var enBusqueda=buscarPara&&buscarPara.tipo===it.tipo&&buscarPara.id===it.id;
                 return(<tr key={it.tipo+'|'+it.id}>
-                  <td style={Object.assign({},MOD_TD,{whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',border:'1px solid var(--bdr)'})}>{etiquetaTipo[it.tipo]}</td>
-                  <td style={Object.assign({},MOD_TD,{whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',border:'1px solid var(--bdr)'})}>{it.snapReg.codigo||'—'}</td>
-                  <td style={Object.assign({},MOD_TD,{whiteSpace:'normal',wordBreak:'break-word',border:'1px solid var(--bdr)'})}>{nombreRecurso(it.snapReg)}</td>
-                  <td style={Object.assign({},MOD_TD,{whiteSpace:'normal',wordBreak:'break-word',border:'1px solid var(--bdr)'})} title={it.apus.join(', ')}>{it.apus.join(', ')}</td>
-                  <td style={Object.assign({},MOD_TD,{textAlign:'center',border:'1px solid var(--bdr)'})}>
+                  <td style={Object.assign({},MOD_TD,{whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',borderLeft:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>{etiquetaTipo[it.tipo]}</td>
+                  <td style={Object.assign({},MOD_TD,{whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>{it.snapReg.codigo||'—'}</td>
+                  <td style={Object.assign({},MOD_TD,{whiteSpace:'normal',wordBreak:'break-word',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>{nombreRecurso(it.snapReg)}</td>
+                  <td style={Object.assign({},MOD_TD,{whiteSpace:'normal',wordBreak:'break-word',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})} title={it.apus.join(', ')}>{it.apus.join(', ')}</td>
+                  <td style={Object.assign({},MOD_TD,{textAlign:'center',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>
                     {enBusqueda?(
                       <select className="sel" style={{fontSize:10}} onChange={function(e){asociarManual(it,e.target.value)}} defaultValue="">
                         <option value="" disabled>-- elegir del catálogo --</option>
@@ -8841,9 +8852,9 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
                       </select>
                     ):(
                       <div style={{display:'flex',justifyContent:'center',flexWrap:'wrap',gap:3}}>
-                        <button onClick={function(){setBuscarPara({tipo:it.tipo,id:it.id})}} style={{fontSize:10,padding:'2px 6px',border:'1px solid var(--ac)',borderRadius:4,background:'transparent',color:'var(--ac)',cursor:'pointer'}}>🔍 Buscar</button>
-                        <button onClick={function(){mantenerHuerfano(it)}} style={{fontSize:10,padding:'2px 6px',border:'1px solid var(--ok)',borderRadius:4,background:'transparent',color:'var(--ok)',cursor:'pointer'}}>✓ Mantener</button>
-                        <button onClick={function(){eliminarHuerfano(it)}} style={{fontSize:10,padding:'2px 6px',border:'1px solid #f87171',borderRadius:4,background:'transparent',color:'#f87171',cursor:'pointer'}}>🗑 Eliminar</button>
+                        <button onClick={function(){setBuscarPara({tipo:it.tipo,id:it.id})}} title={'Asociar "'+(it.snapReg.nombre||it.snapReg.descripcion||it.id)+'" manualmente a un recurso del catálogo general'} style={{fontSize:10,padding:'2px 6px',border:'1px solid var(--ac)',borderRadius:4,background:'transparent',color:'var(--ac)',cursor:'pointer'}}>🔍 Buscar</button>
+                        <button onClick={function(){mantenerHuerfano(it)}} title={'Conservar "'+(it.snapReg.nombre||it.snapReg.descripcion||it.id)+'" con su precio actual — no volverá a aparecer aquí'} style={{fontSize:10,padding:'2px 6px',border:'1px solid var(--ok)',borderRadius:4,background:'transparent',color:'var(--ok)',cursor:'pointer'}}>✓ Mantener</button>
+                        <button onClick={function(){eliminarHuerfano(it)}} title={'Eliminar "'+(it.snapReg.nombre||it.snapReg.descripcion||it.id)+'" de todos los APU afectados — acción irreversible'} style={{fontSize:10,padding:'2px 6px',border:'1px solid #f87171',borderRadius:4,background:'transparent',color:'#f87171',cursor:'pointer'}}>🗑 Eliminar</button>
                       </div>
                     )}
                   </td>

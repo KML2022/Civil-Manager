@@ -8587,6 +8587,7 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
 
   var analisis=useMemo(function(){return analizarActualizacionCatalogo(pres,data)},[pres,data]);
   var[revisionCodigo,setRevisionCodigo]=useState(null); // [{tipo,id,snapReg,globalReg,campoPrecio,precioNuevo,apus}]
+  var[revisionMsg,setRevisionMsg]=useState(null); // banner fijo bajo el titulo del panel de revision por codigo
   var[panelHuerfanos,setPanelHuerfanos]=useState(null); // [{tipo,id,snapReg,apus}]
   var[buscarPara,setBuscarPara]=useState(null); // {tipo,id} — item del panel de huerfanos en modo "Buscar"
 
@@ -8611,7 +8612,7 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
     onChange(Object.assign({},data,{presupuestos:n}));
     if(an.porCodigo.length>0){
       setRevisionCodigo(an.porCodigo);
-      showToast(an.porId.length+' precio(s) actualizado(s) por ID. '+an.porCodigo.length+' con coincidencia por código requieren revisión.',{type:'ok'});
+      setRevisionMsg(an.porId.length+' precio(s) actualizado(s) por ID. '+an.porCodigo.length+' con coincidencia por código requieren revisión.');
     }else{
       showToast('Actualización completada: '+an.porId.length+' precio(s) actualizado(s) por ID.',{type:'ok'});
     }
@@ -8626,10 +8627,10 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
   };
   var confirmarCodigoUno=function(item){
     confirmarCodigoItems([item]);
-    setRevisionCodigo(function(prev){var rest=(prev||[]).filter(function(x){return x!==item});return rest.length?rest:null});
+    setRevisionCodigo(function(prev){var rest=(prev||[]).filter(function(x){return x!==item});if(!rest.length)setRevisionMsg(null);return rest.length?rest:null});
   };
-  var confirmarCodigoTodas=function(){confirmarCodigoItems(revisionCodigo||[]);setRevisionCodigo(null)};
-  var ignorarCodigoUno=function(item){setRevisionCodigo(function(prev){var rest=(prev||[]).filter(function(x){return x!==item});return rest.length?rest:null})};
+  var confirmarCodigoTodas=function(){confirmarCodigoItems(revisionCodigo||[]);setRevisionCodigo(null);setRevisionMsg(null)};
+  var ignorarCodigoUno=function(item){setRevisionCodigo(function(prev){var rest=(prev||[]).filter(function(x){return x!==item});if(!rest.length)setRevisionMsg(null);return rest.length?rest:null})};
 
   var reparar=async function(){
     var r=repararRecursosFaltantesDeApus(pres,data);
@@ -8741,26 +8742,27 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
     </div>
 
     {revisionCodigo&&ReactDOM.createPortal(
-      <div className="apu-modal-backdrop" onClick={function(){setRevisionCodigo(null)}}>
-        <div className="apu-modal-container" style={{padding:16,display:'flex',flexDirection:'column',maxHeight:'85vh',overflow:'hidden',width:'fit-content',maxWidth:'95vw'}} onClick={function(e){e.stopPropagation()}}>
+      <div className="apu-modal-backdrop" onClick={function(){setRevisionCodigo(null);setRevisionMsg(null)}}>
+        <div className="apu-modal-container" style={{padding:16,display:'flex',flexDirection:'column',maxHeight:'85vh',overflow:'hidden',width:1200,maxWidth:'95vw'}} onClick={function(e){e.stopPropagation()}}>
           <div style={{fontSize:13,fontWeight:700,color:'var(--ac)',marginBottom:10,flex:'0 0 auto'}}>Recursos con coincidencia por código — confirmar asociación</div>
+          {revisionMsg&&<div style={{fontSize:11,padding:'6px 10px',marginBottom:10,border:'1px solid var(--ok)',borderRadius:4,background:'rgba(74,222,128,.1)',color:'var(--ok)',flex:'0 0 auto'}}>{revisionMsg}</div>}
           <div style={{overflow:'auto',flex:'1 1 auto'}}>
-          <table style={{width:1150,borderCollapse:'collapse',fontSize:11,tableLayout:'fixed'}}>
+          <table style={{width:1150,borderCollapse:'separate',borderSpacing:0,fontSize:11,tableLayout:'fixed'}}>
             <colgroup><col style={{width:80}}/><col style={{width:90}}/><col style={{width:230}}/><col style={{width:230}}/><col style={{width:100}}/><col style={{width:100}}/><col style={{width:200}}/><col style={{width:120}}/></colgroup>
             <thead><tr style={{background:'var(--bg3)'}}>
-              <th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',border:'1px solid var(--bdr)'})}>Tipo</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',border:'1px solid var(--bdr)'})}>Código</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',border:'1px solid var(--bdr)'})}>Nombre en proyecto</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',border:'1px solid var(--bdr)'})}>Nombre en catálogo general</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',border:'1px solid var(--bdr)'})}>Precio actual</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',border:'1px solid var(--bdr)'})}>Precio nuevo</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',border:'1px solid var(--bdr)'})}>APU(s)</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',border:'1px solid var(--bdr)'})}>Acción</th>
+              <th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',borderTop:'1px solid var(--bdr)',borderLeft:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Tipo</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Código</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Nombre en proyecto</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Nombre en catálogo general</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Precio actual</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Precio nuevo</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>APU(s)</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Acción</th>
             </tr></thead>
             <tbody>
               {revisionCodigo.map(function(it){
                 return(<tr key={it.tipo+'|'+it.id}>
-                  <td style={Object.assign({},MOD_TD,{whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',border:'1px solid var(--bdr)'})}>{etiquetaTipo[it.tipo]}</td>
-                  <td style={Object.assign({},MOD_TD,{whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',border:'1px solid var(--bdr)'})}>{it.snapReg.codigo||'—'}</td>
-                  <td style={Object.assign({},MOD_TD,{whiteSpace:'normal',wordBreak:'break-word',border:'1px solid var(--bdr)'})}>{nombreRecurso(it.snapReg)}</td>
-                  <td style={Object.assign({},MOD_TD,{whiteSpace:'normal',wordBreak:'break-word',border:'1px solid var(--bdr)'})}>{nombreRecurso(it.globalReg)}</td>
-                  <td style={Object.assign({},MOD_TD,{textAlign:'right',border:'1px solid var(--bdr)'})}>{fmt(it.snapReg[it.campoPrecio])}</td>
-                  <td style={Object.assign({},MOD_TD,{textAlign:'right',fontWeight:700,color:'var(--ok)',border:'1px solid var(--bdr)'})}>{fmt(it.precioNuevo)}</td>
-                  <td style={Object.assign({},MOD_TD,{whiteSpace:'normal',wordBreak:'break-word',border:'1px solid var(--bdr)'})}>{it.apus.join(', ')}</td>
-                  <td style={Object.assign({},MOD_TD,{textAlign:'center',border:'1px solid var(--bdr)'})}>
+                  <td style={Object.assign({},MOD_TD,{whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',borderLeft:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>{etiquetaTipo[it.tipo]}</td>
+                  <td style={Object.assign({},MOD_TD,{whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>{it.snapReg.codigo||'—'}</td>
+                  <td style={Object.assign({},MOD_TD,{whiteSpace:'normal',wordBreak:'break-word',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>{nombreRecurso(it.snapReg)}</td>
+                  <td style={Object.assign({},MOD_TD,{whiteSpace:'normal',wordBreak:'break-word',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>{nombreRecurso(it.globalReg)}</td>
+                  <td style={Object.assign({},MOD_TD,{textAlign:'right',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>{fmt(it.snapReg[it.campoPrecio])}</td>
+                  <td style={Object.assign({},MOD_TD,{textAlign:'right',fontWeight:700,color:'var(--ok)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>{fmt(it.precioNuevo)}</td>
+                  <td style={Object.assign({},MOD_TD,{whiteSpace:'normal',wordBreak:'break-word',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>{it.apus.join(', ')}</td>
+                  <td style={Object.assign({},MOD_TD,{textAlign:'center',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>
                     <button onClick={function(){confirmarCodigoUno(it)}} style={{fontSize:10,marginRight:4,padding:'2px 8px',border:'1px solid var(--ok)',borderRadius:4,background:'transparent',color:'var(--ok)',cursor:'pointer'}}>✓</button>
                     <button onClick={function(){ignorarCodigoUno(it)}} style={{fontSize:10,padding:'2px 8px',border:'1px solid var(--bdr)',borderRadius:4,background:'transparent',color:'var(--tx2)',cursor:'pointer'}}>Ignorar</button>
                   </td>
@@ -8771,7 +8773,7 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
           </div>
           <div style={{display:'flex',justifyContent:'flex-end',gap:8,marginTop:14,flex:'0 0 auto'}}>
             <button onClick={confirmarCodigoTodas} style={{fontSize:11,fontWeight:700,padding:'6px 14px',border:'1px solid var(--ok)',borderRadius:4,background:'var(--ok)',color:'#08120b',cursor:'pointer'}}>✓ Confirmar todas</button>
-            <button onClick={function(){setRevisionCodigo(null)}} style={{fontSize:11,padding:'6px 14px',border:'1px solid var(--bdr)',borderRadius:4,background:'transparent',color:'var(--tx2)',cursor:'pointer'}}>Ignorar</button>
+            <button onClick={function(){setRevisionCodigo(null);setRevisionMsg(null)}} style={{fontSize:11,padding:'6px 14px',border:'1px solid var(--bdr)',borderRadius:4,background:'transparent',color:'var(--tx2)',cursor:'pointer'}}>Ignorar</button>
           </div>
         </div>
       </div>,

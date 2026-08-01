@@ -3196,6 +3196,24 @@ function repararRecursosFaltantesDeApus(pres,data){
   };
 }
 
+/* Similitud entre dos strings por interseccion de palabras significativas (Jaccard).
+   Retorna un valor entre 0.0 y 1.0. Excluye palabras de menos de 3 caracteres y conectores comunes.
+   Usada para evitar falsos positivos en el match por codigo: dos recursos pueden compartir el
+   mismo texto de codigo por casualidad (catalogos distintos) sin ser el mismo recurso. */
+function similitudNombre(a,b){
+  if(!a||!b)return 0;
+  var stopwords=new Set(['de','del','la','el','los','las','y','o','con','en','por','para','sin','un','una','al','se','su','sus','que','no','es','son','the','of','and','or','with','for']);
+  function tokenizar(s){return s.toLowerCase().replace(/[^a-záéíóúüñ0-9\s]/gi,' ').split(/\s+/).filter(function(t){return t.length>=3&&!stopwords.has(t)})}
+  var tokA=tokenizar(a);
+  var tokB=new Set(tokenizar(b));
+  if(tokA.length===0||tokB.size===0)return 0;
+  var comunes=tokA.filter(function(t){return tokB.has(t)}).length;
+  var union=new Set(tokA.concat(Array.from(tokB))).size;
+  return comunes/union;
+}
+var UMBRAL_VERDE=0.60;
+var UMBRAL_AMARILLO=0.30;
+
 /* Analisis read-only (no muta nada) de los recursos que los APU del proyecto realmente referencian,
    contra el catalogo general, en 3 pasos por recurso: match por ID (actualizable automaticamente),
    match por codigo (solo se sugiere, requiere confirmacion del usuario), o huerfano (sin equivalente).
@@ -3242,8 +3260,15 @@ function analizarActualizacionCatalogo(pres,data){
     var cod=(snapReg.codigo||'').trim().toLowerCase();
     var enGlobalPorCodigo=cod?globalPorCod.get(cod):null;
     if(enGlobalPorCodigo){
-      porCodigo.push({tipo:tipo,id:id,snapReg:snapReg,globalReg:enGlobalPorCodigo,campoPrecio:campoPrecio,precioNuevo:enGlobalPorCodigo[campoPrecio],apus:apus});
-      return;
+      var nombreSnap=(snapReg.nombre||snapReg.descripcion||'').trim();
+      var nombreGlobal=(enGlobalPorCodigo.nombre||enGlobalPorCodigo.descripcion||'').trim();
+      var score=similitudNombre(nombreSnap,nombreGlobal);
+      if(score>=UMBRAL_AMARILLO){
+        var nivel=score>=UMBRAL_VERDE?'verde':'amarillo';
+        porCodigo.push({tipo:tipo,id:id,snapReg:snapReg,globalReg:enGlobalPorCodigo,campoPrecio:campoPrecio,precioNuevo:enGlobalPorCodigo[campoPrecio],apus:apus,score:score,nivelConfianza:nivel});
+        return;
+      }
+      // codigo coincide pero el nombre es demasiado distinto: probable colision de codigo, no mismo recurso
     }
     huerfanos.push({tipo:tipo,id:id,snapReg:snapReg,apus:apus});
   }
@@ -8743,22 +8768,30 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
 
     {revisionCodigo&&ReactDOM.createPortal(
       <div className="apu-modal-backdrop" onClick={function(){setRevisionCodigo(null);setRevisionMsg(null)}}>
-        <div className="apu-modal-container" style={{padding:16,display:'flex',flexDirection:'column',maxHeight:'85vh',overflow:'hidden',width:1200,maxWidth:'95vw'}} onClick={function(e){e.stopPropagation()}}>
+        <div className="apu-modal-container" style={{padding:16,display:'flex',flexDirection:'column',maxHeight:'85vh',overflow:'hidden',width:1270,maxWidth:'95vw'}} onClick={function(e){e.stopPropagation()}}>
           <div style={{fontSize:13,fontWeight:700,color:'var(--ac)',marginBottom:10,flex:'0 0 auto'}}>Recursos con coincidencia por código — confirmar asociación</div>
           {revisionMsg&&<div style={{fontSize:11,padding:'6px 10px',marginBottom:10,border:'1px solid var(--ok)',borderRadius:4,background:'rgba(74,222,128,.1)',color:'var(--ok)',flex:'0 0 auto'}}>{revisionMsg}</div>}
           <div style={{overflow:'auto',flex:'1 1 auto'}}>
-          <table style={{width:1150,borderCollapse:'separate',borderSpacing:0,fontSize:11,tableLayout:'fixed'}}>
-            <colgroup><col style={{width:80}}/><col style={{width:90}}/><col style={{width:230}}/><col style={{width:230}}/><col style={{width:100}}/><col style={{width:100}}/><col style={{width:200}}/><col style={{width:120}}/></colgroup>
+          <table style={{width:1220,borderCollapse:'separate',borderSpacing:0,fontSize:11,tableLayout:'fixed'}}>
+            <colgroup><col style={{width:80}}/><col style={{width:90}}/><col style={{width:230}}/><col style={{width:230}}/><col style={{width:70}}/><col style={{width:100}}/><col style={{width:100}}/><col style={{width:200}}/><col style={{width:120}}/></colgroup>
             <thead><tr style={{background:'var(--bg3)'}}>
-              <th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',borderTop:'1px solid var(--bdr)',borderLeft:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Tipo</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Código</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Nombre en proyecto</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Nombre en catálogo general</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Precio actual</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Precio nuevo</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>APU(s)</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Acción</th>
+              <th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',borderTop:'1px solid var(--bdr)',borderLeft:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Tipo</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Código</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Nombre en proyecto</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Nombre en catálogo general</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Match</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Precio actual</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Precio nuevo</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>APU(s)</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Acción</th>
             </tr></thead>
             <tbody>
               {revisionCodigo.map(function(it){
-                return(<tr key={it.tipo+'|'+it.id}>
+                return(<tr key={it.tipo+'|'+it.id} style={{background:it.nivelConfianza==='amarillo'?'rgba(251,191,36,.06)':'transparent'}}>
                   <td style={Object.assign({},MOD_TD,{whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',borderLeft:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>{etiquetaTipo[it.tipo]}</td>
                   <td style={Object.assign({},MOD_TD,{whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>{it.snapReg.codigo||'—'}</td>
                   <td style={Object.assign({},MOD_TD,{whiteSpace:'normal',wordBreak:'break-word',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>{nombreRecurso(it.snapReg)}</td>
-                  <td style={Object.assign({},MOD_TD,{whiteSpace:'normal',wordBreak:'break-word',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>{nombreRecurso(it.globalReg)}</td>
+                  <td style={Object.assign({},MOD_TD,{whiteSpace:'normal',wordBreak:'break-word',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>
+                    {nombreRecurso(it.globalReg)}
+                    {it.nivelConfianza==='amarillo'&&<div style={{fontSize:9,color:'#fbbf24',marginTop:2}}>⚠ Verifique que sea el mismo recurso</div>}
+                  </td>
+                  <td style={Object.assign({},MOD_TD,{textAlign:'center',fontSize:14,borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>
+                    {it.nivelConfianza==='verde'
+                      ?<span title={'Similitud: '+Math.round(it.score*100)+'% — Nombres muy similares'}>🟢</span>
+                      :<span title={'Similitud: '+Math.round(it.score*100)+'% — Nombres diferentes, verifique antes de confirmar'}>🟡</span>}
+                  </td>
                   <td style={Object.assign({},MOD_TD,{textAlign:'right',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>{fmt(it.snapReg[it.campoPrecio])}</td>
                   <td style={Object.assign({},MOD_TD,{textAlign:'right',fontWeight:700,color:'var(--ok)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>{fmt(it.precioNuevo)}</td>
                   <td style={Object.assign({},MOD_TD,{whiteSpace:'normal',wordBreak:'break-word',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>{it.apus.join(', ')}</td>

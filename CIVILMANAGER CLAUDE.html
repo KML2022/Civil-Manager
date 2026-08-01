@@ -8742,12 +8742,12 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
 
     {revisionCodigo&&ReactDOM.createPortal(
       <div className="apu-modal-backdrop" onClick={function(){setRevisionCodigo(null)}}>
-        <div className="apu-modal-container" style={{maxWidth:1000,padding:16}} onClick={function(e){e.stopPropagation()}}>
-          <div style={{fontSize:13,fontWeight:700,color:'var(--ac)',marginBottom:10}}>Recursos con coincidencia por código — confirmar asociación</div>
-          <div style={{overflowX:'auto'}}>
+        <div className="apu-modal-container" style={{maxWidth:1000,padding:16,display:'flex',flexDirection:'column',maxHeight:'85vh',overflow:'hidden'}} onClick={function(e){e.stopPropagation()}}>
+          <div style={{fontSize:13,fontWeight:700,color:'var(--ac)',marginBottom:10,flex:'0 0 auto'}}>Recursos con coincidencia por código — confirmar asociación</div>
+          <div style={{overflow:'auto',flex:'1 1 auto'}}>
           <table style={{width:'100%',borderCollapse:'collapse',fontSize:11}}>
             <thead><tr style={{background:'var(--bg3)'}}>
-              <th style={MOD_TH}>Tipo</th><th style={MOD_TH}>Código</th><th style={MOD_TH}>Nombre en proyecto</th><th style={MOD_TH}>Nombre en catálogo general</th><th style={MOD_TH}>Precio actual</th><th style={MOD_TH}>Precio nuevo</th><th style={MOD_TH}>APU(s)</th><th style={MOD_TH}>Acción</th>
+              <th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)'})}>Tipo</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)'})}>Código</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)'})}>Nombre en proyecto</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)'})}>Nombre en catálogo general</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)'})}>Precio actual</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)'})}>Precio nuevo</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)'})}>APU(s)</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)'})}>Acción</th>
             </tr></thead>
             <tbody>
               {revisionCodigo.map(function(it){
@@ -8768,7 +8768,7 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
             </tbody>
           </table>
           </div>
-          <div style={{display:'flex',justifyContent:'flex-end',gap:8,marginTop:14}}>
+          <div style={{display:'flex',justifyContent:'flex-end',gap:8,marginTop:14,flex:'0 0 auto'}}>
             <button onClick={confirmarCodigoTodas} style={{fontSize:11,fontWeight:700,padding:'6px 14px',border:'1px solid var(--ok)',borderRadius:4,background:'var(--ok)',color:'#08120b',cursor:'pointer'}}>✓ Confirmar todas</button>
             <button onClick={function(){setRevisionCodigo(null)}} style={{fontSize:11,padding:'6px 14px',border:'1px solid var(--bdr)',borderRadius:4,background:'transparent',color:'var(--tx2)',cursor:'pointer'}}>Ignorar</button>
           </div>
@@ -8779,12 +8779,13 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
 
     {panelHuerfanos&&ReactDOM.createPortal(
       <div className="apu-modal-backdrop" onClick={function(){setPanelHuerfanos(null);setBuscarPara(null)}}>
-        <div className="apu-modal-container" style={{maxWidth:1000,padding:16}} onClick={function(e){e.stopPropagation()}}>
-          <div style={{fontSize:13,fontWeight:700,color:'#f87171',marginBottom:10}}>Recursos faltantes en el catálogo general</div>
-          <div style={{overflowX:'auto'}}>
-          <table style={{width:'100%',borderCollapse:'collapse',fontSize:11}}>
+        <div className="apu-modal-container" style={{padding:16,display:'flex',flexDirection:'column',maxHeight:'85vh',overflow:'hidden',width:'fit-content',maxWidth:'95vw'}} onClick={function(e){e.stopPropagation()}}>
+          <div style={{fontSize:13,fontWeight:700,color:'#f87171',marginBottom:10,flex:'0 0 auto'}}>Recursos faltantes en el catálogo general</div>
+          <div style={{overflow:'auto',flex:'1 1 auto'}}>
+          <table style={{width:890,borderCollapse:'collapse',fontSize:11,tableLayout:'fixed'}}>
+            <colgroup><col style={{width:110}}/><col style={{width:90}}/><col style={{width:220}}/><col style={{width:220}}/><col style={{width:250}}/></colgroup>
             <thead><tr style={{background:'var(--bg3)'}}>
-              <th style={MOD_TH}>Tipo</th><th style={MOD_TH}>Código</th><th style={MOD_TH}>Descripción</th><th style={MOD_TH}>APU(s) afectado(s)</th><th style={MOD_TH}>Acción</th>
+              <th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center'})}>Tipo</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center'})}>Código</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center'})}>Descripción</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center'})}>APU(s) afectado(s)</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',whiteSpace:'nowrap',textAlign:'center'})}>Acción</th>
             </tr></thead>
             <tbody>
               {panelHuerfanos.map(function(it){
@@ -8792,22 +8793,22 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
                 var opciones=(data[campoGlobal]||[]);
                 var enBusqueda=buscarPara&&buscarPara.tipo===it.tipo&&buscarPara.id===it.id;
                 return(<tr key={it.tipo+'|'+it.id}>
-                  <td style={MOD_TD}>{etiquetaTipo[it.tipo]}</td>
-                  <td style={MOD_TD}>{it.snapReg.codigo||'—'}</td>
-                  <td style={MOD_TD}>{nombreRecurso(it.snapReg)}</td>
-                  <td style={MOD_TD}>{it.apus.join(', ')}</td>
-                  <td style={MOD_TD}>
+                  <td style={Object.assign({},MOD_TD,{whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'})}>{etiquetaTipo[it.tipo]}</td>
+                  <td style={Object.assign({},MOD_TD,{whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'})}>{it.snapReg.codigo||'—'}</td>
+                  <td style={Object.assign({},MOD_TD,{whiteSpace:'normal',wordBreak:'break-word'})}>{nombreRecurso(it.snapReg)}</td>
+                  <td style={Object.assign({},MOD_TD,{whiteSpace:'normal',wordBreak:'break-word'})} title={it.apus.join(', ')}>{it.apus.join(', ')}</td>
+                  <td style={Object.assign({},MOD_TD,{textAlign:'center'})}>
                     {enBusqueda?(
                       <select className="sel" style={{fontSize:10}} onChange={function(e){asociarManual(it,e.target.value)}} defaultValue="">
                         <option value="" disabled>-- elegir del catálogo --</option>
                         {opciones.map(function(o){return <option key={o.id} value={o.id}>{nombreRecurso(o)}</option>})}
                       </select>
                     ):(
-                      <React.Fragment>
-                        <button onClick={function(){setBuscarPara({tipo:it.tipo,id:it.id})}} style={{fontSize:10,marginRight:4,padding:'2px 8px',border:'1px solid var(--ac)',borderRadius:4,background:'transparent',color:'var(--ac)',cursor:'pointer'}}>🔍 Buscar</button>
-                        <button onClick={function(){mantenerHuerfano(it)}} style={{fontSize:10,marginRight:4,padding:'2px 8px',border:'1px solid var(--ok)',borderRadius:4,background:'transparent',color:'var(--ok)',cursor:'pointer'}}>✓ Mantener</button>
-                        <button onClick={function(){eliminarHuerfano(it)}} style={{fontSize:10,padding:'2px 8px',border:'1px solid #f87171',borderRadius:4,background:'transparent',color:'#f87171',cursor:'pointer'}}>🗑 Eliminar</button>
-                      </React.Fragment>
+                      <div style={{display:'flex',justifyContent:'center',flexWrap:'wrap',gap:3}}>
+                        <button onClick={function(){setBuscarPara({tipo:it.tipo,id:it.id})}} style={{fontSize:10,padding:'2px 6px',border:'1px solid var(--ac)',borderRadius:4,background:'transparent',color:'var(--ac)',cursor:'pointer'}}>🔍 Buscar</button>
+                        <button onClick={function(){mantenerHuerfano(it)}} style={{fontSize:10,padding:'2px 6px',border:'1px solid var(--ok)',borderRadius:4,background:'transparent',color:'var(--ok)',cursor:'pointer'}}>✓ Mantener</button>
+                        <button onClick={function(){eliminarHuerfano(it)}} style={{fontSize:10,padding:'2px 6px',border:'1px solid #f87171',borderRadius:4,background:'transparent',color:'#f87171',cursor:'pointer'}}>🗑 Eliminar</button>
+                      </div>
                     )}
                   </td>
                 </tr>);
@@ -8815,7 +8816,7 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
             </tbody>
           </table>
           </div>
-          <div style={{display:'flex',justifyContent:'flex-end',marginTop:14}}>
+          <div style={{display:'flex',justifyContent:'flex-end',marginTop:14,flex:'0 0 auto'}}>
             <button onClick={function(){setPanelHuerfanos(null);setBuscarPara(null)}} style={{fontSize:11,padding:'6px 14px',border:'1px solid var(--bdr)',borderRadius:4,background:'transparent',color:'var(--tx2)',cursor:'pointer'}}>Cerrar</button>
           </div>
         </div>

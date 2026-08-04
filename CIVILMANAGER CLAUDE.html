@@ -720,7 +720,23 @@ const CATEGORIAS_APU=[
 
 ];
 
-function getPaisData(code,perfilesPais){if(perfilesPais){for(var i=0;i<perfilesPais.length;i++){if(perfilesPais[i].codigo===code)return perfilesPais[i]}}return PAISES[code]||PAISES.CO}
+/* Aplica defaults a campos nuevos (simbolo/jornada_diaria/usar_fp/activo) para perfiles
+   creados antes de que existieran esos campos — evita tener que migrar en bloque el
+   array guardado, cada lectura via getPaisData ya sale completa. */
+function conDefaultsPerfilPais(p){
+  if(!p)return p;
+  return Object.assign({
+    simbolo:p.moneda==='COP'?'$':(p.moneda||'$'),
+    jornada_diaria:p.horas_mes?Math.round(p.horas_mes/(p.dias_mes||22)):8,
+    usar_fp:true,
+    activo:true
+  },p);
+}
+function getPaisData(code,perfilesPais){
+  var found=null;
+  if(perfilesPais){for(var i=0;i<perfilesPais.length;i++){if(perfilesPais[i].codigo===code){found=perfilesPais[i];break}}}
+  return conDefaultsPerfilPais(found||PAISES[code]||PAISES.CO);
+}
 
 
 
@@ -7321,7 +7337,7 @@ var SUBS=[
 
 /* MODULO PRESUPUESTOS */
 /* ══════════════════ 1. PROYECTOS (sub-componente de PresupuestosTab) ══════════════════ */
-function PresProyectosPanel({presupuestos,selPresIdx,setSelPresIdx,data,onChange,estadoColor,estadoLabel,addPresupuesto,addSubProyecto,toggleEstado,delPresupuesto,setTab}){
+function PresProyectosPanel({presupuestos,selPresIdx,setSelPresIdx,data,onChange,estadoColor,estadoLabel,addPresupuesto,addSubProyecto,toggleEstado,cambiarPerfilPais,delPresupuesto,setTab}){
   var editIdxState=useState(null);
   var editIdx=editIdxState[0];
   var setEditIdx=editIdxState[1];
@@ -7363,9 +7379,9 @@ function PresProyectosPanel({presupuestos,selPresIdx,setSelPresIdx,data,onChange
       <div className="sec-hdr" style={{border:'1px solid var(--bdr)',borderRadius:4,padding:'2px 10px',height:25,marginBottom:8,display:'flex',alignItems:'center',justifyContent:'space-between',width:1535}}>
         <span className="title" style={{fontSize:15,lineHeight:'19px'}}>1. CATALOGO DE PROYECTOS</span>
       </div>
-      <div className="xl-wrap" style={{width:1535}}>
+      <div className="xl-wrap" style={{width:1625}}>
         <div className="xl-scroll">
-          <table style={{tableLayout:'fixed',width:'1535px'}}>
+          <table style={{tableLayout:'fixed',width:'1625px'}}>
             <colgroup>
               <col className="col-rn" style={{width:'30px'}}/>
               <col style={{width:'70px'}}/>
@@ -7373,6 +7389,7 @@ function PresProyectosPanel({presupuestos,selPresIdx,setSelPresIdx,data,onChange
               <col style={{width:'220px'}}/>
               <col style={{width:'75px'}}/>
               <col style={{width:'80px'}}/>
+              <col style={{width:'90px'}}/>
               <col style={{width:'110px'}}/>
               <col style={{width:'110px'}}/>
               <col style={{width:'90px'}}/>
@@ -7390,6 +7407,7 @@ function PresProyectosPanel({presupuestos,selPresIdx,setSelPresIdx,data,onChange
               <th>Nombre</th>
               <th style={{whiteSpace:'normal',lineHeight:'1.2'}}>Fecha de Creacion</th>
               <th>Estado</th>
+              <th>País</th>
               <th>Formulario</th>
               <th>Responsable</th>
               <th>Cliente</th>
@@ -7401,7 +7419,7 @@ function PresProyectosPanel({presupuestos,selPresIdx,setSelPresIdx,data,onChange
               <th className="col-act">Acciones</th>
             </tr></thead>
             <tbody>
-              {flatPresupuestos.length===0&&<tr className="empty-row"><td colSpan={15}>{presupuestos.length===0?'Sin proyectos. Agregue uno con "+ Nuevo".':'Sin resultados para el filtro aplicado.'}</td></tr>}
+              {flatPresupuestos.length===0&&<tr className="empty-row"><td colSpan={16}>{presupuestos.length===0?'Sin proyectos. Agregue uno con "+ Nuevo".':'Sin resultados para el filtro aplicado.'}</td></tr>}
               {flatPresupuestos.map(function(row,fi){
                 var p=row.pres,level=row.level;
                 var i=presupuestos.indexOf(p);
@@ -7423,6 +7441,14 @@ function PresProyectosPanel({presupuestos,selPresIdx,setSelPresIdx,data,onChange
                     </td>
                     <td style={{textAlign:'center',fontSize:10}}>{fmtDate(p.fecha_creacion)}</td>
                     <td style={{textAlign:'center'}}><span onClick={function(){toggleEstado(i)}} style={{cursor:'pointer',fontSize:9,padding:'1px 6px',borderRadius:3,border:'1px solid '+estadoColor(p.estado),color:estadoColor(p.estado),fontWeight:600}}>{estadoLabel(p.estado)}</span></td>
+                    <td style={{textAlign:'center'}}>
+                      {p.estado==='borrador'?
+                        <select className="ni sel" value={(p.perfil_pais_snap&&p.perfil_pais_snap.codigo)||''} onChange={function(e){cambiarPerfilPais(i,e.target.value)}} style={{fontSize:9,padding:'1px 2px'}} title={p.perfil_pais_snap?p.perfil_pais_snap.nombre+' ('+p.perfil_pais_snap.moneda+')':''}>
+                          <option value="">—</option>
+                          {((data.config_listas&&data.config_listas.perfiles_pais)||[]).filter(function(pp){return pp.activo!==false}).map(function(pp){return <option key={pp.codigo} value={pp.codigo}>{pp.nombre||pp.codigo}</option>})}
+                        </select>
+                      :<span style={{fontSize:9,color:'var(--tx2)'}} title={p.perfil_pais_snap?p.perfil_pais_snap.nombre+' ('+p.perfil_pais_snap.moneda+')':'Sin perfil'}>{p.perfil_pais_snap?(p.perfil_pais_snap.nombre||p.perfil_pais_snap.codigo):'—'}</span>}
+                    </td>
                     <td style={{textAlign:'center'}}>
                       {p.formulario_original?
                         <span onClick={function(){setSelPresIdx(i);setTab(10)}} title={p.formulario_original.nombre_archivo} style={{cursor:'pointer',fontSize:9,padding:'1px 6px',borderRadius:3,border:'1px solid '+(p.formulario_original.archivo_adjunto?'var(--ok)':'var(--warn)'),color:p.formulario_original.archivo_adjunto?'var(--ok)':'var(--warn)'}}>{p.formulario_original.archivo_adjunto?'✓ Cargado':'⚠ Sin archivo'}</span>
@@ -7898,7 +7924,7 @@ var MAPEO_CAMPOS=[
   {key:'col_vr_total',label:'Vr. Total (a llenar)',requerido:true}
 ];
 function colLetter(i){return i<26?String.fromCharCode(65+i):'A'+String.fromCharCode(65+i-26)}
-function mapeoVacio(){return{fila_inicio:0,col_item:null,col_codigo_1:null,col_codigo_2:null,col_codigo_apu:null,col_descripcion:null,col_unidad:null,col_cantidad:null,col_vr_unitario:null,col_vr_total:null,nombre_mapeo:''}}
+function mapeoVacio(){return{fila_inicio:0,col_item:null,col_codigo_1:null,col_codigo_2:null,col_codigo_apu:null,col_descripcion:null,col_unidad:null,col_cantidad:null,col_vr_unitario:null,col_vr_total:null,col_precio_entidad:null,nombre_mapeo:''}}
 
 /* Banner unificado: reemplaza PresBannerProyecto + sec-hdr por elemento (usado en los 4 sub-tabs de Presupuestos
    cuando ya hay un proyecto seleccionado). Reusa el mismo svg de carpeta y la linea de subproyecto de PresBannerProyecto. */
@@ -7969,11 +7995,13 @@ function PresBannerProyecto({pres,presupuestos,setTab}){
   );
 }
 
-var FORM_TABLE_MAXW=1055; /* debe igualar la suma del colgroup de la tabla de items (fase revision) */
+var FORM_TABLE_MAXW=1145; /* debe igualar la suma del colgroup de la tabla de items (fase revision) */
 var SCROLLBAR_W=16; /* ancho tipico de scrollbar vertical webkit/blink; xl-scroll usa scrollbarGutter:'stable' para reservarlo siempre, asi esta resta es valida haya o no overflow vertical */
 var FORM_TABLE_INNERW=FORM_TABLE_MAXW-2-SCROLLBAR_W; /* xl-wrap tiene border 1px+1px; tabla/footer deben usar el ancho interno real, no el externo, para no forzar scroll horizontal */
 function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModal,setApuModal,apus,categorias_apu,calcItemVal,setTab,estadoLabel,cargosCalc,cargosCalcSnap,personMap,esHora,eqMap,insMap,factorPrest,factorPrestSnap,usarFpEnApu,equipos,insumos,apusBasico}){
   var faseState=useState('inicio');var fase=faseState[0],setFase=faseState[1];
+  var tipoPrecioFormularioState=useState('apu');var tipoPrecioFormulario=tipoPrecioFormularioState[0],setTipoPrecioFormulario=tipoPrecioFormularioState[1];
+  var alarmasPrecioFaltanteState=useState(null);var alarmasPrecioFaltante=alarmasPrecioFaltanteState[0],setAlarmasPrecioFaltante=alarmasPrecioFaltanteState[1];
   var archivoRawState=useState(null);var archivoRaw=archivoRawState[0],setArchivoRaw=archivoRawState[1];
   var nombreArchivoState=useState('');var nombreArchivo=nombreArchivoState[0],setNombreArchivo=nombreArchivoState[1];
   var previewFilasState=useState([]);var previewFilas=previewFilasState[0],setPreviewFilas=previewFilasState[1];
@@ -7994,6 +8022,8 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
 
   useEffect(function(){
     setFase(pres&&(pres.formulario_original||(pres.items||[]).length>0)?'revision':'inicio');
+    setTipoPrecioFormulario((pres&&pres.tipoPrecioFormulario)||'apu');
+    setAlarmasPrecioFaltante(null);
   },[presId]);
 
   if(!pres)return <PresBannerProyecto pres={pres} presupuestos={presupuestos} setTab={setTab}/>;
@@ -8017,7 +8047,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
     var arr=pres.items.slice();
     var insertAt=capIdx+1;
     while(insertAt<arr.length&&!esCapituloFinal(arr[insertAt]))insertAt++;
-    arr.splice(insertAt,0,{id:uid(),num_item:'',capitulo:'',descripcion:'',unidad:'un',cantidad:1,apu_id:null,vr_unitario:0,vr_total:0,tiene_apu:false,alerta_sin_apu:false});
+    arr.splice(insertAt,0,{id:uid(),num_item:'',capitulo:'',descripcion:'',unidad:'un',cantidad:1,apu_id:null,vr_unitario:0,vr_total:0,tiene_apu:false,alerta_sin_apu:false,tipoPrecio:(pres.tipoPrecioFormulario||'apu'),precioEntidad:null});
     saveItems(arr);
     setEditIdx(insertAt);
   };
@@ -8088,10 +8118,20 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
     showToast('APU asignado',{type:'ok',dur:2000});
   };
   function apuKey(a){return a&&(a.id!=null?'id:'+a.id:'cod:'+(a.codigo||''))}
+  var totalDirectoDeApu=function(a){return a?calcAPU(a,cargosCalc,equipos,insumos,apusBasico,herrPct,factorPrest,usarFpEnApu,esHora,personMap,eqMap,insMap).totalDirecto:0};
   var confirmarAsignacion=function(){
     if(!apuSel)return;
     var found=filteredApus().find(function(a){return apuKey(a)===apuSel});
     if(!found)return;
+    var itemActual=apuModal.itemIdx!==null?itemsArr[apuModal.itemIdx]:null;
+    if(itemActual&&itemActual.tipoPrecio==='entidad'){
+      var precioTecho=r2(parseFloat(itemActual.precioEntidad)||0);
+      var costoDirecto=r2(totalDirectoDeApu(found));
+      if(costoDirecto!==precioTecho){
+        showToast('🔴 No se puede asignar: el costo directo del APU ('+fmt(costoDirecto)+') no es igual al precio de la entidad ('+fmt(precioTecho)+'). Ajuste los recursos del APU antes de asignarlo.',{type:'err'});
+        return;
+      }
+    }
     assignApu(found.id);
   };
   var unassignApu=async function(i){
@@ -8099,6 +8139,18 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
     var arr=pres.items.slice();arr[i]=Object.assign({},arr[i],{apu_id:null,tiene_apu:false});
     saveItems(arr);
     showToast('APU removido',{type:'ok',dur:2000});
+  };
+
+  var adjudicarProyecto=async function(){
+    var itemsSinPrecio=(pres.items||[]).filter(function(it){return!esCapituloFinal(it)&&it.tipoPrecio==='entidad'&&(!it.precioEntidad||parseFloat(it.precioEntidad)<=0)});
+    if(itemsSinPrecio.length>0){
+      if(!(await askConfirm('⚠ '+itemsSinPrecio.length+' ítem(s) con precio de entidad sin definir.\nAl adjudicar quedarán con precio $0. ¿Continuar de todas formas?')))return;
+    }
+    if(!(await askConfirm('¿Marcar "'+pres.nombre+'" como Adjudicado?\n\nEsto habilitará la asignación de APU por ítem y bloqueará los precios de entidad para que no puedan modificarse.')))return;
+    var n=presupuestos.slice();
+    n[idxPres]=Object.assign({},n[idxPres],{adjudicado:true,fechaAdjudicacion:new Date().toISOString()});
+    onChange(Object.assign({},data,{presupuestos:n}));
+    showToast('Proyecto adjudicado. Ya puede asignar APU a los ítems.',{type:'ok'});
   };
 
   var mapeosGuardados=(data.config_listas&&data.config_listas.mapeos_formulario)||[];
@@ -8137,7 +8189,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
     setFuenteApu(mg.col_codigo_apu==null||mg.col_codigo_apu===mg.col_item?'item':(mg.col_codigo_apu===mg.col_codigo_1?'codigo_1':'codigo_2'));
   };
 
-  var mapeoValido=MAPEO_CAMPOS.every(function(c){return mapeo[c.key]!=null});
+  var mapeoValido=MAPEO_CAMPOS.every(function(c){return mapeo[c.key]!=null})&&(tipoPrecioFormulario!=='entidad'||mapeo.col_precio_entidad!=null);
 
   var cancelarMapeo=function(){
     setArchivoRaw(null);setPreviewFilas([]);setPreviewMerges([]);setNombreArchivo('');setMapeo(mapeoVacio());
@@ -8170,6 +8222,9 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
       }else{
         var cantRaw=String(fila[mapeoFinal.col_cantidad]||'').trim();
         var cant=parseCantidad(cantRaw);
+        var precioEntidadImport=tipoPrecioFormulario==='entidad'&&mapeoFinal.col_precio_entidad!=null
+          ?(parseFloat(String(fila[mapeoFinal.col_precio_entidad]||'').replace(/[^0-9.,-]/g,'').replace(',',''))||null)
+          :null;
         items.push({
           id:uid(),fila_original:i,es_capitulo:false,es_capitulo_manual:null,
           num_item:String(fila[mapeoFinal.col_item]||'').trim(),
@@ -8180,7 +8235,9 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
           unidad:String(fila[mapeoFinal.col_unidad]||'').trim(),
           cantidad:cant,
           capitulo:capituloActual,
-          apu_id:null,tiene_apu:false,alerta_sin_apu:false
+          apu_id:null,tiene_apu:false,alerta_sin_apu:false,
+          tipoPrecio:tipoPrecioFormulario,
+          precioEntidad:precioEntidadImport
         });
       }
     }
@@ -8195,6 +8252,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
     var idxPres=presupuestos.indexOf(pres);
     n[idxPres]=Object.assign({},n[idxPres],{
       items:items,
+      tipoPrecioFormulario:tipoPrecioFormulario,
       formulario_original:{
         archivo_b64:b64,
         archivo_adjunto:b64!=null,
@@ -8212,6 +8270,12 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
       showToast('Items importados. El archivo original supera 4MB y no se pudo adjuntar — la exportación de "formulario lleno" no estará disponible.',{type:'warn',dur:6000});
     }else{
       showToast('Importado: '+itemsReales.length+' items, '+(items.length-itemsReales.length)+' capitulos detectados. Formulario adjuntado a '+n[idxPres].codigo+'.',{type:'ok',dur:4000});
+    }
+    if(tipoPrecioFormulario==='entidad'){
+      var sinPrecio=itemsReales.filter(function(it){return!it.precioEntidad||it.precioEntidad<=0});
+      setAlarmasPrecioFaltante(sinPrecio.length>0?sinPrecio.map(function(it){return it.num_item||it.codigo_1||it.descripcion}):null);
+    }else{
+      setAlarmasPrecioFaltante(null);
     }
     setArchivoRaw(null);setPreviewFilas([]);setPreviewMerges([]);
     setFase('revision');
@@ -8231,9 +8295,23 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
         <TituloSubTab pres={pres} presupuestos={presupuestos} tituloSubTab="Formulario de Cantidades y Precios"/>
         <div style={{padding:'34px 20px',border:'1px dashed var(--bdr)',borderRadius:4,textAlign:'center',display:'flex',flexDirection:'column',alignItems:'center',gap:12}}>
           <div style={{fontSize:12,color:'var(--tx2)',maxWidth:480,lineHeight:1.5}}>Sube el formulario de presupuesto en Excel (.xlsx) o crea los items directamente. El sistema detecta automáticamente en qué fila empiezan los ítems y cuáles filas son capítulos.</div>
+          <div style={{width:'100%',maxWidth:480,padding:'10px 14px',background:'var(--bg)',border:'1px solid var(--bdr)',borderRadius:4,textAlign:'left'}}>
+            <div style={{fontSize:11,fontWeight:700,color:'var(--tx)',marginBottom:8}}>¿El formulario tiene precios definidos por la entidad contratante?</div>
+            <div style={{display:'flex',gap:20}}>
+              <label style={{fontSize:11,cursor:'pointer',display:'flex',alignItems:'center',gap:4}}>
+                <input type="radio" name="tipoPrecioForm" value="apu" checked={tipoPrecioFormulario==='apu'} onChange={function(){setTipoPrecioFormulario('apu')}}/>
+                No — los precios se calculan desde los APU
+              </label>
+              <label style={{fontSize:11,cursor:'pointer',display:'flex',alignItems:'center',gap:4}}>
+                <input type="radio" name="tipoPrecioForm" value="entidad" checked={tipoPrecioFormulario==='entidad'} onChange={function(){setTipoPrecioFormulario('entidad')}}/>
+                Sí — precios fijos de la entidad (costo directo)
+              </label>
+            </div>
+            {tipoPrecioFormulario==='entidad'&&<div style={{marginTop:6,fontSize:10,color:'#fbbf24'}}>⚠ Los precios de la entidad corresponden al costo directo (sin AIU). Una vez adjudicado el proyecto, no podrán modificarse.</div>}
+          </div>
           <div style={{display:'flex',gap:10}}>
             <button className="btn" onClick={function(){fileRef.current&&fileRef.current.click()}} style={{fontSize:12,padding:'8px 16px',border:'1px solid var(--ok)',borderRadius:4,background:'rgba(74,222,128,.08)',color:'var(--ok)',cursor:'pointer'}}>📥 Subir formulario Excel</button>
-            <button className="btn" onClick={function(){setFase('revision')}} style={{fontSize:12,padding:'8px 16px',border:'1px solid var(--ac)',borderRadius:4,background:'rgba(77,143,247,.06)',color:'var(--ac)',cursor:'pointer'}}>✏ Crear items manualmente</button>
+            <button className="btn" onClick={function(){saveItems(pres.items||[],{tipoPrecioFormulario:tipoPrecioFormulario});setFase('revision')}} style={{fontSize:12,padding:'8px 16px',border:'1px solid var(--ac)',borderRadius:4,background:'rgba(77,143,247,.06)',color:'var(--ac)',cursor:'pointer'}}>✏ Crear items manualmente</button>
           </div>
           <input type="file" ref={fileRef} accept=".xlsx,.xls" style={{display:'none'}} onChange={onFileSelect}/>
         </div>
@@ -8311,6 +8389,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
             {MAPEO_CAMPOS.map(function(c){
               return campoMapeo(c,c.label,c.requerido);
             })}
+            {tipoPrecioFormulario==='entidad'&&campoMapeo({key:'col_precio_entidad'},'Precio Unitario (Entidad)',true)}
           </div>
           <div style={{fontSize:10,fontWeight:700,color:'var(--tx2)',textTransform:'uppercase',marginTop:6}}>Campos opcionales</div>
           <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10}}>
@@ -8379,21 +8458,29 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
           {!readOnly&&<button className="btn" onClick={addCapitulo} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--ok)',borderRadius:4,background:'rgba(74,222,128,.06)',color:'var(--ok)',cursor:'pointer'}}>+ Capitulo</button>}
           {!readOnly&&<button className="btn" onClick={reimportar} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--bdr)',borderRadius:4,background:'none',color:'var(--tx2)',cursor:'pointer'}}>{'↩ '+(fo?'Reimportar':'Subir Excel')}</button>}
           {!readOnly&&<button className="btn" onClick={function(){setShowImportApuPres(true)}} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--ac)',borderRadius:4,background:'rgba(77,143,247,.08)',color:'var(--ac)',cursor:'pointer'}}>📥 Importar APU (Excel)</button>}
+          {!readOnly&&!pres.adjudicado&&<button className="btn" onClick={adjudicarProyecto} style={{fontSize:10,padding:'4px 10px',border:'none',borderRadius:4,background:'var(--ok)',color:'#08120b',fontWeight:700,cursor:'pointer'}}>✓ Marcar como Adjudicado</button>}
+          {pres.adjudicado===true&&<span style={{fontSize:10,color:'var(--ok)'}}>✓ Proyecto adjudicado</span>}
           <button onClick={function(){setTab(14)}} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--bdr)',borderRadius:4,background:'transparent',color:'var(--tx2)',cursor:'pointer'}}>📦 Ver recursos del proyecto</button>
           <input className="ni" placeholder="Buscar item..." value={busq} onChange={function(e){setBusq(e.target.value);setPage(0)}} style={{width:160,height:22,fontSize:10,border:'1px solid var(--ac)',borderRadius:4,marginLeft:8}}/>
           {readOnly&&<span style={{fontSize:10,color:'var(--warn)',marginLeft:8,padding:'2px 8px',border:'1px solid var(--warn)',borderRadius:3}}>Solo lectura (presupuesto {estadoLabel(pres.estado).toLowerCase()})</span>}
         </div>
+        {alarmasPrecioFaltante&&alarmasPrecioFaltante.length>0&&(
+          <div style={{display:'flex',alignItems:'flex-start',gap:10,padding:'8px 14px',borderRadius:4,fontSize:11,lineHeight:1.6,background:'rgba(248,113,113,.08)',border:'1px solid #f87171',color:'#f87171'}}>
+            <span style={{flex:1}}>⚠ {alarmasPrecioFaltante.length} ítem(s) sin precio de entidad definido: {alarmasPrecioFaltante.slice(0,15).join(', ')}{alarmasPrecioFaltante.length>15?'…':''}. Complételos en la columna "Tipo Precio".</span>
+            <button onClick={function(){setAlarmasPrecioFaltante(null)}} style={{background:'none',border:'none',cursor:'pointer',color:'var(--tx3)',fontSize:14,lineHeight:1,padding:'0 2px',flexShrink:0}} title="Cerrar">✕</button>
+          </div>
+        )}
       </div>
       <div className="xl-wrap" style={{flex:'1 1 0',minHeight:0,minWidth:0,display:'flex',flexDirection:'column',boxSizing:'border-box'}}>
         <div className="xl-scroll" style={{overflowX:'auto',flex:'1 1 0',minHeight:0,minWidth:0,maxHeight:'none',scrollbarGutter:'stable'}}>
           <table className="tbl-hanken-test" style={{tableLayout:'fixed',width:FORM_TABLE_INNERW,fontSize:10}}>
             <colgroup>
-              <col style={{width:40}}/><col style={{width:65}}/><col style={{width:100}}/><col style={{width:382}}/><col style={{width:70}}/><col style={{width:80}}/><col style={{width:90}}/><col style={{width:100}}/><col style={{width:110}}/>
+              <col style={{width:40}}/><col style={{width:65}}/><col style={{width:100}}/><col style={{width:382}}/><col style={{width:70}}/><col style={{width:80}}/><col style={{width:90}}/><col style={{width:100}}/><col style={{width:90}}/><col style={{width:110}}/>
             </colgroup>
-            <thead><tr><th>#</th><th style={{textAlign:'center'}}>APU</th><th style={{textAlign:'center'}}>Item</th><th>Descripcion</th><th style={{textAlign:'center'}}>UN</th><th>Cant.</th><th>Vr. Unit</th><th>Vr. Total</th><th className="col-act">Acciones</th></tr></thead>
+            <thead><tr><th>#</th><th style={{textAlign:'center'}}>APU</th><th style={{textAlign:'center'}}>Item</th><th>Descripcion</th><th style={{textAlign:'center'}}>UN</th><th>Cant.</th><th>Vr. Unit</th><th>Vr. Total</th><th style={{textAlign:'center'}}>Tipo Precio</th><th className="col-act">Acciones</th></tr></thead>
             <tbody>
-              {itemsArr.length===0&&<tr className="empty-row"><td colSpan={9}>Sin items.{!readOnly&&' Agrega con "+ Capitulo"'}</td></tr>}
-              {itemsArr.length>0&&itemsFiltrados.length===0&&<tr className="empty-row"><td colSpan={9}>Sin resultados para "{busq}".</td></tr>}
+              {itemsArr.length===0&&<tr className="empty-row"><td colSpan={10}>Sin items.{!readOnly&&' Agrega con "+ Capitulo"'}</td></tr>}
+              {itemsArr.length>0&&itemsFiltrados.length===0&&<tr className="empty-row"><td colSpan={10}>Sin resultados para "{busq}".</td></tr>}
               {itemsPagina.map(function(it){
                 var i=itemsArr.indexOf(it);
                 var c=calcItemVal(it);
@@ -8405,7 +8492,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
                     <td style={{textAlign:'center',color:'#fff'}}>{i+1}</td>
                     <td/>
                     <td style={{color:'#fff',fontWeight:700,textAlign:'center'}}>{isEdit?<input className="ni" value={it.num_item} onChange={function(e){updItem(i,'num_item',e.target.value)}} style={{width:'100%',fontSize:10,background:'transparent',color:'#fff',fontWeight:700,textAlign:'center'}} autoFocus/>:it.num_item}</td>
-                    <td style={{color:'#fff',fontWeight:700,whiteSpace:'normal',wordBreak:'break-word'}} colSpan={5}>{isEdit?<input className="ni" value={it.descripcion} onChange={function(e){updItem(i,'descripcion',e.target.value)}} style={{width:'100%',fontSize:10,background:'transparent',color:'#fff',fontWeight:700}} placeholder="Descripcion"/>:it.descripcion}</td>
+                    <td style={{color:'#fff',fontWeight:700,whiteSpace:'normal',wordBreak:'break-word'}} colSpan={6}>{isEdit?<input className="ni" value={it.descripcion} onChange={function(e){updItem(i,'descripcion',e.target.value)}} style={{width:'100%',fontSize:10,background:'transparent',color:'#fff',fontWeight:700}} placeholder="Descripcion"/>:it.descripcion}</td>
                     <td className="col-act" style={{textAlign:'center',whiteSpace:'nowrap',background:'#1E3A5F',boxSizing:'border-box',height:'inherit'}}>
                       <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100%'}}>
                         <span style={{width:24,display:'inline-flex',justifyContent:'center'}}>{!readOnly&&<button onClick={function(){setEditIdx(isEdit?null:i)}} title="Editar" style={{background:'none',border:'none',cursor:'pointer',padding:0,color:'#fff'}}><IconEdit/></button>}</span>
@@ -8420,18 +8507,30 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
                   <tr key={it.id} onBlur={function(e){if(!e.currentTarget.contains(e.relatedTarget))setEditIdx(null)}}>
                     <td style={{textAlign:'center',color:'var(--tx3)'}}>{i+1}</td>
                     <td style={{textAlign:'center'}}>
-                      {apu?<span style={{fontSize:9,color:'var(--ok)',fontWeight:600}}>{apu.codigo}</span>:<span style={{fontSize:9,color:'var(--err)'}}>Sin asignar</span>}
+                      {it.tipoPrecio==='entidad'&&!pres.adjudicado?
+                        <span style={{fontSize:9,color:'var(--tx3)'}}>— al adjudicar</span>
+                      :apu?<span style={{fontSize:9,color:'var(--ok)',fontWeight:600}}>{apu.codigo}</span>:<span style={{fontSize:9,color:'var(--err)'}}>Sin asignar</span>}
                     </td>
                     <td style={{textAlign:'center'}}>{isEdit?<input className="ni" value={it.num_item} onChange={function(e){updItem(i,'num_item',e.target.value)}} style={{width:'100%',fontSize:10,textAlign:'center'}} autoFocus/>:it.num_item}</td>
                     <td style={{whiteSpace:'normal',wordBreak:'break-word'}}>{isEdit?<input className="ni" value={it.descripcion} onChange={function(e){updItem(i,'descripcion',e.target.value)}} style={{width:'100%',fontSize:10}} placeholder="Descripcion"/>:it.descripcion}</td>
                     <td style={{textAlign:'center'}}>{isEdit?<input className="ni" value={it.unidad} onChange={function(e){updItem(i,'unidad',e.target.value)}} style={{width:'100%',fontSize:10,textAlign:'center'}}/>:it.unidad}</td>
                     <td style={{textAlign:'right'}}>{isEdit?<NumInput step=".01" inputMode="decimal" value={it.cantidad} onChange={function(v){updItem(i,'cantidad',v)}} style={{width:'100%',fontSize:10,textAlign:'right'}} decimals={2}/>:fmt(it.cantidad)}</td>
-                    <td style={{textAlign:'right'}}>{apu?fmt(c.vr_unit):'-'}</td>
-                    <td style={{textAlign:'right',fontWeight:600}}>{apu?fmt(c.vr_total):'-'}</td>
+                    <td style={{textAlign:'right'}}>{(apu||it.tipoPrecio==='entidad')?fmt(c.vr_unit):'-'}</td>
+                    <td style={{textAlign:'right',fontWeight:600}}>{(apu||it.tipoPrecio==='entidad')?fmt(c.vr_total):'-'}</td>
+                    <td style={{textAlign:'center'}}>
+                      <select value={it.tipoPrecio||'apu'} onChange={function(e){updItem(i,'tipoPrecio',e.target.value)}} disabled={readOnly||pres.adjudicado===true} style={{fontSize:9,background:'var(--bg2)',color:'var(--tx)',border:'1px solid var(--bdr)',borderRadius:3,padding:'1px 3px',width:'100%'}}>
+                        <option value="apu">APU</option>
+                        <option value="entidad">Entidad</option>
+                      </select>
+                      {it.tipoPrecio==='entidad'&&(
+                        <input type="number" value={it.precioEntidad==null?'':it.precioEntidad} onChange={function(e){updItem(i,'precioEntidad',e.target.value===''?null:parseFloat(e.target.value)||0)}} disabled={readOnly||pres.adjudicado===true} placeholder="$ precio entidad" style={{marginTop:3,width:'100%',fontSize:9,background:'var(--bg2)',color:'#fbbf24',border:'1px solid #fbbf24',borderRadius:3,padding:'1px 4px'}}/>
+                      )}
+                      {it.tipoPrecio==='entidad'&&!it.precioEntidad&&<div style={{fontSize:8,color:'#f87171',marginTop:2}}>⚠ Sin definir</div>}
+                    </td>
                     <td className="col-act" style={{textAlign:'center',whiteSpace:'nowrap',boxSizing:'border-box',height:'inherit'}}>
                       <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100%'}}>
                         <span style={{width:24,display:'inline-flex',justifyContent:'center'}}>{!readOnly&&<button onClick={function(){setEditIdx(isEdit?null:i)}} title="Editar" style={{background:'none',border:'none',cursor:'pointer',padding:0}}><IconEdit/></button>}</span>
-                        <span style={{width:24,display:'inline-flex',justifyContent:'center'}}>{!readOnly&&(apu?
+                        <span style={{width:24,display:'inline-flex',justifyContent:'center'}}>{!readOnly&&!(it.tipoPrecio==='entidad'&&!pres.adjudicado)&&(apu?
                           <button onClick={function(){unassignApu(i)}} title="Quitar APU" style={{background:'none',border:'none',color:'#f87171',cursor:'pointer',padding:0,fontSize:15,fontWeight:700,verticalAlign:'middle'}}>⊘</button>
                           :<button onClick={function(){openApuModal(i)}} title="Asignar APU" style={{background:'none',border:'none',color:'var(--ac)',cursor:'pointer',padding:0,fontSize:11,fontWeight:700,verticalAlign:'middle'}}>APU</button>
                         )}</span>
@@ -8505,6 +8604,11 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
       })()}
       {apuModal.open&&(function(){
         var itemActual=apuModal.itemIdx!==null?itemsArr[apuModal.itemIdx]:null;
+        var apuSeleccionado=apuSel?filteredApus().find(function(a){return apuKey(a)===apuSel}):null;
+        var esEntidad=itemActual&&itemActual.tipoPrecio==='entidad';
+        var precioTecho=esEntidad?r2(parseFloat(itemActual.precioEntidad)||0):0;
+        var costoDirectoSel=esEntidad&&apuSeleccionado?r2(totalDirectoDeApu(apuSeleccionado)):0;
+        var exacto=esEntidad?costoDirectoSel===precioTecho:true;
         return(
         <div className="modal-overlay" onClick={closeApuModal}>
           <div className="modal-box" style={{width:1530,maxWidth:'97vw',maxHeight:'85vh',display:'flex',flexDirection:'column'}} onClick={function(e){e.stopPropagation()}}>
@@ -8513,6 +8617,17 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
               {itemActual&&<span style={{fontSize:12,fontWeight:700,color:'var(--tx)',marginLeft:12}}>Item {itemActual.num_item} — {itemActual.descripcion} <span style={{fontSize:11,fontWeight:600,color:'var(--tx2)'}}>&middot; Unidad: {itemActual.unidad} &middot; Cant: {fmt(itemActual.cantidad)}</span></span>}
               <button onClick={closeApuModal} style={{background:'none',border:'none',cursor:'pointer',padding:2,color:'var(--ok)'}}><IconX/></button>
             </div>
+            {esEntidad&&(
+              <div style={{padding:'6px 14px',display:'flex',alignItems:'center',gap:16,flexWrap:'wrap',fontSize:11,
+                background:!apuSeleccionado?'transparent':exacto?'rgba(74,222,128,.08)':'rgba(248,113,113,.12)',
+                borderBottom:'1px solid '+(!apuSeleccionado?'var(--bdr)':exacto?'var(--ok)':'#f87171')}}>
+                <span style={{color:'var(--tx2)'}}>🎯 Precio techo (entidad): <strong style={{color:'#fbbf24'}}>{fmt(precioTecho)}</strong></span>
+                {apuSeleccionado&&<span style={{color:exacto?'var(--ok)':'#f87171'}}>Costo directo del APU seleccionado: <strong>{fmt(costoDirectoSel)}</strong></span>}
+                {apuSeleccionado&&<span style={{fontWeight:700,color:exacto?'var(--ok)':'#f87171'}}>
+                  {exacto?'🟢 Igual al precio de la entidad':costoDirectoSel>precioTecho?'🔴 EXCEDE en '+fmt(costoDirectoSel-precioTecho):'🔴 Falta '+fmt(precioTecho-costoDirectoSel)+' para igualar'}
+                </span>}
+              </div>
+            )}
             <div className="modal-body" style={{display:'flex',gap:10,flex:1,minHeight:0}}>
               <div style={{width:590,flexShrink:0,display:'flex',flexDirection:'column',minHeight:0,gap:8}}>
                 <div style={{display:'flex',gap:6,alignItems:'center'}}>
@@ -8549,7 +8664,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
             </div>
             <div className="modal-foot">
               <button className="btn" onClick={closeApuModal} style={{fontSize:11,padding:'6px 14px',border:'1px solid var(--bdr)',borderRadius:4,background:'none',color:'var(--tx2)',cursor:'pointer'}}>Cancelar</button>
-              <button className="btn" disabled={!apuSel} onClick={confirmarAsignacion} style={{fontSize:11,padding:'6px 14px',border:'1px solid var(--ok)',borderRadius:4,color:apuSel?'var(--ok)':'var(--tx3)',background:apuSel?'rgba(74,222,128,.08)':'transparent',cursor:apuSel?'pointer':'not-allowed'}}>✓ Asignar este APU</button>
+              <button className="btn" disabled={!apuSel||!exacto} onClick={confirmarAsignacion} style={{fontSize:11,padding:'6px 14px',border:'1px solid var(--ok)',borderRadius:4,color:(apuSel&&exacto)?'var(--ok)':'var(--tx3)',background:(apuSel&&exacto)?'rgba(74,222,128,.08)':'transparent',cursor:(apuSel&&exacto)?'pointer':'not-allowed'}} title={esEntidad&&!exacto?'El costo directo del APU debe ser exactamente igual al precio de la entidad':''}>✓ Asignar este APU</button>
             </div>
           </div>
         </div>
@@ -8565,6 +8680,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
    la tabla propia de solo-lectura de la iteracion anterior (Paridad_Columnas_Completa_Visor).
    Mismo patron que crearRepositorio() del importador. */
 function crearDataAdapterProyecto(pres,data,presupuestos,selPresIdx,onChangeReal){
+  if(!pres)return{data:data,onChange:onChangeReal};
   var CAMPO_PRECIO={insumos:'costo_unitario',equipos:'costo_hora',cargos:'num_salarios_base'};
   var dataAdaptado=Object.assign({},data,{
     insumos:pres.insumos_snap||[],
@@ -8950,6 +9066,16 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
           <button onClick={function(){setMensajeActualizacion(null)}} style={{background:'none',border:'none',cursor:'pointer',color:'var(--tx3)',fontSize:14,lineHeight:1,padding:'0 2px',flexShrink:0}} title="Cerrar">✕</button>
         </div>
       )}
+      {(function(){
+        if(!pres.adjudicado)return null;
+        var pendientes=(pres.items||[]).filter(function(it){return!esCapituloFinal(it)&&it.tipoPrecio==='entidad'&&!it.apu_id});
+        if(!pendientes.length)return null;
+        return(
+          <div style={{padding:'8px 14px',marginTop:8,borderRadius:4,background:'rgba(251,191,36,.08)',border:'1px solid #fbbf24',fontSize:11,color:'#fbbf24',flex:'0 0 auto'}}>
+            ⚠ <strong>{pendientes.length} ítem(s)</strong> con precio fijo de entidad sin APU asignado. Vaya al Formulario de Cantidades y Precios para asignarlos.
+          </div>
+        );
+      })()}
       <div style={{display:'flex',gap:6,margin:'8px 0',flex:'0 0 auto'}}>
         {TABS_PROYECTO.map(function(t){
           return(
@@ -9220,16 +9346,17 @@ function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,i
     return (pres&&pres.factores_snap&&pres.factores_snap.length)?r2((pres.factores_snap||[]).reduce(function(s,f){return s+safeFloat(f.factor)},0)):factorPrest;
   },[pres&&pres.factores_snap,factorPrest]);
   var cargosCalcSnap=useMemo(function(){
-    return (pres&&pres.cargos_snap&&pres.cargos_snap.length)?calcCargosDesde(pres.cargos_snap,config,data.config_listas,factorPrestSnap):cargosCalc;
-  },[pres&&pres.cargos_snap,config,data.config_listas,factorPrestSnap,cargosCalc]);
+    return (pres&&pres.cargos_snap&&pres.cargos_snap.length)?calcCargosDesde(pres.cargos_snap,configDesdePres(pres,config),data.config_listas,factorPrestSnap):cargosCalc;
+  },[pres,pres&&pres.cargos_snap,pres&&pres.perfil_pais_snap,config,data.config_listas,factorPrestSnap,cargosCalc]);
   var insumosSnapEfectivo=(pres&&pres.insumos_snap&&pres.insumos_snap.length)?pres.insumos_snap:insumos;
   var equiposSnapEfectivo=(pres&&pres.equipos_snap&&pres.equipos_snap.length)?pres.equipos_snap:equipos;
   var insMapSnap=useMemo(function(){return new Map(insumosSnapEfectivo.map(function(i){return[i.id,i]}))},[insumosSnapEfectivo]);
   var eqMapSnap=useMemo(function(){return new Map(equiposSnapEfectivo.map(function(e){return[e.id,e]}))},[equiposSnapEfectivo]);
   var personMapSnapCargos=useMemo(function(){return new Map(cargosCalcSnap.map(function(c){return[c.id,c]}))},[cargosCalcSnap]);
   var cuadrillasCalcSnap=useMemo(function(){
-    return (pres&&pres.cuadrillas_snap&&pres.cuadrillas_snap.length)?calcCuadrillasDesde(pres.cuadrillas_snap,personMapSnapCargos,config,factorPrestSnap,esHora):cuadrillasCalc;
-  },[pres&&pres.cuadrillas_snap,personMapSnapCargos,config,factorPrestSnap,cuadrillasCalc,esHora]);
+    var esHoraPres=esHoraDesdePres(pres,data.config_listas&&data.config_listas.perfiles_pais,esHora);
+    return (pres&&pres.cuadrillas_snap&&pres.cuadrillas_snap.length)?calcCuadrillasDesde(pres.cuadrillas_snap,personMapSnapCargos,configDesdePres(pres,config),factorPrestSnap,esHoraPres):cuadrillasCalc;
+  },[pres,pres&&pres.cuadrillas_snap,pres&&pres.perfil_pais_snap,personMapSnapCargos,config,data.config_listas,factorPrestSnap,cuadrillasCalc,esHora]);
   var personMapSnap=useMemo(function(){
     var m=new Map(cargosCalcSnap.map(function(c){return[c.id,c]}));
     cuadrillasCalcSnap.forEach(function(c){m.set(c.id,c)});
@@ -9264,7 +9391,8 @@ function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,i
       insumos_snap:(data.insumos||[]).map(function(i){return Object.assign({},i)}),
       equipos_snap:(data.equipos||[]).map(function(e){return Object.assign({},e)}),
       cuadrillas_snap:(data.cuadrillas||[]).map(function(c){return Object.assign({},c)}),
-      apus_snap:[]
+      apus_snap:[],
+      perfil_pais_snap:Object.assign({},getPaisData(config.pais,data.config_listas&&data.config_listas.perfiles_pais))
     };
     var n=presupuestos.concat([nuevo]);
     onChange(Object.assign({},data,{presupuestos:n}));
@@ -9287,7 +9415,8 @@ function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,i
       insumos_snap:(data.insumos||[]).map(function(i){return Object.assign({},i)}),
       equipos_snap:(data.equipos||[]).map(function(e){return Object.assign({},e)}),
       cuadrillas_snap:(data.cuadrillas||[]).map(function(c){return Object.assign({},c)}),
-      apus_snap:[]
+      apus_snap:[],
+      perfil_pais_snap:parent.perfil_pais_snap?Object.assign({},parent.perfil_pais_snap):Object.assign({},getPaisData(config.pais,data.config_listas&&data.config_listas.perfiles_pais))
     };
     var n=presupuestos.concat([nuevo]);
     onChange(Object.assign({},data,{presupuestos:n}));
@@ -9331,6 +9460,18 @@ function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,i
     showToast('Estado: '+estadoLabel(next),{type:'ok',dur:1800});
   }
 
+  var cambiarPerfilPais=async function(idx,nuevoCodigo){
+    var p=presupuestos[idx];
+    if(!p)return;
+    if(p.estado!=='borrador'){showToast('El perfil de país solo puede cambiarse en estado borrador.',{type:'warn'});return}
+    if(!(await askConfirm('¿Cambiar el perfil de país de este proyecto?\n\nEsto recalculará los costos de personal y APU con los nuevos parámetros.\nLos precios de insumos y equipos no se modifican.')))return;
+    var nuevoPerfil=getPaisData(nuevoCodigo,data.config_listas&&data.config_listas.perfiles_pais);
+    var n=presupuestos.slice();
+    n[idx]=Object.assign({},p,{perfil_pais_snap:nuevoPerfil?Object.assign({},nuevoPerfil):null});
+    onChange(Object.assign({},data,{presupuestos:n}));
+    showToast('Perfil de país actualizado. Los costos han sido recalculados.',{type:'ok'});
+  };
+
   function saveEditForm(){
     if(!editPresForm||editPresForm.idx===null||editPresForm.idx===undefined)return;
     if(!editPresForm.nombre||!editPresForm.nombre.trim()){showToast('El nombre es obligatorio',{type:'err',dur:2500});return;}
@@ -9356,6 +9497,17 @@ function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,i
       (safeFloat(config.pct_administracion)||0)+(safeFloat(config.pct_imprevistos)||0)+(safeFloat(config.pct_utilidad)||0);
     var snap=(pres&&pres.apus_snap)||[];
     itemsArr.forEach(function(item){
+      if(item.tipoPrecio==='entidad'){
+        var vrUnitEnt=parseFloat(item.precioEntidad)||0;
+        var apuEnt=null;
+        if(item.apu_id){
+          for(var e=0;e<snap.length;e++){if(snap[e].id===item.apu_id){apuEnt=snap[e];break}}
+          if(!apuEnt){for(var f=0;f<apus.length;f++){if(apus[f].id===item.apu_id){apuEnt=apus[f];break}}}
+        }
+        var calcEnt=apuEnt?calcAPU(apuEnt,cargosCalcSnap,equiposSnapEfectivo,insumosSnapEfectivo,abCalcList,herrPct,factorPrestSnap,usarFpEnApu,esHora,personMapSnap,eqMapSnap,insMapSnap):null;
+        map.set(item.id,{vr_unit:vrUnitEnt,vr_total:r2(vrUnitEnt*safeFloat(item.cantidad)),apu:apuEnt,calc:calcEnt});
+        return;
+      }
       if(!item.apu_id){map.set(item.id,{vr_unit:0,vr_total:0,apu:null,calc:null});return}
       var apu=null;
       for(var i=0;i<snap.length;i++){if(snap[i].id===item.apu_id){apu=snap[i];break}}
@@ -9402,11 +9554,12 @@ function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,i
   /* ── Calculo de item/resumen para un presupuesto arbitrario (usado en export consolidado de sub-proyectos) ── */
   function buildSnapCtx(p){
     var factorPrestSnapP=(p&&p.factores_snap&&p.factores_snap.length)?r2((p.factores_snap||[]).reduce(function(s,f){return s+safeFloat(f.factor)},0)):factorPrest;
-    var cargosCalcSnapP=(p&&p.cargos_snap&&p.cargos_snap.length)?calcCargosDesde(p.cargos_snap,config,data.config_listas,factorPrestSnapP):cargosCalc;
+    var cargosCalcSnapP=(p&&p.cargos_snap&&p.cargos_snap.length)?calcCargosDesde(p.cargos_snap,configDesdePres(p,config),data.config_listas,factorPrestSnapP):cargosCalc;
     var insumosSnapP=(p&&p.insumos_snap&&p.insumos_snap.length)?p.insumos_snap:insumos;
     var equiposSnapP=(p&&p.equipos_snap&&p.equipos_snap.length)?p.equipos_snap:equipos;
     var personMapSnapCargosP=new Map(cargosCalcSnapP.map(function(c){return[c.id,c]}));
-    var cuadrillasCalcSnapP=(p&&p.cuadrillas_snap&&p.cuadrillas_snap.length)?calcCuadrillasDesde(p.cuadrillas_snap,personMapSnapCargosP,config,factorPrestSnapP,esHora):cuadrillasCalc;
+    var esHoraP=esHoraDesdePres(p,data.config_listas&&data.config_listas.perfiles_pais,esHora);
+    var cuadrillasCalcSnapP=(p&&p.cuadrillas_snap&&p.cuadrillas_snap.length)?calcCuadrillasDesde(p.cuadrillas_snap,personMapSnapCargosP,configDesdePres(p,config),factorPrestSnapP,esHoraP):cuadrillasCalc;
     var personMapSnapP=new Map(cargosCalcSnapP.map(function(c){return[c.id,c]}));
     cuadrillasCalcSnapP.forEach(function(c){personMapSnapP.set(c.id,c)});
     return{
@@ -9462,7 +9615,7 @@ function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,i
     :tab===12?<PresResumenPanel pres={pres} presupuestos={presupuestos} selPresIdx={selPresIdx} data={data} onChange={onChange} calcResumenPres={calcResumenPres} setTab={setTab}/>
     :tab===13?<PresEntregablesPanel pres={pres} presupuestos={presupuestos} calcResumenPres={calcResumenPres} calcItemVal={calcItemVal} calcResumenFor={calcResumenFor} calcItemValFor={calcItemValFor} buildSnapCtx={buildSnapCtx} setTab={setTab}/>
     :tab===14?<PresCatalogoProyectoPanel pres={pres} presupuestos={presupuestos} selPresIdx={selPresIdx} data={data} onChange={onChange} cargosCalcSnap={cargosCalcSnap} cuadrillasCalcSnap={cuadrillasCalcSnap} equiposSnapEfectivo={equiposSnapEfectivo} insumosSnapEfectivo={insumosSnapEfectivo} factorPrestSnap={factorPrestSnap} personMapSnap={personMapSnap} eqMapSnap={eqMapSnap} insMapSnap={insMapSnap} herrPct={herrPct} usarFpEnApu={usarFpEnApu} esHora={esHora} abCalcList={abCalcList} apusBasico={apusBasico} provMap={provMap} _unidades={_unidades}/>
-    :<PresProyectosPanel presupuestos={presupuestos} selPresIdx={selPresIdx} setSelPresIdx={setSelPresIdx} data={data} onChange={onChange} estadoColor={estadoColor} estadoLabel={estadoLabel} addPresupuesto={addPresupuesto} addSubProyecto={addSubProyecto} toggleEstado={toggleEstado} delPresupuesto={delPresupuesto} setTab={setTab}/>;
+    :<PresProyectosPanel presupuestos={presupuestos} selPresIdx={selPresIdx} setSelPresIdx={setSelPresIdx} data={data} onChange={onChange} estadoColor={estadoColor} estadoLabel={estadoLabel} addPresupuesto={addPresupuesto} addSubProyecto={addSubProyecto} toggleEstado={toggleEstado} cambiarPerfilPais={cambiarPerfilPais} delPresupuesto={delPresupuesto} setTab={setTab}/>;
 
   return(
     <div style={{display:'flex',gap:16,alignItems:'flex-start'}}>
@@ -9481,6 +9634,32 @@ function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,i
   );
 }
 
+/* Deriva el config efectivo de un proyecto a partir de su perfil de pais congelado
+   (pres.perfil_pais_snap). Sin snap (proyectos legados o sin perfil elegido), cae al
+   config global sin cambios — compatibilidad hacia atras. Incluye 'pais' para que
+   calcCargosDesde derive su propio esHora interno (getPaisData(config.pais,...))
+   contra el pais del proyecto, no el global. */
+function configDesdePres(pres,configGlobal){
+  var snap=pres&&pres.perfil_pais_snap;
+  if(!snap)return configGlobal;
+  return Object.assign({},configGlobal,{
+    pais:snap.codigo||configGlobal.pais,
+    horas_mes:snap.horas_mes||configGlobal.horas_mes,
+    dias_mes:snap.dias_mes||configGlobal.dias_mes,
+    jornada_diaria:snap.jornada_diaria||configGlobal.jornada_diaria,
+    usar_fp:snap.usar_fp!==undefined?snap.usar_fp:configGlobal.usar_fp,
+    moneda:snap.moneda||configGlobal.moneda,
+    simbolo:snap.simbolo||configGlobal.simbolo
+  });
+}
+/* esHora del proyecto segun su perfil de pais congelado (mismo criterio que calcCargosDesde
+   usa internamente via getPaisData) — necesario porque calcCuadrillasDesde recibe esHora
+   como parametro explicito, no lo deriva solo. Sin snap, cae al esHora global. */
+function esHoraDesdePres(pres,perfilesPais,esHoraGlobal){
+  var snap=pres&&pres.perfil_pais_snap;
+  if(!snap)return esHoraGlobal;
+  return getPaisData(snap.codigo,perfilesPais).unidad==='hora';
+}
 function calcCargosDesde(cargosArr,config,configListas,factorPrestValue){
   var sb=config.salario_base||1750905;
   var dias=config.dias_mes||30;

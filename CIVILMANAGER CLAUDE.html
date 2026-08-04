@@ -3264,6 +3264,10 @@ function analizarActualizacionCatalogo(pres,data){
       var nombreGlobal=(enGlobalPorCodigo.nombre||enGlobalPorCodigo.descripcion||'').trim();
       var score=similitudNombre(nombreSnap,nombreGlobal);
       if(score>=UMBRAL_AMARILLO){
+        var precioIgual=(parseFloat(snapReg[campoPrecio])||0)===(parseFloat(enGlobalPorCodigo[campoPrecio])||0);
+        var nombreIgual=nombreSnap===nombreGlobal;
+        var unIgual=(snapReg.unidad||'').trim().toLowerCase()===(enGlobalPorCodigo.unidad||'').trim().toLowerCase();
+        if(precioIgual&&nombreIgual&&unIgual)return; // ya sincronizado: no hay nada que revisar
         var nivel=score>=UMBRAL_VERDE?'verde':'amarillo';
         porCodigo.push({tipo:tipo,id:id,snapReg:snapReg,globalReg:enGlobalPorCodigo,campoPrecio:campoPrecio,precioNuevo:enGlobalPorCodigo[campoPrecio],apus:apus,score:score,nivelConfianza:nivel});
         return;
@@ -8605,15 +8609,21 @@ var TABS_PROYECTO=[
   {tipo:'apus',label:'APU'}
 ];
 
-var ACCION_INFO={
-  precio_cat_proy:{label:'💲 Precio: Catálogo → Proyecto',desc:'El precio del catálogo general reemplaza el precio del proyecto. Nombre, unidad y categoría sin cambios. Es la acción más común para mantener costos actualizados.',dir:'cat_proy'},
-  precio_proy_cat:{label:'💲 Precio: Proyecto → Catálogo',desc:'El precio del proyecto reemplaza el del catálogo general. Útil cuando el proyecto tiene un precio más reciente o negociado. ⚠ Modifica el catálogo general — afecta todos los proyectos que usen este recurso.',dir:'proy_cat'},
-  nombre_cat_proy:{label:'📝 Nombre/UN/Cat: Catálogo → Proyecto',desc:'El nombre, unidad y categoría del catálogo reemplazan los del proyecto. El precio no se toca. Útil para estandarizar la descripción del proyecto con la nomenclatura del catálogo.',dir:'cat_proy'},
-  nombre_proy_cat:{label:'📝 Nombre/UN/Cat: Proyecto → Catálogo',desc:'El nombre, unidad y categoría del proyecto reemplazan los del catálogo general. Útil cuando la descripción del proyecto es más completa o técnicamente precisa. ⚠ Modifica el catálogo general — afecta todos los proyectos que usen este recurso.',dir:'proy_cat'},
-  todo_cat_proy:{label:'⬇ Todo: Catálogo → Proyecto',desc:'Sincronización completa — precio, nombre, unidad y categoría del catálogo hacia el proyecto. El recurso del proyecto queda idéntico al del catálogo general.',dir:'cat_proy'},
-  todo_proy_cat:{label:'⬆ Todo: Proyecto → Catálogo',desc:'Sincronización completa en dirección inversa — todos los campos del proyecto reemplazan los del catálogo general. Es la acción de mayor impacto. ⚠ Modifica el catálogo general — afecta todos los proyectos que usen este recurso.',dir:'proy_cat'},
-  codigo_cat_proy:{label:'📋 Código: Catálogo → Proyecto',desc:'El código del catálogo general reemplaza el código visible del recurso en el proyecto. El precio y nombre no se modifican. Solo disponible en dirección Catálogo → Proyecto para proteger la integridad del catálogo general. ⚠ Se actualizará en todos los ítems afectados.',dir:'cat_proy'}
+var FIRMA_LABEL={
+  'precio':'💲 Solo precio diferente',
+  'nombre':'📝 Solo nombre diferente',
+  'unidad':'📐 Solo unidad diferente',
+  'codigo':'🔑 Solo código diferente',
+  'precio+nombre':'💲📝 Precio y nombre diferentes',
+  'precio+unidad':'💲📐 Precio y unidad diferentes',
+  'precio+codigo':'💲🔑 Precio y código diferentes',
+  'precio+nombre+unidad':'💲📝📐 Precio, nombre y unidad diferentes',
+  'nombre+unidad':'📝📐 Nombre y unidad diferentes',
+  'nombre+codigo':'📝🔑 Nombre y código diferentes',
+  'unidad+codigo':'📐🔑 Unidad y código diferentes',
+  'precio+nombre+unidad+codigo':'💲📝📐🔑 Todos los campos diferentes'
 };
+function etiquetaFirma(firma){return FIRMA_LABEL[firma]||'⚠ Múltiples diferencias ('+firma+')'};
 
 function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
   cargosCalcSnap,cuadrillasCalcSnap,equiposSnapEfectivo,insumosSnapEfectivo,factorPrestSnap,personMapSnap,
@@ -8635,28 +8645,161 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
   var analisis=useMemo(function(){return analizarActualizacionCatalogo(pres,data)},[pres,data]);
   var[revisionCodigo,setRevisionCodigo]=useState(null); // [{tipo,id,snapReg,globalReg,campoPrecio,precioNuevo,apus}]
   var[revisionMsg,setRevisionMsg]=useState(null); // banner fijo bajo el titulo del panel de revision por codigo
-  var[dropdownAbierto,setDropdownAbierto]=useState(null); // {itemId,top,left,width} — portal a document.body, evita el recorte del contenedor con overflow:auto
-  var[opcionHover,setOpcionHover]=useState(null); // key de ACCION_INFO bajo el cursor dentro del dropdown
-  React.useEffect(function(){
-    if(!dropdownAbierto)return;
-    function handleClickFuera(e){
-      if(!e.target.closest('.accion-dropdown')&&!e.target.closest('.accion-dropdown-trigger')){
-        setDropdownAbierto(null);setOpcionHover(null);
-      }
-    }
-    document.addEventListener('mousedown',handleClickFuera);
-    return function(){document.removeEventListener('mousedown',handleClickFuera)};
-  },[dropdownAbierto]);
+  var[mensajeActualizacion,setMensajeActualizacion]=useState(null); // {tipo,texto} — mensaje inline bajo los botones (reemplaza toast de sincronizar)
+  React.useEffect(function(){setMensajeActualizacion(null)},[selPresIdx]);
+  var[selecciones,setSelecciones]=useState({}); // {[itemId]:{precio,nombre,unidad,codigo}} — decision 'proy'|'cat'|null por campo
   var[panelHuerfanos,setPanelHuerfanos]=useState(null); // [{tipo,id,snapReg,apus}]
   var[buscarPara,setBuscarPara]=useState(null); // {tipo,id} — item del panel de huerfanos en modo "Buscar"
 
   var nombreRecurso=function(reg){return reg&&(reg.nombre||reg.descripcion)||'—'};
   var etiquetaTipo={insumo:'Insumo',equipo:'Equipo',cargo:'Personal'};
 
+  /* Diferencias campo a campo entre el recurso del proyecto (snapReg) y su equivalente
+     por codigo en el catalogo general (globalReg). Solo aplica a items de revisionCodigo
+     (porCodigo) — snapReg/globalReg siempre presentes ahi. No hay campo 'un': el campo
+     real de unidad en insumos/equipos es 'unidad' (cargos no tienen unidad). */
+  var calcularDiff=function(it){
+    var nombreSnap=(it.snapReg.nombre||it.snapReg.descripcion||'').trim();
+    var nombreGlobal=(it.globalReg.nombre||it.globalReg.descripcion||'').trim();
+    var precioSnap=parseFloat(it.snapReg[it.campoPrecio])||0;
+    var precioGlobal=parseFloat(it.globalReg[it.campoPrecio])||0;
+    return{
+      precio:precioSnap!==precioGlobal,
+      nombre:nombreSnap!==nombreGlobal,
+      unidad:(it.snapReg.unidad||'').trim().toLowerCase()!==(it.globalReg.unidad||'').trim().toLowerCase(),
+      codigo:(it.snapReg.codigo||'').trim().toLowerCase()!==(it.globalReg.codigo||'').trim().toLowerCase()
+    };
+  };
+  var ESTILO_DIFF={background:'rgba(251,191,36,.15)',border:'1px solid rgba(251,191,36,.4)'};
+  var tdDiff=function(esDiff,overrides){return esDiff?Object.assign({},MOD_TD,overrides,ESTILO_DIFF):Object.assign({},MOD_TD,overrides)};
+
+  var calcularFirma=function(it){
+    var diff=calcularDiff(it);
+    var partes=[];
+    if(diff.precio)partes.push('precio');
+    if(diff.nombre)partes.push('nombre');
+    if(diff.unidad)partes.push('unidad');
+    if(diff.codigo)partes.push('codigo');
+    return partes.join('+')||'sin-diferencias';
+  };
+  var agruparPorFirma=function(items){
+    var grupos={};
+    (items||[]).forEach(function(it){
+      var firma=calcularFirma(it);
+      if(!grupos[firma])grupos[firma]={firma:firma,items:[]};
+      grupos[firma].items.push(it);
+    });
+    return Object.values(grupos).sort(function(a,b){return b.items.length-a.items.length});
+  };
+  var seleccionDefault=function(it){
+    var diff=calcularDiff(it);
+    return{precio:diff.precio?'cat':null,nombre:diff.nombre?'proy':null,unidad:diff.unidad?'proy':null,codigo:diff.codigo?'proy':null};
+  };
+  var setSel=function(itemId,campo,valor){
+    setSelecciones(function(prev){
+      var it=(revisionCodigo||[]).find(function(x){return x.id===itemId});
+      var actual=prev[itemId]||(it?seleccionDefault(it):{});
+      return Object.assign({},prev,{[itemId]:Object.assign({},actual,{[campo]:valor})});
+    });
+  };
+  var aplicarDecisionGrupo=function(grupo,campo,valor){
+    setSelecciones(function(prev){
+      var nuevo=Object.assign({},prev);
+      grupo.items.forEach(function(it){
+        var actual=nuevo[it.id]||seleccionDefault(it);
+        nuevo[it.id]=Object.assign({},actual,{[campo]:valor});
+      });
+      return nuevo;
+    });
+  };
+  /* Calcula (sin persistir) los campos a mover para un recurso segun su seleccion, y
+     aplica el cambio sobre los acumuladores dataAcc/presAcc que se le pasan — permite
+     que aplicarGrupo encadene varios recursos en un solo nuevoData/onChange en vez de
+     una llamada por recurso (que pisaria cambios previos con datos obsoletos). */
+  var _construirCambioItem=function(it,sel,dataAcc,presAcc){
+    var arrGlobal={insumo:'insumos',equipo:'equipos',cargo:'cargos'}[it.tipo];
+    var arrSnap={insumo:'insumos_snap',equipo:'equipos_snap',cargo:'cargos_snap'}[it.tipo];
+    if(!arrGlobal)return{dataAcc:dataAcc,presAcc:presAcc};
+    var camposACat=[],camposAProy=[];
+    if(sel.precio==='cat')camposACat.push(it.campoPrecio);
+    if(sel.nombre==='cat')camposACat=camposACat.concat(['nombre','descripcion']);
+    if(sel.unidad==='cat')camposACat.push('unidad');
+    if(sel.codigo==='cat')camposACat.push('codigo');
+    if(sel.precio==='proy')camposAProy.push(it.campoPrecio);
+    if(sel.nombre==='proy')camposAProy=camposAProy.concat(['nombre','descripcion']);
+    if(sel.unidad==='proy')camposAProy.push('unidad');
+    if(sel.codigo==='proy')camposAProy.push('codigo');
+    if(camposACat.length===0&&camposAProy.length===0)return{dataAcc:dataAcc,presAcc:presAcc};
+    var nuevoData=dataAcc,nuevoPres=presAcc;
+    if(camposACat.length>0){
+      var snapArr=(nuevoPres[arrSnap]||[]).slice();
+      var idx=snapArr.findIndex(function(r){return r.id===it.id});
+      if(idx!==-1){
+        var updated=Object.assign({},snapArr[idx]);
+        camposACat.forEach(function(c){if(it.globalReg[c]!==undefined)updated[c]=(c===it.campoPrecio)?(parseFloat(it.globalReg[c])||0):it.globalReg[c]});
+        snapArr[idx]=updated;
+        nuevoPres=Object.assign({},nuevoPres,{[arrSnap]:snapArr});
+      }
+    }
+    if(camposAProy.length>0){
+      var catArr=(nuevoData[arrGlobal]||[]).slice();
+      var idxCat=catArr.findIndex(function(r){return r.id===it.globalReg.id});
+      if(idxCat!==-1){
+        var updatedCat=Object.assign({},catArr[idxCat]);
+        camposAProy.forEach(function(c){if(it.snapReg[c]!==undefined)updatedCat[c]=(c===it.campoPrecio)?(parseFloat(it.snapReg[c])||0):it.snapReg[c]});
+        catArr[idxCat]=updatedCat;
+        nuevoData=Object.assign({},nuevoData,{[arrGlobal]:catArr});
+      }
+    }
+    return{dataAcc:nuevoData,presAcc:nuevoPres};
+  };
+  var _removerDelPanel=function(itsAplicados){
+    setRevisionCodigo(function(prev){
+      var rest=(prev||[]).filter(function(x){return!itsAplicados.some(function(it){return it.id===x.id&&it.tipo===x.tipo})});
+      if(!rest.length){setRevisionMsg(null);if(prev&&prev.length)showToast('✓ Todos los recursos han sido revisados.',{type:'ok'})}
+      return rest.length?rest:null;
+    });
+  };
+  var _aplicarSinConfirmar=function(it,sel){
+    var r=_construirCambioItem(it,sel,data,pres);
+    if(r.dataAcc===data&&r.presAcc===pres)return; // nada que aplicar
+    var presupuestosNuevo=presupuestos.slice();
+    presupuestosNuevo[selPresIdx]=r.presAcc;
+    onChange(Object.assign({},r.dataAcc,{presupuestos:presupuestosNuevo}));
+    _removerDelPanel([it]);
+  };
+  var aplicarIndividual=async function(it,sel){
+    if(sel.precio==='proy'||sel.nombre==='proy'||sel.unidad==='proy'||sel.codigo==='proy'){
+      var nombreRecIt=it.snapReg.nombre||it.snapReg.descripcion||it.id;
+      if(!(await askConfirm('Va a modificar el catálogo general con datos del proyecto actual.\nEsto afectará a todos los proyectos que usen "'+nombreRecIt+'".\n¿Continuar?')))return;
+    }
+    _aplicarSinConfirmar(it,sel);
+  };
+  var aplicarGrupo=async function(grupo){
+    var algunoProyCat=grupo.items.some(function(it){
+      var sel=selecciones[it.id]||seleccionDefault(it);
+      return sel.precio==='proy'||sel.nombre==='proy'||sel.unidad==='proy'||sel.codigo==='proy';
+    });
+    if(algunoProyCat){
+      if(!(await askConfirm('Algunos recursos del grupo modificarán el catálogo general.\nEsto afectará todos los proyectos que usen esos recursos. ¿Continuar?')))return;
+    }
+    var dataAcc=data,presAcc=pres;
+    grupo.items.forEach(function(it){
+      var sel=selecciones[it.id]||seleccionDefault(it);
+      var r=_construirCambioItem(it,sel,dataAcc,presAcc);
+      dataAcc=r.dataAcc;presAcc=r.presAcc;
+    });
+    if(dataAcc===data&&presAcc===pres)return; // nada seleccionado en el grupo
+    var presupuestosNuevo=presupuestos.slice();
+    presupuestosNuevo[selPresIdx]=presAcc;
+    onChange(Object.assign({},dataAcc,{presupuestos:presupuestosNuevo}));
+    _removerDelPanel(grupo.items);
+  };
+
   var sincronizar=async function(){
     var an=analisis;
     if(an.porId.length===0&&an.porCodigo.length===0){
-      showToast('Los precios de los recursos vinculados en los APU de este proyecto ya están al día.',{type:'ok'});
+      setMensajeActualizacion({tipo:'ok',texto:'Los recursos vinculados en los APU de este proyecto ya están sincronizados con el catálogo general.'});
       return;
     }
     var msg='Resultado del análisis:\n'
@@ -8670,88 +8813,25 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
     n[selPresIdx]=Object.assign({},pres,cambios);
     onChange(Object.assign({},data,{presupuestos:n}));
     if(an.porCodigo.length>0){
-      setRevisionCodigo(an.porCodigo);
-      setRevisionMsg(an.porId.length+' precio(s) actualizado(s) por ID. '+an.porCodigo.length+' con coincidencia por código requieren revisión.');
+      var pendientes=an.porCodigo.filter(function(it){
+        var precioIgual=(parseFloat(it.snapReg[it.campoPrecio])||0)===(parseFloat(it.globalReg[it.campoPrecio])||0);
+        var nombreIgual=(it.snapReg.nombre||it.snapReg.descripcion||'').trim()===(it.globalReg.nombre||it.globalReg.descripcion||'').trim();
+        var unIgual=(it.snapReg.unidad||'').trim().toLowerCase()===(it.globalReg.unidad||'').trim().toLowerCase();
+        return!(precioIgual&&nombreIgual&&unIgual);
+      });
+      if(pendientes.length>0){
+        setRevisionCodigo(pendientes);
+        setRevisionMsg(an.porId.length+' precio(s) actualizado(s) por ID. '+pendientes.length+' con coincidencia por código requieren revisión.');
+      }else{
+        setMensajeActualizacion({tipo:'ok',texto:an.porId.length+' recurso(s) actualizados desde el catálogo general. '+an.porCodigo.length+' recurso(s) por código ya estaban sincronizados.'});
+      }
     }else{
-      showToast('Actualización completada: '+an.porId.length+' precio(s) actualizado(s) por ID.',{type:'ok'});
+      setMensajeActualizacion({tipo:'ok',texto:an.porId.length+' recurso(s) actualizados desde el catálogo general.'});
     }
   };
 
-  var confirmarCodigoItems=function(items){
-    if(items.length===0)return;
-    var cambios=aplicarActualizacionesPorId(pres,items);
-    var n=presupuestos.slice();
-    n[selPresIdx]=Object.assign({},pres,cambios);
-    onChange(Object.assign({},data,{presupuestos:n}));
-  };
-  var confirmarCodigoUno=function(item){
-    confirmarCodigoItems([item]);
-    setRevisionCodigo(function(prev){var rest=(prev||[]).filter(function(x){return x!==item});if(!rest.length)setRevisionMsg(null);return rest.length?rest:null});
-  };
-  var confirmarCodigoTodas=function(){confirmarCodigoItems(revisionCodigo||[]);setRevisionCodigo(null);setRevisionMsg(null)};
-  var ignorarCodigoUno=function(item){setRevisionCodigo(function(prev){var rest=(prev||[]).filter(function(x){return x!==item});if(!rest.length)setRevisionMsg(null);return rest.length?rest:null})};
-  var aplicarSincronizacion=async function(it,accion){
-    var arrGlobal={insumo:'insumos',equipo:'equipos',cargo:'cargos'}[it.tipo];
-    var arrSnap={insumo:'insumos_snap',equipo:'equipos_snap',cargo:'cargos_snap'}[it.tipo];
-    if(!arrGlobal)return;
-    var esCatAProy=accion.endsWith('_cat_proy');
-    var campo=accion.startsWith('precio')?'precio':accion.startsWith('nombre')?'nombre':'todo';
-    if(!esCatAProy){
-      var nombreRec=it.snapReg.nombre||it.snapReg.descripcion||it.id;
-      if(!(await askConfirm('Va a modificar el catálogo general con datos del proyecto actual.\nEsto afectará a todos los proyectos que usen "'+nombreRec+'".\n¿Continuar?')))return;
-    }
-    if(accion==='codigo_cat_proy'){
-      var nombreRec2=it.snapReg.nombre||it.snapReg.descripcion||it.id;
-      var apusLista=(it.apus||[]).join(' · ');
-      if(!(await askConfirm('⚠ Va a cambiar el código de "'+nombreRec2+'" en el proyecto.\nCódigo actual en proyecto: '+(it.snapReg.codigo||it.id)+'\nCódigo nuevo (del catálogo): '+(it.globalReg.codigo||'')+'\n\nSe actualizará en todos los ítems afectados: '+apusLista+'\nEl precio y nombre no se modifican. ¿Continuar?')))return;
-      var nuevoData2=Object.assign({},data);
-      var nuevoPres2=Object.assign({},pres);
-      var snapArr2=(nuevoPres2[arrSnap]||[]).slice();
-      var idx2=snapArr2.findIndex(function(r){return r.id===it.id});
-      if(idx2!==-1){
-        snapArr2[idx2]=Object.assign({},snapArr2[idx2],{codigo:it.globalReg.codigo});
-        nuevoPres2[arrSnap]=snapArr2;
-      }
-      var presupuestosNuevo2=presupuestos.slice();
-      presupuestosNuevo2[selPresIdx]=nuevoPres2;
-      nuevoData2.presupuestos=presupuestosNuevo2;
-      onChange(nuevoData2);
-      setRevisionCodigo(function(prev){var rest=(prev||[]).filter(function(x){return x!==it});if(!rest.length)setRevisionMsg(null);return rest.length?rest:null});
-      showToast('Código actualizado a '+it.globalReg.codigo+' en el proyecto.',{type:'ok'});
-      return;
-    }
-    var camposPrecio=[it.campoPrecio];
-    var camposNombre=['nombre','descripcion','unidad','un','categoria'];
-    var camposAplicar=campo==='precio'?camposPrecio:campo==='nombre'?camposNombre:camposPrecio.concat(camposNombre);
-    var nuevoData=Object.assign({},data);
-    var nuevoPres=Object.assign({},pres);
-    if(esCatAProy){
-      var snapArr=(nuevoPres[arrSnap]||[]).slice();
-      var idx=snapArr.findIndex(function(r){return r.id===it.id});
-      if(idx!==-1){
-        var updated=Object.assign({},snapArr[idx]);
-        camposAplicar.forEach(function(c){if(it.globalReg[c]!==undefined)updated[c]=it.globalReg[c]});
-        snapArr[idx]=updated;
-        nuevoPres[arrSnap]=snapArr;
-      }
-      var presupuestosNuevo=presupuestos.slice();
-      presupuestosNuevo[selPresIdx]=nuevoPres;
-      nuevoData.presupuestos=presupuestosNuevo;
-    }else{
-      var catArr=(data[arrGlobal]||[]).slice();
-      var idxCat=catArr.findIndex(function(r){return r.id===it.globalReg.id});
-      if(idxCat!==-1){
-        var updatedCat=Object.assign({},catArr[idxCat]);
-        camposAplicar.forEach(function(c){if(it.snapReg[c]!==undefined)updatedCat[c]=it.snapReg[c]});
-        catArr[idxCat]=updatedCat;
-        nuevoData[arrGlobal]=catArr;
-      }
-    }
-    onChange(nuevoData);
-    setRevisionCodigo(function(prev){var rest=(prev||[]).filter(function(x){return x!==it});if(!rest.length)setRevisionMsg(null);return rest.length?rest:null});
-    showToast('Sincronización aplicada.',{type:'ok'});
-  };
-
+  var ignorarCodigoUno=function(item){setRevisionCodigo(function(prev){var rest=(prev||[]).filter(function(x){return x.id!==item.id||x.tipo!==item.tipo});if(!rest.length)setRevisionMsg(null);return rest.length?rest:null})};
+  var ignorarCodigoTodas=function(){setRevisionCodigo(null);setRevisionMsg(null)};
   var reparar=async function(){
     var r=repararRecursosFaltantesDeApus(pres,data);
     var anPost=analizarActualizacionCatalogo(Object.assign({},pres,{insumos_snap:r.insumos_snap,equipos_snap:r.equipos_snap,cargos_snap:r.cargos_snap}),data);
@@ -8861,6 +8941,15 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
           </button>}
         </div>
       )}/>
+      {mensajeActualizacion&&(
+        <div style={{display:'flex',alignItems:'flex-start',gap:10,padding:'8px 14px',marginTop:8,borderRadius:4,fontSize:11,lineHeight:1.6,flex:'0 0 auto',
+          background:mensajeActualizacion.tipo==='ok'?'rgba(74,222,128,.08)':mensajeActualizacion.tipo==='warn'?'rgba(251,191,36,.08)':'rgba(248,113,113,.08)',
+          border:'1px solid '+(mensajeActualizacion.tipo==='ok'?'var(--ok)':mensajeActualizacion.tipo==='warn'?'#fbbf24':'#f87171'),
+          color:mensajeActualizacion.tipo==='ok'?'var(--ok)':mensajeActualizacion.tipo==='warn'?'#fbbf24':'#f87171'}}>
+          <span style={{flex:1}}>{mensajeActualizacion.tipo==='ok'?'✓ ':mensajeActualizacion.tipo==='warn'?'⚠ ':'✕ '}{mensajeActualizacion.texto}</span>
+          <button onClick={function(){setMensajeActualizacion(null)}} style={{background:'none',border:'none',cursor:'pointer',color:'var(--tx3)',fontSize:14,lineHeight:1,padding:'0 2px',flexShrink:0}} title="Cerrar">✕</button>
+        </div>
+      )}
       <div style={{display:'flex',gap:6,margin:'8px 0',flex:'0 0 auto'}}>
         {TABS_PROYECTO.map(function(t){
           return(
@@ -8899,103 +8988,146 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
 
     {revisionCodigo&&ReactDOM.createPortal(
       <div className="apu-modal-backdrop" onClick={function(){setRevisionCodigo(null);setRevisionMsg(null)}}>
-        <div className="apu-modal-container" style={{padding:16,display:'flex',flexDirection:'column',maxHeight:'85vh',overflow:'hidden',width:1380,maxWidth:'95vw'}} onClick={function(e){e.stopPropagation()}}>
+        <div className="apu-modal-container" style={{padding:16,display:'flex',flexDirection:'column',maxHeight:'85vh',overflow:'hidden',width:1300,maxWidth:'95vw'}} onClick={function(e){e.stopPropagation()}}>
           <div style={{fontSize:13,fontWeight:700,color:'var(--ac)',marginBottom:10,flex:'0 0 auto'}}>Recursos con coincidencia por código — confirmar asociación</div>
           {revisionMsg&&<div style={{fontSize:11,padding:'6px 10px',marginBottom:10,border:'1px solid var(--ok)',borderRadius:4,background:'rgba(74,222,128,.1)',color:'var(--ok)',flex:'0 0 auto'}}>{revisionMsg}</div>}
           <div style={{background:'rgba(251,191,36,.08)',border:'1px solid #fbbf24',borderRadius:4,padding:'10px 14px',marginBottom:12,fontSize:11,color:'#fbbf24',lineHeight:1.7,flex:'0 0 auto'}}>
-            <strong>⚠ Revisión requerida:</strong> Los recursos de la columna izquierda existen en este proyecto pero <strong>no tienen equivalente exacto por ID</strong> en el catálogo general. Se encontró una coincidencia por código — <strong>verifique que el recurso sea realmente el mismo</strong> antes de confirmar. El indicador 🟢/🟡 muestra el nivel de similitud entre los nombres.<br/>
+            <strong>⚠ Revisión requerida:</strong> Los recursos se agrupan por qué campos difieren entre el proyecto y el catálogo general. El indicador 🟢/🟡 muestra el nivel de similitud entre los nombres.<br/>
             <span style={{color:'var(--tx2)',marginTop:4,display:'block'}}>
-              <strong>Selector de acción (por fila):</strong> elija qué sincronizar y en qué dirección — precio, nombre/unidad/categoría, código, o todo — entre el catálogo general y el proyecto. Al elegir, aparece un panel con la descripción de la acción; confirme con <strong>✓ Aplicar</strong> o descarte con <strong>Cancelar</strong>. <strong>Proyecto → Catálogo modifica el catálogo general</strong> y afecta a todos los proyectos que usen ese recurso; pedirá confirmación adicional.<br/>
-              <strong>No modificar (por fila):</strong> descarta la sugerencia — el recurso conserva su valor actual.<br/>
-              <strong>✓ Confirmar todas:</strong> aplica la actualización por ID exacto (precio: Catálogo → Proyecto) a todos los recursos listados sin distinción.<br/>
-              <strong>Ignorar todas:</strong> descarta todas las sugerencias sin modificar nada.
+              <strong>Radios de grupo (header):</strong> eligen la dirección por defecto (Proyecto o Catálogo) para todos los recursos del grupo en ese campo.<br/>
+              <strong>Radios por fila:</strong> anulan la elección del grupo para ese recurso puntual — la celda con fondo amarillo tenue indica el campo que difiere.<br/>
+              <strong>✓ Aplicar al grupo:</strong> ejecuta las decisiones actuales (grupo + overrides individuales) para todos los recursos del grupo en una sola vez.<br/>
+              <strong>✓ Aplicar (por fila):</strong> ejecuta solo ese recurso. <strong>No modificar:</strong> descarta ese recurso sin cambios.<br/>
+              <strong>Proyecto → Catálogo modifica el catálogo general</strong> y afecta a todos los proyectos que usen ese recurso; pedirá confirmación adicional.
             </span>
           </div>
           <div style={{overflow:'auto',flex:'1 1 auto'}}>
-          <table style={{width:1330,borderCollapse:'separate',borderSpacing:0,fontSize:11,tableLayout:'fixed'}}>
-            <colgroup><col style={{width:80}}/><col style={{width:90}}/><col style={{width:230}}/><col style={{width:230}}/><col style={{width:70}}/><col style={{width:120}}/><col style={{width:120}}/><col style={{width:200}}/><col style={{width:190}}/></colgroup>
-            <thead><tr style={{background:'var(--bg3)'}}>
-              <th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',borderTop:'1px solid var(--bdr)',borderLeft:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Tipo</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Código</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Nombre en proyecto</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Nombre en catálogo general</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Match</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Precio en proyecto</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Precio en catálogo</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Ítem(s) afectado(s)</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Acción</th>
-            </tr></thead>
-            <tbody>
-              {revisionCodigo.map(function(it){
-                return(<tr key={it.tipo+'|'+it.id} style={{background:it.nivelConfianza==='amarillo'?'rgba(251,191,36,.06)':'transparent'}}>
-                  <td style={Object.assign({},MOD_TD,{whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',borderLeft:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>{etiquetaTipo[it.tipo]}</td>
-                  <td style={Object.assign({},MOD_TD,{whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>{it.snapReg.codigo||'—'}</td>
-                  <td style={Object.assign({},MOD_TD,{whiteSpace:'normal',wordBreak:'break-word',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>{nombreRecurso(it.snapReg)}</td>
-                  <td style={Object.assign({},MOD_TD,{whiteSpace:'normal',wordBreak:'break-word',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>
-                    {nombreRecurso(it.globalReg)}
-                    {it.nivelConfianza==='amarillo'&&<div style={{fontSize:9,color:'#fbbf24',marginTop:2}}>⚠ Verifique que sea el mismo recurso</div>}
-                  </td>
-                  <td style={Object.assign({},MOD_TD,{textAlign:'center',fontSize:14,borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>
-                    {it.nivelConfianza==='verde'
-                      ?<span title={'Similitud: '+Math.round(it.score*100)+'% — Nombres muy similares'}>🟢</span>
-                      :<span title={'Similitud: '+Math.round(it.score*100)+'% — Nombres diferentes, verifique antes de confirmar'}>🟡</span>}
-                  </td>
-                  <td style={Object.assign({},MOD_TD,{textAlign:'right',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>{fmt(it.snapReg[it.campoPrecio])}</td>
-                  <td style={Object.assign({},MOD_TD,{textAlign:'right',fontWeight:700,color:'var(--ok)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>{fmt(it.precioNuevo)}</td>
-                  <td style={Object.assign({},MOD_TD,{whiteSpace:'normal',wordBreak:'break-word',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>{it.apus.join(', ')}</td>
-                  <td style={Object.assign({},MOD_TD,{whiteSpace:'normal',textAlign:'center',position:'relative',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>
-                    <button
-                      className="accion-dropdown-trigger"
-                      onClick={function(e){
-                        if(dropdownAbierto&&dropdownAbierto.itemId===it.id){setDropdownAbierto(null);setOpcionHover(null);return}
-                        var r=e.currentTarget.getBoundingClientRect();
-                        setDropdownAbierto({itemId:it.id,top:r.bottom+2,left:r.right-560,width:560});
-                        setOpcionHover(null);
-                      }}
-                      style={{width:'100%',fontSize:10,background:'var(--bg2)',color:'var(--tx)',border:'1px solid var(--bdr)',borderRadius:3,padding:'3px 8px',cursor:'pointer',textAlign:'left',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                      <span>Acción…</span><span style={{fontSize:8}}>▼</span>
-                    </button>
-                    <button onClick={function(){ignorarCodigoUno(it);setDropdownAbierto(null)}} title="No modificar nada — el recurso conserva su valor actual" style={{marginTop:3,width:'100%',fontSize:10,background:'none',border:'1px solid var(--bdr)',borderRadius:3,color:'var(--tx3)',padding:'2px 8px',cursor:'pointer'}}>No modificar</button>
-                    {dropdownAbierto&&dropdownAbierto.itemId===it.id&&ReactDOM.createPortal(
-                      <div className="accion-dropdown" onClick={function(e){e.stopPropagation()}} style={{position:'fixed',top:dropdownAbierto.top,left:dropdownAbierto.left,zIndex:10000,display:'flex',background:'var(--bg2)',border:'1px solid #e67e22',borderRadius:4,boxShadow:'0 6px 20px rgba(0,0,0,.5)',minWidth:560}}>
-                        <div style={{width:220,borderRight:'1px solid var(--bdr)',display:'flex',flexDirection:'column'}}>
-                          {Object.keys(ACCION_INFO).map(function(key){
-                            var info=ACCION_INFO[key];
-                            var esHover=opcionHover===key;
-                            var esProy=info.dir==='proy_cat';
-                            return(
-                              <div key={key}
-                                onMouseEnter={function(){setOpcionHover(key)}}
-                                onMouseLeave={function(){setOpcionHover(null)}}
-                                onClick={function(){setDropdownAbierto(null);setOpcionHover(null);aplicarSincronizacion(it,key)}}
-                                style={{padding:'7px 10px',fontSize:10,cursor:'pointer',background:esHover?'rgba(230,126,34,.15)':'transparent',color:esHover?'var(--tx)':esProy?'#f87171':'var(--tx2)',borderBottom:'1px solid var(--bdr)',display:'flex',alignItems:'center',gap:6,textAlign:'left'}}>
-                                {info.label}
-                                {esProy&&<span style={{fontSize:8,color:'#f87171',marginLeft:'auto'}}>⚠</span>}
-                              </div>
-                            );
-                          })}
-                        </div>
-                        <div style={{flex:1,padding:'12px 14px',fontSize:10,color:'var(--tx2)',lineHeight:1.7,display:'flex',flexDirection:'column',justifyContent:'center',minHeight:160,textAlign:'left'}}>
-                          {opcionHover?(
-                            <React.Fragment>
-                              <div style={{fontWeight:700,color:'var(--tx)',fontSize:11,marginBottom:8,borderBottom:'1px solid var(--bdr)',paddingBottom:6}}>{ACCION_INFO[opcionHover].label}</div>
-                              <div>{ACCION_INFO[opcionHover].desc}</div>
-                              {ACCION_INFO[opcionHover].dir==='proy_cat'&&(
-                                <div style={{marginTop:10,fontSize:9,color:'#f87171',background:'rgba(248,113,113,.08)',border:'1px solid rgba(248,113,113,.3)',borderRadius:3,padding:'4px 8px'}}>
-                                  ⚠ Esta acción modifica el catálogo general y afecta todos los proyectos que usen este recurso. Se pedirá confirmación adicional.
-                                </div>
-                              )}
-                              <div style={{marginTop:12,fontSize:9,color:'var(--tx3)'}}>Haga clic para aplicar esta acción al recurso <strong>{it.snapReg.codigo}</strong>.</div>
-                            </React.Fragment>
-                          ):(
-                            <div style={{color:'var(--tx3)',fontSize:10,textAlign:'center'}}>Pase el cursor sobre una opción para ver su descripción</div>
-                          )}
-                        </div>
-                      </div>,
-                      document.body
-                    )}
-                  </td>
-                </tr>);
-              })}
-            </tbody>
-          </table>
+            {agruparPorFirma((revisionCodigo||[]).filter(function(it){return calcularFirma(it)!=='sin-diferencias'})).map(function(grupo){
+              var diff0=calcularDiff(grupo.items[0]);
+              return(
+                <div key={grupo.firma} style={{marginBottom:16,border:'1px solid var(--bdr)',borderRadius:6,overflow:'hidden'}}>
+                  <div style={{background:'var(--bg)',borderBottom:'1px solid var(--bdr)',padding:'8px 14px',display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
+                    <span style={{fontWeight:700,color:'var(--tx)',fontSize:11}}>
+                      {etiquetaFirma(grupo.firma)}
+                      <span style={{fontWeight:400,color:'var(--tx3)',marginLeft:6}}>({grupo.items.length} recurso{grupo.items.length>1?'s':''})</span>
+                    </span>
+                    <div style={{display:'flex',gap:16,alignItems:'center',flexWrap:'wrap',marginLeft:'auto'}}>
+                      {diff0.precio&&(
+                        <span style={{fontSize:10,display:'flex',alignItems:'center',gap:6}}>
+                          <strong style={{color:'var(--tx2)'}}>💲 Precio:</strong>
+                          <label style={{cursor:'pointer',color:'var(--tx2)'}}><input type="radio" name={'grp-precio-'+grupo.firma} onChange={function(){aplicarDecisionGrupo(grupo,'precio','proy')}} style={{marginRight:3}}/>Proyecto</label>
+                          <label style={{cursor:'pointer',color:'var(--tx2)'}}><input type="radio" name={'grp-precio-'+grupo.firma} defaultChecked onChange={function(){aplicarDecisionGrupo(grupo,'precio','cat')}} style={{marginRight:3}}/>Catálogo</label>
+                        </span>
+                      )}
+                      {diff0.nombre&&(
+                        <span style={{fontSize:10,display:'flex',alignItems:'center',gap:6}}>
+                          <strong style={{color:'var(--tx2)'}}>📝 Nombre:</strong>
+                          <label style={{cursor:'pointer',color:'var(--tx2)'}}><input type="radio" name={'grp-nombre-'+grupo.firma} defaultChecked onChange={function(){aplicarDecisionGrupo(grupo,'nombre','proy')}} style={{marginRight:3}}/>Proyecto</label>
+                          <label style={{cursor:'pointer',color:'var(--tx2)'}}><input type="radio" name={'grp-nombre-'+grupo.firma} onChange={function(){aplicarDecisionGrupo(grupo,'nombre','cat')}} style={{marginRight:3}}/>Catálogo</label>
+                        </span>
+                      )}
+                      {diff0.unidad&&(
+                        <span style={{fontSize:10,display:'flex',alignItems:'center',gap:6}}>
+                          <strong style={{color:'var(--tx2)'}}>📐 UN:</strong>
+                          <label style={{cursor:'pointer',color:'var(--tx2)'}}><input type="radio" name={'grp-unidad-'+grupo.firma} defaultChecked onChange={function(){aplicarDecisionGrupo(grupo,'unidad','proy')}} style={{marginRight:3}}/>Proyecto</label>
+                          <label style={{cursor:'pointer',color:'var(--tx2)'}}><input type="radio" name={'grp-unidad-'+grupo.firma} onChange={function(){aplicarDecisionGrupo(grupo,'unidad','cat')}} style={{marginRight:3}}/>Catálogo</label>
+                        </span>
+                      )}
+                      {diff0.codigo&&(
+                        <span style={{fontSize:10,display:'flex',alignItems:'center',gap:6}}>
+                          <strong style={{color:'var(--tx2)'}}>🔑 Código:</strong>
+                          <label style={{cursor:'pointer',color:'var(--tx2)'}}><input type="radio" name={'grp-codigo-'+grupo.firma} defaultChecked onChange={function(){aplicarDecisionGrupo(grupo,'codigo','proy')}} style={{marginRight:3}}/>Proyecto</label>
+                          <label style={{cursor:'pointer',color:'var(--tx2)'}}><input type="radio" name={'grp-codigo-'+grupo.firma} onChange={function(){aplicarDecisionGrupo(grupo,'codigo','cat')}} style={{marginRight:3}}/>Catálogo ⚠</label>
+                        </span>
+                      )}
+                      <button onClick={function(){aplicarGrupo(grupo)}} style={{background:'var(--ok)',border:'none',borderRadius:3,color:'#fff',padding:'4px 12px',cursor:'pointer',fontSize:10,fontWeight:700}}>✓ Aplicar al grupo</button>
+                    </div>
+                  </div>
+                  <div style={{overflowX:'auto'}}>
+                    <table style={{width:'100%',minWidth:1000,borderCollapse:'separate',borderSpacing:0,fontSize:11,tableLayout:'fixed'}}>
+                      <colgroup><col style={{width:60}}/><col style={{width:80}}/><col style={{width:190}}/><col style={{width:190}}/><col style={{width:60}}/><col style={{width:100}}/><col style={{width:100}}/><col style={{width:70}}/><col style={{width:70}}/><col style={{width:150}}/><col style={{width:140}}/></colgroup>
+                      <thead><tr style={{background:'var(--bg3)'}}>
+                        <th style={Object.assign({},MOD_TH,{textAlign:'center',borderTop:'1px solid var(--bdr)',borderLeft:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Tipo</th>
+                        <th style={Object.assign({},MOD_TH,{textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Código</th>
+                        <th style={Object.assign({},MOD_TH,{textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Nombre en proyecto</th>
+                        <th style={Object.assign({},MOD_TH,{textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Nombre en catálogo</th>
+                        <th style={Object.assign({},MOD_TH,{textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Match</th>
+                        <th style={Object.assign({},MOD_TH,{textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Precio proyecto</th>
+                        <th style={Object.assign({},MOD_TH,{textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Precio catálogo</th>
+                        <th style={Object.assign({},MOD_TH,{textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>UN proy.</th>
+                        <th style={Object.assign({},MOD_TH,{textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>UN cat.</th>
+                        <th style={Object.assign({},MOD_TH,{textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Ítem(s) afectado(s)</th>
+                        <th style={Object.assign({},MOD_TH,{textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Acción individual</th>
+                      </tr></thead>
+                      <tbody>
+                        {grupo.items.map(function(it){
+                          var diff=calcularDiff(it);
+                          var sel=selecciones[it.id]||seleccionDefault(it);
+                          var bR={borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'};
+                          return(
+                            <tr key={it.tipo+'|'+it.id}>
+                              <td style={tdDiff(false,Object.assign({},bR,{borderLeft:'1px solid var(--bdr)'}))}>{etiquetaTipo[it.tipo]}</td>
+                              <td style={tdDiff(diff.codigo,bR)}>
+                                {diff.codigo?(
+                                  <div style={{display:'flex',flexDirection:'column',gap:3}}>
+                                    <label style={{fontSize:10,cursor:'pointer'}}><input type="radio" checked={sel.codigo==='proy'} onChange={function(){setSel(it.id,'codigo','proy')}} style={{marginRight:3}}/>{it.snapReg.codigo}</label>
+                                    <label style={{fontSize:10,cursor:'pointer',color:'#fbbf24'}}><input type="radio" checked={sel.codigo==='cat'} onChange={function(){setSel(it.id,'codigo','cat')}} style={{marginRight:3}}/>{it.globalReg.codigo} ⚠</label>
+                                  </div>
+                                ):(it.snapReg.codigo||'—')}
+                              </td>
+                              <td style={tdDiff(diff.nombre,Object.assign({},bR,{whiteSpace:'normal',wordBreak:'break-word'}))}>
+                                {diff.nombre?(
+                                  <label style={{fontSize:10,cursor:'pointer',display:'flex',alignItems:'flex-start',gap:4}}><input type="radio" checked={sel.nombre==='proy'} onChange={function(){setSel(it.id,'nombre','proy')}} style={{marginTop:2,flexShrink:0}}/>{nombreRecurso(it.snapReg)}</label>
+                                ):nombreRecurso(it.snapReg)}
+                              </td>
+                              <td style={tdDiff(diff.nombre,Object.assign({},bR,{whiteSpace:'normal',wordBreak:'break-word'}))}>
+                                {diff.nombre?(
+                                  <label style={{fontSize:10,cursor:'pointer',display:'flex',alignItems:'flex-start',gap:4}}><input type="radio" checked={sel.nombre==='cat'} onChange={function(){setSel(it.id,'nombre','cat')}} style={{marginTop:2,flexShrink:0}}/>{nombreRecurso(it.globalReg)}</label>
+                                ):nombreRecurso(it.globalReg)}
+                                {it.nivelConfianza==='amarillo'&&<div style={{fontSize:9,color:'#fbbf24',marginTop:2}}>⚠ Verifique que sea el mismo recurso</div>}
+                              </td>
+                              <td style={tdDiff(false,Object.assign({},bR,{textAlign:'center',fontSize:14}))}>
+                                {it.nivelConfianza==='verde'
+                                  ?<span title={'Similitud: '+Math.round(it.score*100)+'%'}>🟢</span>
+                                  :<span title={'Similitud: '+Math.round(it.score*100)+'%'}>🟡</span>}
+                              </td>
+                              <td style={tdDiff(diff.precio,Object.assign({},bR,{textAlign:'right'}))}>
+                                {diff.precio?(
+                                  <label style={{fontSize:10,cursor:'pointer',display:'flex',alignItems:'center',gap:4,justifyContent:'flex-end'}}>{fmt(it.snapReg[it.campoPrecio])}<input type="radio" checked={sel.precio==='proy'} onChange={function(){setSel(it.id,'precio','proy')}}/></label>
+                                ):fmt(it.snapReg[it.campoPrecio])}
+                              </td>
+                              <td style={tdDiff(diff.precio,Object.assign({},bR,{textAlign:'right'}))}>
+                                {diff.precio?(
+                                  <label style={{fontSize:10,cursor:'pointer',display:'flex',alignItems:'center',gap:4,justifyContent:'flex-end',color:'#4ade80'}}>{fmt(it.globalReg[it.campoPrecio])}<input type="radio" checked={sel.precio==='cat'} onChange={function(){setSel(it.id,'precio','cat')}}/></label>
+                                ):<span style={{color:'#4ade80'}}>{fmt(it.globalReg[it.campoPrecio])}</span>}
+                              </td>
+                              <td style={tdDiff(diff.unidad,Object.assign({},bR,{textAlign:'center'}))}>
+                                {diff.unidad?(
+                                  <label style={{fontSize:10,cursor:'pointer',display:'flex',alignItems:'center',gap:4,justifyContent:'center'}}><input type="radio" checked={sel.unidad==='proy'} onChange={function(){setSel(it.id,'unidad','proy')}}/>{it.snapReg.unidad||'—'}</label>
+                                ):(it.snapReg.unidad||'—')}
+                              </td>
+                              <td style={tdDiff(diff.unidad,Object.assign({},bR,{textAlign:'center'}))}>
+                                {diff.unidad?(
+                                  <label style={{fontSize:10,cursor:'pointer',display:'flex',alignItems:'center',gap:4,justifyContent:'center'}}><input type="radio" checked={sel.unidad==='cat'} onChange={function(){setSel(it.id,'unidad','cat')}}/>{it.globalReg.unidad||'—'}</label>
+                                ):(it.globalReg.unidad||'—')}
+                              </td>
+                              <td style={tdDiff(false,Object.assign({},bR,{whiteSpace:'normal',wordBreak:'break-word'}))}>{(it.apus||[]).join(', ')||'—'}</td>
+                              <td style={tdDiff(false,bR)}>
+                                <button onClick={function(){aplicarIndividual(it,sel)}} style={{background:'var(--ok)',border:'none',borderRadius:3,color:'#fff',padding:'3px 8px',cursor:'pointer',fontSize:10,display:'block',width:'100%',marginBottom:3}}>✓ Aplicar</button>
+                                <button onClick={function(){ignorarCodigoUno(it)}} style={{background:'none',border:'1px solid var(--bdr)',borderRadius:3,color:'var(--tx3)',padding:'3px 8px',cursor:'pointer',fontSize:10,display:'block',width:'100%'}}>No modificar</button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              );
+            })}
           </div>
           <div style={{display:'flex',justifyContent:'flex-end',alignItems:'center',gap:8,marginTop:14,paddingTop:10,borderTop:'1px solid var(--bdr)',flex:'0 0 auto'}}>
-            <span style={{fontSize:10,color:'var(--tx3)',marginRight:8,flex:1}}>"Confirmar todas" actualiza el precio de todos los recursos listados. Use ✓ fila a fila para seleccionar individualmente.</span>
-            <button onClick={confirmarCodigoTodas} style={{fontSize:11,fontWeight:700,padding:'6px 14px',border:'1px solid var(--ok)',borderRadius:4,background:'var(--ok)',color:'#08120b',cursor:'pointer'}}>✓ Confirmar todas</button>
-            <button onClick={function(){setRevisionCodigo(null);setRevisionMsg(null)}} style={{fontSize:11,padding:'6px 14px',border:'1px solid var(--bdr)',borderRadius:4,background:'transparent',color:'var(--tx2)',cursor:'pointer'}}>Ignorar todas</button>
+            <button onClick={ignorarCodigoTodas} style={{fontSize:11,padding:'6px 14px',border:'1px solid var(--bdr)',borderRadius:4,background:'transparent',color:'var(--tx2)',cursor:'pointer'}}>Ignorar todas</button>
           </div>
         </div>
       </div>,

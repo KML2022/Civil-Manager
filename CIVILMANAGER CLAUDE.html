@@ -8722,7 +8722,8 @@ var TABS_PROYECTO=[
   {tipo:'cuadrillas',label:'Cuadrillas'},
   {tipo:'equipos',label:'Equipos'},
   {tipo:'insumos',label:'Insumos'},
-  {tipo:'apus',label:'APU'}
+  {tipo:'apus',label:'APU'},
+  {tipo:'parametros',label:'Parámetros'}
 ];
 
 var FIRMA_LABEL={
@@ -8743,7 +8744,7 @@ function etiquetaFirma(firma){return FIRMA_LABEL[firma]||'⚠ Múltiples diferen
 
 function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
   cargosCalcSnap,cuadrillasCalcSnap,equiposSnapEfectivo,insumosSnapEfectivo,factorPrestSnap,personMapSnap,
-  eqMapSnap,insMapSnap,herrPct,usarFpEnApu,esHora,abCalcList,apusBasico,provMap,_unidades}){
+  eqMapSnap,insMapSnap,herrPct,usarFpEnApu,esHora,abCalcList,apusBasico,provMap,_unidades,cambiarPerfilPais}){
 
   var[tipo,setTipo]=useState('cargos');
   var adaptado=crearDataAdapterProyecto(pres,data,presupuestos,selPresIdx,onChange);
@@ -9028,6 +9029,28 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
   };
 
   var readOnly=pres.estado!=='borrador';
+  var readOnlyParams=pres.estado==='cerrado'; // pestaña Parametros: editable en borrador Y en_revision, solo cerrado bloquea
+
+  var actualizarUsarFp=function(valor){
+    if(!pres.perfil_pais_snap)return;
+    var nuevoSnap=Object.assign({},pres.perfil_pais_snap,{usar_fp:valor});
+    var n=presupuestos.slice();
+    n[selPresIdx]=Object.assign({},pres,{perfil_pais_snap:nuevoSnap});
+    onChange(Object.assign({},data,{presupuestos:n}));
+  };
+  var actualizarFactorSnap=function(idx,campo,valor){
+    var factores=(pres.factores_snap||[]).slice();
+    factores[idx]=Object.assign({},factores[idx],{[campo]:valor});
+    var n=presupuestos.slice();
+    n[selPresIdx]=Object.assign({},pres,{factores_snap:factores});
+    onChange(Object.assign({},data,{presupuestos:n}));
+  };
+  var actualizarAiuOverride=function(campo,valor){
+    var override=Object.assign({},pres.aiu_override||{},{[campo]:valor});
+    var n=presupuestos.slice();
+    n[selPresIdx]=Object.assign({},pres,{aiu_override:override});
+    onChange(Object.assign({},data,{presupuestos:n}));
+  };
 
   var anchoPorTipo={cargos:854,cuadrillas:undefined,equipos:1161,insumos:1594,apus:undefined};
   var anchoTitulo=anchoPorTipo[tipo];
@@ -9080,7 +9103,7 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
         {TABS_PROYECTO.map(function(t){
           return(
             <button key={t.tipo} onClick={function(){cambiarTipo(t.tipo)}} style={{fontSize:11,padding:'5px 12px',border:'1px solid '+(tipo===t.tipo?'var(--ok)':'var(--bdr)'),borderRadius:4,background:tipo===t.tipo?'rgba(74,222,128,.1)':'transparent',color:tipo===t.tipo?'var(--ok)':'var(--tx2)',cursor:'pointer'}}>
-              {t.label} ({(pres[t.tipo+'_snap']||[]).length})
+              {t.tipo==='parametros'?t.label+(pres.estado==='cerrado'?' 🔒':''):t.label+' ('+(pres[t.tipo+'_snap']||[]).length+')'}
             </button>
           );
         })}
@@ -9109,6 +9132,135 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
           usarFpEnApu={usarFpEnApu} view="catalog" apusBasico={apusBasico}
           catalogoApusReal={data.apus} onPromoverAPU={promoverApuACatalogo}
           contextoProyecto={{codigo:pres.codigo,nombre:pres.nombre}}/>}
+
+        {tipo==='parametros'&&(
+          <div style={{padding:'4px 2px',maxWidth:1100,display:'grid',gridTemplateColumns:'1fr 1.5fr 1fr',gap:16,alignItems:'start'}}>
+            <div style={{display:'flex',flexDirection:'column',gap:16}}>
+              <div style={{background:'var(--bg2)',border:'1px solid var(--bdr)',borderRadius:6,padding:'12px 14px'}}>
+                <div style={{fontSize:12,fontWeight:700,color:'var(--ac)',borderBottom:'1px solid var(--bdr)',paddingBottom:6,marginBottom:10}}>🌍 Perfil de país</div>
+                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'5px 0',borderBottom:'1px solid var(--bdr)',gap:8}}>
+                  <span style={{fontSize:11,color:'var(--tx2)'}}>País / perfil</span>
+                  {readOnlyParams?(
+                    <span style={{fontSize:11,fontWeight:600,color:'var(--tx)'}}>{pres.perfil_pais_snap?pres.perfil_pais_snap.nombre:'— Sin perfil'}</span>
+                  ):(
+                    <select value={pres.perfil_pais_snap?pres.perfil_pais_snap.codigo:''} onChange={function(e){cambiarPerfilPais(selPresIdx,e.target.value)}} style={{fontSize:11,background:'var(--bg2)',color:'var(--tx)',border:'1px solid var(--bdr)',borderRadius:4,padding:'2px 6px'}}>
+                      <option value="">— Sin perfil —</option>
+                      {((data.config_listas&&data.config_listas.perfiles_pais)||[]).filter(function(p){return p.activo!==false}).map(function(p){return <option key={p.codigo} value={p.codigo}>{p.nombre} ({p.moneda})</option>})}
+                    </select>
+                  )}
+                </div>
+                {pres.perfil_pais_snap&&[
+                  ['Moneda',(pres.perfil_pais_snap.moneda||'')+' '+(pres.perfil_pais_snap.simbolo||'')],
+                  ['Horas / mes',(pres.perfil_pais_snap.horas_mes||'—')+' h'],
+                  ['Días / mes',(pres.perfil_pais_snap.dias_mes||'—')+' días'],
+                  ['Jornada diaria',(pres.perfil_pais_snap.jornada_diaria||'—')+' h/día']
+                ].map(function(row){
+                  return(<div key={row[0]} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'5px 0',borderBottom:'1px solid var(--bdr)'}}>
+                    <span style={{fontSize:11,color:'var(--tx2)'}}>{row[0]}</span>
+                    <span style={{fontSize:11,fontWeight:600,color:'var(--tx)'}}>{row[1]}</span>
+                  </div>);
+                })}
+                {pres.perfil_pais_snap&&(
+                  <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'5px 0'}}>
+                    <span style={{fontSize:11,color:'var(--tx2)'}}>Aplica FP</span>
+                    <span style={{fontSize:11,fontWeight:600,color:pres.perfil_pais_snap.usar_fp?'var(--ok)':'var(--tx3)'}}>{pres.perfil_pais_snap.usar_fp?'Sí':'No'}</span>
+                  </div>
+                )}
+              </div>
+
+              <div style={{background:'var(--bg2)',border:'1px solid var(--bdr)',borderRadius:6,padding:'12px 14px'}}>
+                <div style={{fontSize:12,fontWeight:700,color:'var(--ac)',borderBottom:'1px solid var(--bdr)',paddingBottom:6,marginBottom:10}}>⚙ Parámetros de APU</div>
+                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'5px 0',borderBottom:'1px solid var(--bdr)'}}>
+                  <span style={{fontSize:11,color:'var(--tx2)'}}>Herramienta menor (% MO)</span>
+                  <span style={{fontSize:11,color:'var(--tx3)'}}>{herrPct}% — global</span>
+                </div>
+                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'5px 0',borderBottom:'1px solid var(--bdr)'}}>
+                  <span style={{fontSize:11,color:'var(--tx2)'}}>Horas / mes</span>
+                  <span style={{fontSize:11,color:'var(--tx3)'}}>{(pres.perfil_pais_snap&&pres.perfil_pais_snap.horas_mes)||'—'} h — del perfil</span>
+                </div>
+                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'5px 0'}}>
+                  <span style={{fontSize:11,color:'var(--tx2)'}}>Usar factor prestacional</span>
+                  {readOnlyParams?(
+                    <span style={{fontSize:11,fontWeight:600,color:'var(--tx)'}}>{(pres.perfil_pais_snap&&pres.perfil_pais_snap.usar_fp)?'Sí':'No'}</span>
+                  ):(
+                    <select value={(pres.perfil_pais_snap&&pres.perfil_pais_snap.usar_fp)?'si':'no'} onChange={function(e){actualizarUsarFp(e.target.value==='si')}} disabled={!pres.perfil_pais_snap} style={{fontSize:11,background:'var(--bg2)',color:'var(--tx)',border:'1px solid var(--bdr)',borderRadius:3,padding:'2px 6px'}}>
+                      <option value="si">Sí</option>
+                      <option value="no">No</option>
+                    </select>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div style={{background:'var(--bg2)',border:'1px solid var(--bdr)',borderRadius:6,padding:'12px 14px'}}>
+              <div style={{fontSize:12,fontWeight:700,color:'var(--ac)',borderBottom:'1px solid var(--bdr)',paddingBottom:6,marginBottom:10}}>📋 Factor prestacional</div>
+              {(!pres.factores_snap||pres.factores_snap.length===0)?(
+                <div style={{fontSize:11,color:'var(--tx3)'}}>Sin Factor Prestacional configurado.</div>
+              ):(
+                <React.Fragment>
+                  <table style={{width:'100%',borderCollapse:'collapse',fontSize:11}}>
+                    <thead><tr>
+                      <th style={{textAlign:'left',color:'var(--tx2)',fontWeight:500,padding:'4px 6px',borderBottom:'1px solid var(--bdr)'}}>Código</th>
+                      <th style={{textAlign:'left',color:'var(--tx2)',fontWeight:500,padding:'4px 6px',borderBottom:'1px solid var(--bdr)'}}>Nombre</th>
+                      <th style={{textAlign:'left',color:'var(--tx2)',fontWeight:500,padding:'4px 6px',borderBottom:'1px solid var(--bdr)'}}>Tipo</th>
+                      <th style={{textAlign:'right',color:'var(--tx2)',fontWeight:500,padding:'4px 6px',borderBottom:'1px solid var(--bdr)'}}>Factor (%)</th>
+                    </tr></thead>
+                    <tbody>
+                      {(pres.factores_snap||[]).map(function(fp,i){
+                        return(<tr key={fp.id||i} style={{borderBottom:'1px solid var(--bdr)'}}>
+                          <td style={{padding:'4px 6px',color:'var(--tx3)'}}>{fp.codigo||'—'}</td>
+                          <td style={{padding:'4px 6px',color:'var(--tx)'}}>{fp.nombre||'—'}</td>
+                          <td style={{padding:'4px 6px',color:'var(--tx3)'}}>{fp.tipo||'—'}</td>
+                          <td style={{padding:'4px 6px',textAlign:'right'}}>
+                            {!readOnlyParams?(
+                              <input type="number" value={fp.factor||0} onChange={function(e){actualizarFactorSnap(i,'factor',parseFloat(e.target.value)||0)}} style={{width:64,fontSize:11,background:'var(--bg)',color:'var(--ok)',border:'1px solid var(--bdr)',borderRadius:3,padding:'1px 4px',textAlign:'right'}}/>
+                            ):(<span style={{color:'var(--ok)',fontWeight:600}}>{fp.factor||0}%</span>)}
+                          </td>
+                        </tr>);
+                      })}
+                    </tbody>
+                  </table>
+                  <div style={{display:'flex',justifyContent:'flex-end',alignItems:'center',gap:6,marginTop:8,fontSize:11,color:'var(--tx2)'}}>
+                    Total FP: <strong style={{fontSize:13,color:'var(--ok)'}}>{(pres.factores_snap.reduce(function(s,f){return s+(parseFloat(f.factor)||0)},0)).toFixed(2)}%</strong>
+                  </div>
+                </React.Fragment>
+              )}
+            </div>
+
+            <div style={{background:'var(--bg2)',border:'1px solid var(--bdr)',borderRadius:6,padding:'12px 14px'}}>
+              <div style={{fontSize:12,fontWeight:700,color:'var(--ac)',borderBottom:'1px solid var(--bdr)',paddingBottom:6,marginBottom:10}}>💼 AIU del proyecto</div>
+              <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:10}}>
+                {!readOnlyParams&&<input type="checkbox" checked={!!(pres.aiu_override&&pres.aiu_override.activo)} onChange={function(e){actualizarAiuOverride('activo',e.target.checked)}} style={{cursor:'pointer'}}/>}
+                <span style={{fontSize:11,color:'var(--tx2)'}}>Usar AIU personalizado para este proyecto</span>
+              </div>
+              {!(pres.aiu_override&&pres.aiu_override.activo)&&<div style={{fontSize:10,color:'var(--tx3)',marginBottom:8}}>Usando AIU global del sistema</div>}
+              {(pres.aiu_override&&pres.aiu_override.activo)&&(
+                <React.Fragment>
+                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'6px 12px',marginBottom:10}}>
+                    {[{label:'Administración',campo:'pct_a'},{label:'Imprevistos',campo:'pct_i'},{label:'Utilidad',campo:'pct_u'},{label:'IVA',campo:'iva_pct'}].map(function(item){
+                      var val=(pres.aiu_override&&pres.aiu_override[item.campo]!==undefined)?pres.aiu_override[item.campo]:0;
+                      return(<div key={item.campo} style={{display:'flex',flexDirection:'column',gap:3}}>
+                        <label style={{fontSize:10,color:'var(--tx2)'}}>{item.label}</label>
+                        {readOnlyParams?(
+                          <span style={{fontSize:11,fontWeight:600,color:'var(--tx)'}}>{val}%</span>
+                        ):(
+                          <div style={{display:'flex',alignItems:'center',gap:4}}>
+                            <input type="number" value={val} onChange={function(e){actualizarAiuOverride(item.campo,parseFloat(e.target.value)||0)}} style={{width:56,fontSize:11,background:'var(--bg)',color:'var(--tx)',border:'1px solid var(--bdr)',borderRadius:3,padding:'2px 4px',textAlign:'right'}}/>
+                            <span style={{fontSize:10,color:'var(--tx3)'}}>%</span>
+                          </div>
+                        )}
+                      </div>);
+                    })}
+                  </div>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',paddingTop:8,borderTop:'1px solid var(--bdr)',fontSize:11}}>
+                    <span style={{color:'var(--tx2)'}}>Total AIU (sin IVA)</span>
+                    <strong style={{color:'var(--ok)'}}>{(((pres.aiu_override&&pres.aiu_override.pct_a)||0)+((pres.aiu_override&&pres.aiu_override.pct_i)||0)+((pres.aiu_override&&pres.aiu_override.pct_u)||0)).toFixed(2)}%</strong>
+                  </div>
+                </React.Fragment>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
 
@@ -9614,7 +9766,7 @@ function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,i
   var presContent=tab===10?<PresFormularioPanel pres={pres} presupuestos={presupuestos} selPresIdx={selPresIdx} data={data} onChange={onChange} apuModal={apuModal} setApuModal={setApuModal} apus={apus} categorias_apu={categorias_apu} calcItemVal={calcItemVal} setTab={setTab} estadoLabel={estadoLabel} cargosCalc={cargosCalc} cargosCalcSnap={cargosCalcSnap} personMap={personMap} esHora={esHora} eqMap={eqMap} insMap={insMap} factorPrest={factorPrest} factorPrestSnap={factorPrestSnap} usarFpEnApu={usarFpEnApu} equipos={equipos} insumos={insumos} apusBasico={apusBasico}/>
     :tab===12?<PresResumenPanel pres={pres} presupuestos={presupuestos} selPresIdx={selPresIdx} data={data} onChange={onChange} calcResumenPres={calcResumenPres} setTab={setTab}/>
     :tab===13?<PresEntregablesPanel pres={pres} presupuestos={presupuestos} calcResumenPres={calcResumenPres} calcItemVal={calcItemVal} calcResumenFor={calcResumenFor} calcItemValFor={calcItemValFor} buildSnapCtx={buildSnapCtx} setTab={setTab}/>
-    :tab===14?<PresCatalogoProyectoPanel pres={pres} presupuestos={presupuestos} selPresIdx={selPresIdx} data={data} onChange={onChange} cargosCalcSnap={cargosCalcSnap} cuadrillasCalcSnap={cuadrillasCalcSnap} equiposSnapEfectivo={equiposSnapEfectivo} insumosSnapEfectivo={insumosSnapEfectivo} factorPrestSnap={factorPrestSnap} personMapSnap={personMapSnap} eqMapSnap={eqMapSnap} insMapSnap={insMapSnap} herrPct={herrPct} usarFpEnApu={usarFpEnApu} esHora={esHora} abCalcList={abCalcList} apusBasico={apusBasico} provMap={provMap} _unidades={_unidades}/>
+    :tab===14?<PresCatalogoProyectoPanel pres={pres} presupuestos={presupuestos} selPresIdx={selPresIdx} data={data} onChange={onChange} cargosCalcSnap={cargosCalcSnap} cuadrillasCalcSnap={cuadrillasCalcSnap} equiposSnapEfectivo={equiposSnapEfectivo} insumosSnapEfectivo={insumosSnapEfectivo} factorPrestSnap={factorPrestSnap} personMapSnap={personMapSnap} eqMapSnap={eqMapSnap} insMapSnap={insMapSnap} herrPct={herrPct} usarFpEnApu={usarFpEnApu} esHora={esHora} abCalcList={abCalcList} apusBasico={apusBasico} provMap={provMap} _unidades={_unidades} cambiarPerfilPais={cambiarPerfilPais}/>
     :<PresProyectosPanel presupuestos={presupuestos} selPresIdx={selPresIdx} setSelPresIdx={setSelPresIdx} data={data} onChange={onChange} estadoColor={estadoColor} estadoLabel={estadoLabel} addPresupuesto={addPresupuesto} addSubProyecto={addSubProyecto} toggleEstado={toggleEstado} cambiarPerfilPais={cambiarPerfilPais} delPresupuesto={delPresupuesto} setTab={setTab}/>;
 
   return(

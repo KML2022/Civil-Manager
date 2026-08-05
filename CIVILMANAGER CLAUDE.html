@@ -133,7 +133,7 @@ table,.xl-wrap,.xl-scroll{font-variant-numeric:tabular-nums}
 
 .xl-scroll::-webkit-scrollbar-thumb{background:#4ade80;border-radius:3px}
 
-.xl-foot{display:flex;align-items:center;gap:6px;padding:6px 8px;border-top:1px solid var(--bdr);background:var(--bg3);overflow:hidden;flex-shrink:0}
+.xl-foot{display:flex;align-items:center;gap:6px;padding:6px 8px;border-top:1px solid var(--bdr);background:var(--bg3);overflow:hidden;flex-shrink:0;flex-wrap:wrap}
 
 /* Los catalogos reales reutilizados dentro del Visor de Proyecto (PresCatalogoProyectoPanel) traen
    su propio xl-wrap/xl-scroll dimensionado para uso standalone, con su thead/footer ya funcionando
@@ -735,7 +735,8 @@ function conDefaultsPerfilPais(p){
 function getPaisData(code,perfilesPais){
   var found=null;
   if(perfilesPais){for(var i=0;i<perfilesPais.length;i++){if(perfilesPais[i].codigo===code){found=perfilesPais[i];break}}}
-  return conDefaultsPerfilPais(found||PAISES[code]||PAISES.CO);
+  var base=found||PAISES[code]||PAISES.CO;
+  return Object.assign({codigo:found?found.codigo:(PAISES[code]?code:'CO')},conDefaultsPerfilPais(base));
 }
 
 
@@ -7191,7 +7192,7 @@ var SUBS=[
 
       <div style={{display:'flex',gap:16,alignItems:'flex-start'}}>
 
-      <div style={{width:540,display:'flex',flexDirection:'column'}}>
+      <div style={{width:590,display:'flex',flexDirection:'column'}}>
 
         {factorActivo===0&&<div style={{padding:'6px 10px',marginBottom:5,border:'1px solid #f87171',borderRadius:4,background:'rgba(248,113,113,.1)',color:'#f87171',fontSize:11,fontWeight:700}}>El APU se Calculará sin Factor Prestacional</div>}
 
@@ -7209,7 +7210,7 @@ var SUBS=[
 
           <div className="xl-scroll" style={{maxHeight:'calc(100vh - 332px)',overflowY:'auto'}}>
 
-            <table style={{tableLayout:'fixed',width:'540px'}}>
+            <table style={{tableLayout:'fixed',width:'590px'}}>
 
               <colgroup>
 
@@ -7217,23 +7218,25 @@ var SUBS=[
 
                 <col className="cw-84"/>
 
-                <col className="cw-220"/>
+                <col className="cw-160"/>
 
                 <col className="cw-96"/>
+
+                <col className="cw-110"/>
 
                 <col className="col-act" style={{width:'100px'}}/>
 
               </colgroup>
 
-              <thead><tr><th className="col-rn">#</th><th>Codigo</th><th>Factor</th><th>Valor(%)</th><th className="col-act">Acciones</th></tr></thead>
+              <thead><tr><th className="col-rn">#</th><th>Codigo</th><th>Factor</th><th>Valor(%)</th><th>Clasificación</th><th className="col-act">Acciones</th></tr></thead>
 
               <tbody>
 
-                {fps.length===0&&<tr className="empty-row"><td colSpan={5}>Sin factores. Agregue uno.</td></tr>}
+                {fps.length===0&&<tr className="empty-row"><td colSpan={6}>Sin factores. Agregue uno.</td></tr>}
 
                 {fpGrouped.map(function(g){return g.items.length>0?[
 
-                  <tr key={'cat-'+g.cat}><td colSpan={5} style={{padding:'6px 10px 2px',fontSize:10,fontWeight:700,color:g.color,borderBottom:'1px solid var(--bd)'}}>{g.label}</td></tr>,
+                  <tr key={'cat-'+g.cat}><td colSpan={6} style={{padding:'6px 10px 2px',fontSize:10,fontWeight:700,color:g.color,borderBottom:'1px solid var(--bd)'}}>{g.label}</td></tr>,
 
                   ].concat(g.items.map(function(f){var origIdx=fps.indexOf(f);return(
 
@@ -7242,6 +7245,8 @@ var SUBS=[
                       <XLRowNum n={origIdx+1}/>   <td style={{textAlign:'center',fontSize:10,color:'var(--ok)',fontWeight:600}}>{f.codigo||'-'}</td>   <td>{fpEditIdx===origIdx?<input className="ni" value={f.nombre} onChange={function(e){updFp(origIdx,'nombre',e.target.value)}} autoFocus onKeyDown={function(e){if(e.key==='Enter'){e.preventDefault();var nxt=e.target.closest('tr').querySelector('input.ni[type]');if(nxt)nxt.focus()}else if(e.key==='Escape')setFpEditIdx(null)}}/>:<span style={{padding:'0 6px'}}>{f.nombre||'\u2014'}</span>}</td>
 
                       <td style={{textAlign:'center'}}>{fpEditIdx===origIdx?<NumInput step=".01" min="0" inputMode="decimal" value={f.factor} onChange={function(v){updFp(origIdx,'factor',v)}} onFocus={function(e){e.target.select()}} onKeyDown={function(e){if(e.key==='Enter'){e.preventDefault();setFpEditIdx(null)}else if(e.key==='Escape')setFpEditIdx(null)}}/>:<span className="xl-ro-pct" style={{display:'block',textAlign:'center'}}>{fmtPct(f.factor)}</span>}</td>
+
+                      <td style={{textAlign:'center'}}>{fpEditIdx===origIdx?<select className="ni" value={f.tipo||'otros'} onChange={function(e){updFp(origIdx,'tipo',e.target.value)}} style={{fontSize:10,width:'100%'}}>{fpCatOrder.map(function(cat){return <option key={cat} value={cat}>{fpCatLabels[cat]}</option>})}</select>:<span style={{fontSize:9,fontWeight:700,color:fpCatColors[f.tipo||'otros']}}>{fpCatLabels[f.tipo||'otros']}</span>}</td>
 
                       <XLAct onEdit={function(){setFpEditIdx(origIdx)}} onDelete={function(){delFp(origIdx)}}/>
 
@@ -7368,7 +7373,7 @@ function PresProyectosPanel({presupuestos,selPresIdx,setSelPresIdx,data,onChange
     var padre=p.parent_id?presupuestos.find(function(x){return x.id===p.parent_id}):null;
     return[p.codigo||'',p.nombre||'',p.fecha_creacion||'',p.estado||'borrador',p.elaborado_por||'',p.entidad||'',p.con_sub_proyectos?'Si':'No',p.tipo_proyecto||'',p.observaciones||'',padre?padre.codigo:''];
   },parseRow:function(r){return[String(r[0]||'').trim(),String(r[1]||'').trim(),String(r[2]||'').trim(),String(r[3]||'borrador').trim(),String(r[4]||'').trim(),String(r[5]||'').trim(),String(r[6]||'No').trim(),String(r[7]||'').trim(),String(r[8]||'').trim(),String(r[9]||'').trim()]},buildItem:function(r,idx,existing,genCode){
-    var base=idx>=0?existing[idx]:{id:uid(),fecha_cierre:null,items:[],aiu_override:{activo:false,pct_a:0,pct_i:0,pct_u:0,iva_pct:19},factores_snap:(data.factoresPrestaciones||[]).map(function(f){return Object.assign({},f)}),cargos_snap:(data.cargos||[]).map(function(c){return Object.assign({},c)}),insumos_snap:(data.insumos||[]).map(function(i){return Object.assign({},i)}),equipos_snap:(data.equipos||[]).map(function(e){return Object.assign({},e)}),apus_snap:[],activo:false,contrato:'',objeto:'',plazo:0,ciudad:'',departamento:'',parent_id:null};
+    var base=idx>=0?existing[idx]:{id:uid(),fecha_cierre:null,items:[],aiu_override:{activo:false,pct_a:0,pct_i:0,pct_u:0,iva_pct:19,vr_resumido:false,usar_en_cada_apu:true},factores_snap:(data.factoresPrestaciones||[]).map(function(f){return Object.assign({},f)}),cargos_snap:(data.cargos||[]).map(function(c){return Object.assign({},c)}),insumos_snap:(data.insumos||[]).map(function(i){return Object.assign({},i)}),equipos_snap:(data.equipos||[]).map(function(e){return Object.assign({},e)}),apus_snap:[],activo:false,contrato:'',objeto:'',plazo:0,ciudad:'',departamento:'',parent_id:null};
     var codigoPadre=String(r[9]||'').trim();
     var padreObj=codigoPadre?existing.find(function(e){return(e.codigo||'').toLowerCase()===codigoPadre.toLowerCase()}):null;
     return Object.assign({},base,{codigo:idx>=0?existing[idx].codigo:(r[0]||genCode()),nombre:r[1]||'',fecha_creacion:r[2]||base.fecha_creacion||new Date().toISOString().slice(0,10),estado:r[3]||'borrador',elaborado_por:r[4]||'',entidad:r[5]||'',con_sub_proyectos:(r[6]||'').toLowerCase()==='si',tipo_proyecto:r[7]||'',observaciones:r[8]||'',parent_id:codigoPadre?(padreObj?padreObj.id:base.parent_id||null):null});
@@ -7442,12 +7447,14 @@ function PresProyectosPanel({presupuestos,selPresIdx,setSelPresIdx,data,onChange
                     <td style={{textAlign:'center',fontSize:10}}>{fmtDate(p.fecha_creacion)}</td>
                     <td style={{textAlign:'center'}}><span onClick={function(){toggleEstado(i)}} style={{cursor:'pointer',fontSize:9,padding:'1px 6px',borderRadius:3,border:'1px solid '+estadoColor(p.estado),color:estadoColor(p.estado),fontWeight:600}}>{estadoLabel(p.estado)}</span></td>
                     <td style={{textAlign:'center'}}>
-                      {p.estado==='borrador'?
-                        <select className="ni sel" value={(p.perfil_pais_snap&&p.perfil_pais_snap.codigo)||''} onChange={function(e){cambiarPerfilPais(i,e.target.value)}} style={{fontSize:9,padding:'1px 2px'}} title={p.perfil_pais_snap?p.perfil_pais_snap.nombre+' ('+p.perfil_pais_snap.moneda+')':''}>
+                      {isEdit&&p.estado==='borrador'?(
+                        <select className="ni sel" value={(p.perfil_pais_snap&&p.perfil_pais_snap.codigo)||''} onChange={async function(e){if(await cambiarPerfilPais(i,e.target.value))showToast('Perfil de país actualizado. Los costos han sido recalculados.',{type:'ok'})}} style={{fontSize:9,padding:'1px 2px'}}>
                           <option value="">—</option>
                           {((data.config_listas&&data.config_listas.perfiles_pais)||[]).filter(function(pp){return pp.activo!==false}).map(function(pp){return <option key={pp.codigo} value={pp.codigo}>{pp.nombre||pp.codigo}</option>})}
                         </select>
-                      :<span style={{fontSize:9,color:'var(--tx2)'}} title={p.perfil_pais_snap?p.perfil_pais_snap.nombre+' ('+p.perfil_pais_snap.moneda+')':'Sin perfil'}>{p.perfil_pais_snap?(p.perfil_pais_snap.nombre||p.perfil_pais_snap.codigo):'—'}</span>}
+                      ):(
+                        <span style={{fontSize:9,color:'var(--tx2)'}} title={p.perfil_pais_snap?p.perfil_pais_snap.nombre+' ('+p.perfil_pais_snap.moneda+')':'Sin perfil'}>{p.perfil_pais_snap?(p.perfil_pais_snap.nombre||p.perfil_pais_snap.codigo):'—'}</span>
+                      )}
                     </td>
                     <td style={{textAlign:'center'}}>
                       {p.formulario_original?
@@ -8296,7 +8303,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
         <div style={{padding:'34px 20px',border:'1px dashed var(--bdr)',borderRadius:4,textAlign:'center',display:'flex',flexDirection:'column',alignItems:'center',gap:12}}>
           <div style={{fontSize:12,color:'var(--tx2)',maxWidth:480,lineHeight:1.5}}>Sube el formulario de presupuesto en Excel (.xlsx) o crea los items directamente. El sistema detecta automáticamente en qué fila empiezan los ítems y cuáles filas son capítulos.</div>
           <div style={{width:'100%',maxWidth:480,padding:'10px 14px',background:'var(--bg)',border:'1px solid var(--bdr)',borderRadius:4,textAlign:'left'}}>
-            <div style={{fontSize:11,fontWeight:700,color:'var(--tx)',marginBottom:8}}>¿El formulario tiene precios definidos por la entidad contratante?</div>
+            <div style={{fontSize:11,fontWeight:700,color:'var(--tx)',marginBottom:8}}>¿El formulario tiene precios definidos por el cliente?</div>
             <div style={{display:'flex',gap:20}}>
               <label style={{fontSize:11,cursor:'pointer',display:'flex',alignItems:'center',gap:4}}>
                 <input type="radio" name="tipoPrecioForm" value="apu" checked={tipoPrecioFormulario==='apu'} onChange={function(){setTipoPrecioFormulario('apu')}}/>
@@ -8304,7 +8311,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
               </label>
               <label style={{fontSize:11,cursor:'pointer',display:'flex',alignItems:'center',gap:4}}>
                 <input type="radio" name="tipoPrecioForm" value="entidad" checked={tipoPrecioFormulario==='entidad'} onChange={function(){setTipoPrecioFormulario('entidad')}}/>
-                Sí — precios fijos de la entidad (costo directo)
+                Sí, Precios fijos establecidos por el Cliente (Costo Directo)
               </label>
             </div>
             {tipoPrecioFormulario==='entidad'&&<div style={{marginTop:6,fontSize:10,color:'#fbbf24'}}>⚠ Los precios de la entidad corresponden al costo directo (sin AIU). Una vez adjudicado el proyecto, no podrán modificarse.</div>}
@@ -8718,12 +8725,12 @@ function crearDataAdapterProyecto(pres,data,presupuestos,selPresIdx,onChangeReal
 }
 
 var TABS_PROYECTO=[
+  {tipo:'parametros',label:'Parámetros'},
   {tipo:'cargos',label:'Colaboradores'},
   {tipo:'cuadrillas',label:'Cuadrillas'},
   {tipo:'equipos',label:'Equipos'},
   {tipo:'insumos',label:'Insumos'},
-  {tipo:'apus',label:'APU'},
-  {tipo:'parametros',label:'Parámetros'}
+  {tipo:'apus',label:'APU'}
 ];
 
 var FIRMA_LABEL={
@@ -8746,8 +8753,24 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
   cargosCalcSnap,cuadrillasCalcSnap,equiposSnapEfectivo,insumosSnapEfectivo,factorPrestSnap,personMapSnap,
   eqMapSnap,insMapSnap,herrPct,usarFpEnApu,esHora,abCalcList,apusBasico,provMap,_unidades,cambiarPerfilPais}){
 
-  var[tipo,setTipo]=useState('cargos');
+  var[tipo,setTipo]=useState('parametros');
+  var[fpRowEditIdx,setFpRowEditIdx]=useState(null);
+  var[fpCatEditParams,setFpCatEditParams]=useState(false);
+  var[editPerfilSnap,setEditPerfilSnap]=useState(false);
+  var[editSalSnap,setEditSalSnap]=useState(false);
+  var[editHerrSnap,setEditHerrSnap]=useState(false);
+  var[editAIUSnap,setEditAIUSnap]=useState(false);
+  var presRef=useRef(null);
+  var presupuestosRef=useRef(null);
+  var dataGlobalRef=useRef(null);
+  var selPresIdxRef=useRef(null);
+  presRef.current=pres;
+  presupuestosRef.current=presupuestos;
+  dataGlobalRef.current=data;
+  selPresIdxRef.current=selPresIdx;
+  var esEditable=pres.estado!=='cerrado'; // pestaña Parametros: editable en borrador Y en_revision, solo cerrado bloquea
   var adaptado=crearDataAdapterProyecto(pres,data,presupuestos,selPresIdx,onChange);
+  var onChangeSnap=esEditable?adaptado.onChange:function(){showToast('Presupuesto cerrado: solo lectura, no se pueden guardar cambios.',{type:'warn'})};
 
   /* Cuadrillas — decision de la seccion 4 (Adaptador_Catalogos_Reales_Proyecto.md): CuadrillasTab
      se analizo y es autocontenido (opera 100% via data/onChange como los demas); su unico
@@ -9028,8 +9051,9 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
     showToast('APU "'+(apu.nombre||apu.codigo)+'" agregado al catálogo general.',{type:'ok'});
   };
 
-  var readOnly=pres.estado!=='borrador';
-  var readOnlyParams=pres.estado==='cerrado'; // pestaña Parametros: editable en borrador Y en_revision, solo cerrado bloquea
+  var fpCatOrderParams=['prestaciones','seguridad_social','parafiscales','otros'];
+  var fpCatLabelsParams=Object.assign({prestaciones:'PRESTACIONES',seguridad_social:'SEGURIDAD SOCIAL',parafiscales:'PARAFISCALES',otros:'OTROS'},data.fp_categoria_labels||{});
+  var fpCatColorsParams={prestaciones:'var(--ac)',seguridad_social:'var(--ok)',parafiscales:'var(--warn)',otros:'var(--tx2)'};
 
   var actualizarUsarFp=function(valor){
     if(!pres.perfil_pais_snap)return;
@@ -9045,12 +9069,57 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
     n[selPresIdx]=Object.assign({},pres,{factores_snap:factores});
     onChange(Object.assign({},data,{presupuestos:n}));
   };
+  var agregarFactorSnap=function(){
+    var factores=(pres.factores_snap||[]).slice();
+    var newIdx=factores.length;
+    factores.push({id:uid(),codigo:genCodeFor(factores,'FP'),nombre:'',factor:0,tipo:'otros'});
+    var n=presupuestos.slice();
+    n[selPresIdx]=Object.assign({},pres,{factores_snap:factores});
+    onChange(Object.assign({},data,{presupuestos:n}));
+    setFpRowEditIdx(newIdx);
+  };
+  var eliminarFactorSnap=async function(idx){
+    var _pres=presRef.current;
+    var factores=_pres.factores_snap||[];
+    if(!(await askConfirm('¿Desea eliminar "'+(factores[idx].nombre||'este factor')+'"? Esta acción no se puede deshacer.')))return;
+    if(fpRowEditIdx===idx)setFpRowEditIdx(null);
+    var _presupuestos=presupuestosRef.current;
+    var _selPresIdx=selPresIdxRef.current;
+    var _data=dataGlobalRef.current;
+    var n=_presupuestos.slice();
+    n[_selPresIdx]=Object.assign({},_pres,{factores_snap:factores.filter(function(_,j){return j!==idx})});
+    onChange(Object.assign({},_data,{presupuestos:n}));
+  };
   var actualizarAiuOverride=function(campo,valor){
-    var override=Object.assign({},pres.aiu_override||{},{[campo]:valor});
+    var override=Object.assign({activo:false,pct_a:0,pct_i:0,pct_u:0,iva_pct:0},pres.aiu_override||{},{[campo]:valor});
     var n=presupuestos.slice();
     n[selPresIdx]=Object.assign({},pres,{aiu_override:override});
     onChange(Object.assign({},data,{presupuestos:n}));
   };
+  var actualizarPerfilSnap=function(campo,valor){
+    var nuevoSnap=Object.assign({},pres.perfil_pais_snap,{[campo]:valor});
+    var n=presupuestos.slice();
+    n[selPresIdx]=Object.assign({},pres,{perfil_pais_snap:nuevoSnap});
+    onChange(Object.assign({},data,{presupuestos:n}));
+  };
+  var inicializarFactoresSnap=function(){
+    var n=presupuestos.slice();
+    n[selPresIdx]=Object.assign({},pres,{factores_snap:(data.factoresPrestaciones||[]).map(function(f){return Object.assign({},f)})});
+    onChange(Object.assign({},data,{presupuestos:n}));
+    showToast('Factor Prestacional cargado desde catálogo general.',{type:'ok'});
+  };
+  var restaurarFpDesdeGlobal=async function(){
+    if(!(await askConfirm('¿Restaurar el Factor Prestacional de este proyecto desde el catálogo general?\n\nLos valores actuales del proyecto serán reemplazados por los del catálogo global.')))return;
+    var _pres=presRef.current;
+    var _presupuestos=presupuestosRef.current;
+    var _selPresIdx=selPresIdxRef.current;
+    var _data=dataGlobalRef.current;
+    var n=_presupuestos.slice();
+    n[_selPresIdx]=Object.assign({},_pres,{factores_snap:(_data.factoresPrestaciones||[]).map(function(f){return Object.assign({},f)})});
+    onChange(Object.assign({},_data,{presupuestos:n}));
+    showToast('Factor Prestacional restaurado desde el catálogo general.',{type:'ok'});
+  };
+  var fpParamsExcel=useExcelImportExport({items:pres.factores_snap||[],data:{factoresPrestaciones:pres.factores_snap||[]},onChange:function(d){var n=presupuestos.slice();n[selPresIdx]=Object.assign({},pres,{factores_snap:d.factoresPrestaciones});onChange(Object.assign({},data,{presupuestos:n}))},dataKey:'factoresPrestaciones',prefix:'FP',title:'FACTOR PRESTACIONAL — '+(pres.codigo||''),sheetName:'FactorPrestacional',filename:'prestaciones_'+(pres.codigo||'proyecto')+'.xlsx',headers:['Código','Factor','Valor(%)','Tipo'],colWidths:[{wch:10},{wch:30},{wch:12},{wch:14}],mapRow:function(f){return[f.codigo||'',f.nombre||'',f.factor||0,f.tipo||'otros']},parseRow:function(r){return[String(r[0]||'').trim(),String(r[1]||'').trim(),String(r[2]||0).trim(),String(r[3]||'otros').trim()]},buildItem:function(r,idx,existing,genCode){var nombre=(r[1]||'').trim();return{codigo:idx>=0?existing[idx].codigo:genCode(),id:idx>=0?existing[idx].id:uid(),nombre:nombre,factor:safeFloat(r[2])||0,tipo:r[3]||'otros'}},matchKey:'codigo'});
 
   var anchoPorTipo={cargos:854,cuadrillas:undefined,equipos:1161,insumos:1594,apus:undefined};
   var anchoTitulo=anchoPorTipo[tipo];
@@ -9067,7 +9136,7 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
          usa alignItems:'flex-start' sin recortar), asi que sin este wrapper el scroll termina cayendo
          en la ventana completa del navegador en vez de quedar contenido aqui. */}
       <div className="visor-catalogo-embed" style={{maxHeight:'calc(100vh - 150px)',width:'fit-content',maxWidth:'100%',overflow:'auto',display:'flex',flexDirection:'column'}}>
-      <TituloSubTab pres={pres} presupuestos={presupuestos} tituloSubTab="Recursos del Proyecto" width={anchoTitulo} stacked extra={!readOnly&&(
+      <TituloSubTab pres={pres} presupuestos={presupuestos} tituloSubTab="Recursos del Proyecto" width={anchoTitulo} stacked extra={esEditable&&(
         <div style={{display:'flex',gap:6}}>
           <button onClick={sincronizar} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--ac)',borderRadius:4,background:'transparent',color:'var(--ac)',cursor:'pointer'}}>
             🔄 Actualizar desde catálogo general
@@ -9103,30 +9172,33 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
         {TABS_PROYECTO.map(function(t){
           return(
             <button key={t.tipo} onClick={function(){cambiarTipo(t.tipo)}} style={{fontSize:11,padding:'5px 12px',border:'1px solid '+(tipo===t.tipo?'var(--ok)':'var(--bdr)'),borderRadius:4,background:tipo===t.tipo?'rgba(74,222,128,.1)':'transparent',color:tipo===t.tipo?'var(--ok)':'var(--tx2)',cursor:'pointer'}}>
-              {t.tipo==='parametros'?t.label+(pres.estado==='cerrado'?' 🔒':''):t.label+' ('+(pres[t.tipo+'_snap']||[]).length+')'}
+              {t.tipo==='parametros'?t.label+(pres.estado==='cerrado'?' 🔒':''):t.label+' ('+(pres[t.tipo+'_snap']||[]).length+')'+(pres.estado==='cerrado'?' 🔒':'')}
             </button>
           );
         })}
       </div>
-        {tipo==='insumos'&&<InsumosTab data={adaptado.data} onChange={adaptado.onChange} provMap={provMap}
+        {(tipo==='insumos'||tipo==='equipos'||tipo==='cargos'||tipo==='cuadrillas'||tipo==='apus')&&!esEditable&&(
+          <div style={{fontSize:11,padding:'6px 10px',marginBottom:8,border:'1px solid var(--warn)',borderRadius:4,background:'rgba(251,191,36,.08)',color:'var(--warn)',fontWeight:600}}>🔒 Presupuesto cerrado — solo lectura, no se aceptan cambios.</div>
+        )}
+        {tipo==='insumos'&&<InsumosTab data={adaptado.data} onChange={onChangeSnap} provMap={provMap}
           cargosCalc={cargosCalcSnap} cargoMap={personMapSnap} esHora={esHora} _unidades={_unidades}
           equipos={equiposSnapEfectivo} factorPrest={factorPrestSnap} usarFpEnApu={usarFpEnApu} apusBasico={apusBasico}
           contextoProyecto={{codigo:pres.codigo,nombre:pres.nombre}}/>}
 
-        {tipo==='equipos'&&<EquiposTab data={adaptado.data} onChange={adaptado.onChange} provMap={provMap} _unidades={_unidades}
+        {tipo==='equipos'&&<EquiposTab data={adaptado.data} onChange={onChangeSnap} provMap={provMap} _unidades={_unidades}
           contextoProyecto={{codigo:pres.codigo,nombre:pres.nombre}}/>}
 
-        {tipo==='cargos'&&<FactorPrestacionalTab data={adaptado.data} onChange={adaptado.onChange}
+        {tipo==='cargos'&&<FactorPrestacionalTab data={adaptado.data} onChange={onChangeSnap}
           factorPrest={factorPrestSnap} cargosCalc={cargosCalcSnap} cargoMap={personMapSnap} esHora={esHora}
           tab={tipo} setTab={function(){setTipo('cuadrillas')}} setSelCuadrillaIdx={setCuadrillaLocalIdx} setPrevTab={setPrevTipo}
           contextoProyecto={{codigo:pres.codigo,nombre:pres.nombre}}/>}
 
-        {tipo==='cuadrillas'&&<CuadrillasTab data={adaptado.data} onChange={adaptado.onChange}
+        {tipo==='cuadrillas'&&<CuadrillasTab data={adaptado.data} onChange={onChangeSnap}
           cargosCalc={cargosCalcSnap} cargoMap={personMapSnap} esHora={esHora}
           selCuadrillaIdx={cuadrillaLocalIdx} setSelCuadrillaIdx={setCuadrillaLocalIdx}
           tab={tipo} setTab={function(t){setTipo(t)}} prevTab={prevTipo} setPrevTab={setPrevTipo}/>}
 
-        {tipo==='apus'&&<APUTab data={adaptado.data} onChange={adaptado.onChange} cargosCalc={cargosCalcSnap}
+        {tipo==='apus'&&<APUTab data={adaptado.data} onChange={onChangeSnap} cargosCalc={cargosCalcSnap}
           cargoMap={personMapSnap} esHora={esHora} eqMap={eqMapSnap} insMap={insMapSnap} cuadrillasCalc={cuadrillasCalcSnap}
           _unidades={_unidades} equipos={equiposSnapEfectivo} insumos={insumosSnapEfectivo} factorPrest={factorPrestSnap}
           usarFpEnApu={usarFpEnApu} view="catalog" apusBasico={apusBasico}
@@ -9134,92 +9206,295 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
           contextoProyecto={{codigo:pres.codigo,nombre:pres.nombre}}/>}
 
         {tipo==='parametros'&&(
-          <div style={{padding:'4px 2px',maxWidth:1100,display:'grid',gridTemplateColumns:'1fr 1.5fr 1fr',gap:16,alignItems:'start'}}>
+          <div style={{padding:'4px 2px',maxWidth:1600,display:'grid',gridTemplateColumns:'1fr 1.3fr 0.9fr',gap:16,alignItems:'start'}}>
             <div style={{display:'flex',flexDirection:'column',gap:16}}>
-              <div style={{background:'var(--bg2)',border:'1px solid var(--bdr)',borderRadius:6,padding:'12px 14px'}}>
-                <div style={{fontSize:12,fontWeight:700,color:'var(--ac)',borderBottom:'1px solid var(--bdr)',paddingBottom:6,marginBottom:10}}>🌍 Perfil de país</div>
-                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'5px 0',borderBottom:'1px solid var(--bdr)',gap:8}}>
-                  <span style={{fontSize:11,color:'var(--tx2)'}}>País / perfil</span>
-                  {readOnlyParams?(
-                    <span style={{fontSize:11,fontWeight:600,color:'var(--tx)'}}>{pres.perfil_pais_snap?pres.perfil_pais_snap.nombre:'— Sin perfil'}</span>
-                  ):(
-                    <select value={pres.perfil_pais_snap?pres.perfil_pais_snap.codigo:''} onChange={function(e){cambiarPerfilPais(selPresIdx,e.target.value)}} style={{fontSize:11,background:'var(--bg2)',color:'var(--tx)',border:'1px solid var(--bdr)',borderRadius:4,padding:'2px 6px'}}>
-                      <option value="">— Sin perfil —</option>
-                      {((data.config_listas&&data.config_listas.perfiles_pais)||[]).filter(function(p){return p.activo!==false}).map(function(p){return <option key={p.codigo} value={p.codigo}>{p.nombre} ({p.moneda})</option>})}
-                    </select>
+              <div style={{background:'var(--bg2)',border:'1px solid var(--bdr)',borderRadius:6,padding:'8px 12px'}}>
+                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',borderBottom:'1px solid var(--bdr)',paddingBottom:4,marginBottom:6}}>
+                  <span style={{fontSize:12,fontWeight:700,color:'var(--ac)'}}>🌍 SELECCIONE EL PERFIL DEL PAÍS</span>
+                  {esEditable&&(!editPerfilSnap
+                    ?<button className="btn-edit" onClick={function(){setEditPerfilSnap(true)}} title="Editar perfil" style={{background:'none',border:'none',cursor:'pointer',verticalAlign:'middle'}}><IconEdit/></button>
+                    :<button className="btn" onClick={function(){setEditPerfilSnap(false)}} style={{fontSize:9,padding:'1px 6px',border:'1px solid var(--ok)',borderRadius:3,background:'none',color:'var(--ok)',cursor:'pointer',verticalAlign:'middle'}}>Listo</button>
                   )}
                 </div>
-                {pres.perfil_pais_snap&&[
-                  ['Moneda',(pres.perfil_pais_snap.moneda||'')+' '+(pres.perfil_pais_snap.simbolo||'')],
-                  ['Horas / mes',(pres.perfil_pais_snap.horas_mes||'—')+' h'],
-                  ['Días / mes',(pres.perfil_pais_snap.dias_mes||'—')+' días'],
-                  ['Jornada diaria',(pres.perfil_pais_snap.jornada_diaria||'—')+' h/día']
-                ].map(function(row){
-                  return(<div key={row[0]} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'5px 0',borderBottom:'1px solid var(--bdr)'}}>
-                    <span style={{fontSize:11,color:'var(--tx2)'}}>{row[0]}</span>
-                    <span style={{fontSize:11,fontWeight:600,color:'var(--tx)'}}>{row[1]}</span>
-                  </div>);
-                })}
-                {pres.perfil_pais_snap&&(
-                  <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'5px 0'}}>
-                    <span style={{fontSize:11,color:'var(--tx2)'}}>Aplica FP</span>
-                    <span style={{fontSize:11,fontWeight:600,color:pres.perfil_pais_snap.usar_fp?'var(--ok)':'var(--tx3)'}}>{pres.perfil_pais_snap.usar_fp?'Sí':'No'}</span>
+
+                {editPerfilSnap&&esEditable?(
+                  <div style={{display:'flex',flexWrap:'wrap',gap:'4px 14px',alignItems:'flex-end'}}>
+
+                    <div style={{display:'flex',flexDirection:'column',gap:1}}>
+                      <label style={{fontSize:9,color:'var(--tx2)',fontWeight:600}}>PAÍS / PERFIL</label>
+                      <select value={pres.perfil_pais_snap?pres.perfil_pais_snap.codigo:''} onChange={async function(e){if(await cambiarPerfilPais(selPresIdx,e.target.value))setMensajeActualizacion({tipo:'ok',texto:'Perfil de país actualizado. Los costos han sido recalculados.'})}} style={{width:130,height:22,fontSize:11,background:'var(--bg2)',color:'var(--tx)',border:'1px solid var(--bdr)',borderRadius:4,padding:'0 4px'}}>
+                        <option value="">— Sin perfil —</option>
+                        {((data.config_listas&&data.config_listas.perfiles_pais)||[]).filter(function(p){return p.activo!==false}).map(function(p){return <option key={p.codigo} value={p.codigo}>{p.nombre}</option>})}
+                      </select>
+                    </div>
+
+                    <div style={{display:'flex',flexDirection:'column',gap:1}}>
+                      <label style={{fontSize:9,color:'var(--tx2)',fontWeight:600}}>MONEDA</label>
+                      <div style={{display:'flex',alignItems:'center',gap:3,height:22,padding:'0 4px',border:'1px solid var(--bd)',borderRadius:4,background:'var(--bg3)'}}>
+                        <span style={{fontSize:13,color:'var(--ac)',fontWeight:700}}>{(pres.perfil_pais_snap&&pres.perfil_pais_snap.simbolo)||'$'}</span>
+                        <span style={{fontSize:11,fontWeight:700}}>{(pres.perfil_pais_snap&&pres.perfil_pais_snap.moneda)||'—'}</span>
+                      </div>
+                    </div>
+
+                    {pres.perfil_pais_snap&&(
+                      <div style={{display:'flex',flexDirection:'column',gap:1}}>
+                        <label style={{fontSize:9,color:'var(--tx2)',fontWeight:600,textAlign:'left'}}>Salario Básico de<br/>{pres.perfil_pais_snap.nombre}</label>
+                        <div style={{display:'flex',alignItems:'center',gap:4}}>
+                          <NumInput step="1000" inputMode="decimal" value={pres.perfil_pais_snap.smmlv||0} onChange={function(v){actualizarPerfilSnap('smmlv',v)}} style={{width:84,height:22,fontSize:11,border:'1px solid var(--bd)',borderRadius:4,textAlign:'right',fontWeight:700}}/>
+                          <span style={{fontSize:9,padding:'0 6px',borderRadius:3,fontWeight:700,background:'var(--bg3)',border:'1px solid var(--bd)',whiteSpace:'nowrap',height:22,lineHeight:'18px',display:'inline-flex',alignItems:'center'}}>{pres.perfil_pais_snap.unidad==='hora'?'HH':'MES'}</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {pres.perfil_pais_snap&&(
+                      <div style={{display:'flex',flexDirection:'column',gap:1,width:35}}>
+                        <label style={{fontSize:9,color:'var(--tx2)',fontWeight:600}}>DL/M</label>
+                        {pres.perfil_pais_snap.unidad==='hora'
+                          ?<span style={{width:'100%',height:22,fontSize:11,border:'1px solid var(--bd)',borderRadius:4,textAlign:'center',fontWeight:700,color:'var(--tx3)',display:'inline-flex',alignItems:'center',justifyContent:'center',background:'var(--bg3)'}}>N/A</span>
+                          :<NumInput step="1" min="1" max="31" inputMode="decimal" value={pres.perfil_pais_snap.dias_mes||30} onChange={function(v){actualizarPerfilSnap('dias_mes',v)}} style={{width:'100%',height:22,fontSize:11,border:'1px solid var(--bd)',borderRadius:4,textAlign:'right',fontWeight:700}}/>
+                        }
+                      </div>
+                    )}
+
+                    {pres.perfil_pais_snap&&(
+                      <div style={{display:'flex',flexDirection:'column',gap:1,width:40}}>
+                        <label style={{fontSize:9,color:'var(--tx2)',fontWeight:600}}>HL/M</label>
+                        {pres.perfil_pais_snap.unidad==='hora'
+                          ?<span style={{width:'100%',height:22,fontSize:11,border:'1px solid var(--bd)',borderRadius:4,textAlign:'center',fontWeight:700,color:'var(--tx3)',display:'inline-flex',alignItems:'center',justifyContent:'center',background:'var(--bg3)'}}>N/A</span>
+                          :<NumInput step="1" min="1" max="300" inputMode="decimal" value={pres.perfil_pais_snap.horas_mes||182} onChange={function(v){actualizarPerfilSnap('horas_mes',v)}} style={{width:'100%',height:22,fontSize:11,border:'1px solid var(--bd)',borderRadius:4,textAlign:'right',fontWeight:700}}/>
+                        }
+                      </div>
+                    )}
+
+                  </div>
+                ):(
+                  <div style={{display:'flex',flexWrap:'wrap',gap:'4px 14px',alignItems:'flex-end'}}>
+
+                    <div style={{display:'flex',flexDirection:'column',gap:1}}>
+                      <label style={{fontSize:9,color:'var(--tx2)',fontWeight:600}}>PAÍS / PERFIL</label>
+                      <span style={{width:130,height:22,fontSize:11,border:'1px solid var(--bd)',borderRadius:4,padding:'0 4px',display:'inline-flex',alignItems:'center',background:'var(--bg3)'}}>{pres.perfil_pais_snap?pres.perfil_pais_snap.nombre:'— Sin perfil —'}</span>
+                    </div>
+
+                    <div style={{display:'flex',flexDirection:'column',gap:1}}>
+                      <label style={{fontSize:9,color:'var(--tx2)',fontWeight:600}}>MONEDA</label>
+                      <div style={{display:'flex',alignItems:'center',gap:3,height:22,padding:'0 4px',border:'1px solid var(--bd)',borderRadius:4,background:'var(--bg3)'}}>
+                        <span style={{fontSize:13,color:'var(--ac)',fontWeight:700}}>{(pres.perfil_pais_snap&&pres.perfil_pais_snap.simbolo)||'$'}</span>
+                        <span style={{fontSize:11,fontWeight:700}}>{(pres.perfil_pais_snap&&pres.perfil_pais_snap.moneda)||'—'}</span>
+                      </div>
+                    </div>
+
+                    {pres.perfil_pais_snap&&(
+                      <div style={{display:'flex',flexDirection:'column',gap:1}}>
+                        <label style={{fontSize:9,color:'var(--tx2)',fontWeight:600,textAlign:'left'}}>Salario Básico de<br/>{pres.perfil_pais_snap.nombre}</label>
+                        <div style={{display:'flex',alignItems:'center',gap:4}}>
+                          <span style={{width:84,height:22,fontSize:11,border:'1px solid var(--bd)',borderRadius:4,textAlign:'right',fontWeight:700,display:'inline-flex',alignItems:'center',padding:'0 4px',background:'var(--bg3)'}}>{fmt(pres.perfil_pais_snap.smmlv||0)}</span>
+                          <span style={{fontSize:9,padding:'0 6px',borderRadius:3,fontWeight:700,background:'var(--bg3)',border:'1px solid var(--bd)',whiteSpace:'nowrap',height:22,lineHeight:'18px',display:'inline-flex',alignItems:'center'}}>{pres.perfil_pais_snap.unidad==='hora'?'HH':'MES'}</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {pres.perfil_pais_snap&&(
+                      <div style={{display:'flex',flexDirection:'column',gap:1,width:35}}>
+                        <label style={{fontSize:9,color:'var(--tx2)',fontWeight:600}}>DL/M</label>
+                        <span style={{width:'100%',height:22,fontSize:11,border:'1px solid var(--bd)',borderRadius:4,textAlign:'center',fontWeight:700,display:'inline-flex',alignItems:'center',justifyContent:'center',background:'var(--bg3)'}}>{pres.perfil_pais_snap.unidad==='hora'?'N/A':pres.perfil_pais_snap.dias_mes||30}</span>
+                      </div>
+                    )}
+
+                    {pres.perfil_pais_snap&&(
+                      <div style={{display:'flex',flexDirection:'column',gap:1,width:40}}>
+                        <label style={{fontSize:9,color:'var(--tx2)',fontWeight:600}}>HL/M</label>
+                        <span style={{width:'100%',height:22,fontSize:11,border:'1px solid var(--bd)',borderRadius:4,textAlign:'center',fontWeight:700,display:'inline-flex',alignItems:'center',justifyContent:'center',background:'var(--bg3)'}}>{pres.perfil_pais_snap.unidad==='hora'?'N/A':pres.perfil_pais_snap.horas_mes||182}</span>
+                      </div>
+                    )}
+
                   </div>
                 )}
               </div>
 
-              <div style={{background:'var(--bg2)',border:'1px solid var(--bdr)',borderRadius:6,padding:'12px 14px'}}>
-                <div style={{fontSize:12,fontWeight:700,color:'var(--ac)',borderBottom:'1px solid var(--bdr)',paddingBottom:6,marginBottom:10}}>⚙ Parámetros de APU</div>
-                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'5px 0',borderBottom:'1px solid var(--bdr)'}}>
-                  <span style={{fontSize:11,color:'var(--tx2)'}}>Herramienta menor (% MO)</span>
-                  <span style={{fontSize:11,color:'var(--tx3)'}}>{herrPct}% — global</span>
-                </div>
-                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'5px 0',borderBottom:'1px solid var(--bdr)'}}>
-                  <span style={{fontSize:11,color:'var(--tx2)'}}>Horas / mes</span>
-                  <span style={{fontSize:11,color:'var(--tx3)'}}>{(pres.perfil_pais_snap&&pres.perfil_pais_snap.horas_mes)||'—'} h — del perfil</span>
-                </div>
-                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'5px 0'}}>
-                  <span style={{fontSize:11,color:'var(--tx2)'}}>Usar factor prestacional</span>
-                  {readOnlyParams?(
-                    <span style={{fontSize:11,fontWeight:600,color:'var(--tx)'}}>{(pres.perfil_pais_snap&&pres.perfil_pais_snap.usar_fp)?'Sí':'No'}</span>
-                  ):(
-                    <select value={(pres.perfil_pais_snap&&pres.perfil_pais_snap.usar_fp)?'si':'no'} onChange={function(e){actualizarUsarFp(e.target.value==='si')}} disabled={!pres.perfil_pais_snap} style={{fontSize:11,background:'var(--bg2)',color:'var(--tx)',border:'1px solid var(--bdr)',borderRadius:3,padding:'2px 6px'}}>
-                      <option value="si">Sí</option>
-                      <option value="no">No</option>
-                    </select>
-                  )}
-                </div>
+              <div style={{border:'1px solid var(--bdr)',borderRadius:4}}>
+                <table style={{width:'100%',borderCollapse:'separate',borderSpacing:0,fontSize:11,tableLayout:'fixed'}}>
+                  <colgroup><col style={{width:'34%'}}/><col style={{width:'18%'}}/><col style={{width:'48%'}}/></colgroup>
+                  <thead>
+                    <tr><th colSpan={3} style={{textAlign:'left',padding:'2px 10px',background:'var(--bg3)',borderBottom:'1px solid var(--bdr)',fontSize:13,fontWeight:700,color:'var(--ac)',fontFamily:'Inter, sans-serif',lineHeight:'19px',height:25}}>PARÁMETROS GLOBALES APU</th></tr>
+                    <tr>
+                      <th style={{padding:'3px 6px',background:'var(--bg3)',borderBottom:'1px solid var(--bdr)',fontSize:9,color:'var(--tx3)',textAlign:'left'}}>Parámetro</th>
+                      <th style={{padding:'3px 6px',background:'var(--bg3)',borderBottom:'1px solid var(--bdr)',fontSize:9,color:'var(--tx3)',textAlign:'center'}}>Valor</th>
+                      <th style={{padding:'3px 6px',background:'var(--bg3)',borderBottom:'1px solid var(--bdr)',fontSize:9,color:'var(--tx3)',textAlign:'center'}}>Comentarios</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+
+                    <tr><td colSpan={3} style={{padding:'3px 8px',background:'var(--bg2)',borderBottom:'1px solid var(--bdr)',fontWeight:700,color:'var(--warn)',fontSize:10,textAlign:'left'}}>
+                      <span>Salarios</span>{' '}
+                      {esEditable&&(!editSalSnap
+                        ?<button className="btn-edit" onClick={function(){setEditSalSnap(true)}} title="Editar" style={{background:'none',border:'none',cursor:'pointer',verticalAlign:'middle'}}><IconEdit/></button>
+                        :<button className="btn" onClick={function(){setEditSalSnap(false)}} style={{fontSize:9,padding:'1px 6px',border:'1px solid var(--ok)',borderRadius:3,background:'none',color:'var(--ok)',cursor:'pointer',verticalAlign:'middle'}}>Listo</button>
+                      )}
+                    </td></tr>
+
+                    <tr>
+                      <td style={{padding:'2px 8px',borderBottom:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',color:'var(--tx2)',fontSize:10}}>Tipo de salario a usar</td>
+                      <td style={{padding:'2px 8px',borderBottom:'1px solid var(--bdr)',textAlign:'center',borderRight:'1px solid var(--bdr)'}}>
+                        <span style={{fontWeight:700,fontSize:10,color:'var(--warn)'}}>
+                          {(pres.perfil_pais_snap&&pres.perfil_pais_snap.unidad==='hora')?'HH (Hora)':'Jornal/Día'}
+                        </span>
+                      </td>
+                      <td style={{padding:'2px 6px',borderBottom:'1px solid var(--bdr)',whiteSpace:'normal',wordBreak:'break-word',lineHeight:'1.4',fontSize:9,color:'var(--tx3)'}}>Definido por el perfil de país del proyecto. Definir entre JORNAL/DIA o HH.</td>
+                    </tr>
+
+                    <tr>
+                      <td style={{padding:'2px 8px',borderBottom:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',color:'var(--tx2)',fontSize:10,fontWeight:700}}>Factor Prestacional F.P.</td>
+                      <td style={{padding:'2px 8px',borderBottom:'1px solid var(--bdr)',textAlign:'center',borderRight:'1px solid var(--bdr)',fontWeight:700,fontSize:10,color:'var(--ok)'}}>{Number(factorPrestSnap||0).toFixed(2)+'%'}</td>
+                      <td style={{padding:'2px 6px',borderBottom:'1px solid var(--bdr)',whiteSpace:'normal',wordBreak:'break-word',lineHeight:'1.4',fontSize:9,color:'var(--tx3)'}}>Valor obtenido en Módulo Categorías del proyecto.</td>
+                    </tr>
+
+                    <tr>
+                      <td style={{padding:'2px 8px',borderBottom:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',color:'var(--tx2)',fontSize:10,fontWeight:700}}>Usar factor prestacional</td>
+                      <td style={{padding:'2px 8px',borderBottom:'1px solid var(--bdr)',textAlign:'center',borderRight:'1px solid var(--bdr)'}}>{editSalSnap&&esEditable
+                        ?<select className="ni" value={(pres.perfil_pais_snap&&pres.perfil_pais_snap.usar_fp)?'1':'0'} onChange={function(e){actualizarUsarFp(e.target.value==='1')}} disabled={!pres.perfil_pais_snap} style={{width:60,height:18,fontSize:10,border:'1px solid var(--bd)',borderRadius:4,textAlign:'center',fontWeight:700,color:'var(--warn)'}}><option value='0'>NO</option><option value='1'>SI</option></select>
+                        :<span style={{fontWeight:700,fontSize:10,color:'var(--warn)'}}>{(pres.perfil_pais_snap&&pres.perfil_pais_snap.usar_fp)?'SI':'NO'}</span>
+                      }</td>
+                      <td style={{padding:'2px 6px',borderBottom:'1px solid var(--bdr)',whiteSpace:'normal',wordBreak:'break-word',lineHeight:'1.4',fontSize:9,color:'var(--tx3)'}}>Si elije NO, el F.P. no se incluye en el cálculo del APU de este proyecto.</td>
+                    </tr>
+
+                    <tr><td colSpan={3} style={{padding:'3px 8px',background:'var(--bg2)',borderBottom:'1px solid var(--bdr)',fontWeight:700,color:'var(--warn)',fontSize:10,textAlign:'left'}}>Herramienta Menor</td></tr>
+
+                    <tr>
+                      <td style={{padding:'2px 8px',borderBottom:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',color:'var(--tx2)',fontSize:10}}>% Herramientas menores sobre MO</td>
+                      <td style={{padding:'2px 8px',borderBottom:'1px solid var(--bdr)',textAlign:'center',borderRight:'1px solid var(--bdr)',fontWeight:700,fontSize:10,color:'var(--warn)'}}>{Number(herrPct||0).toFixed(2)+'%'}</td>
+                      <td style={{padding:'2px 6px',borderBottom:'1px solid var(--bdr)',whiteSpace:'normal',wordBreak:'break-word',lineHeight:'1.4',fontSize:9,color:'var(--tx3)'}}>Definido a nivel global (Configuración), no editable por proyecto.</td>
+                    </tr>
+
+                    <tr>
+                      <td style={{padding:'2px 8px',borderBottom:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',color:'var(--tx2)',fontSize:10}}>Base de cálculo</td>
+                      <td style={{padding:'2px 8px',borderBottom:'1px solid var(--bdr)',textAlign:'center',borderRight:'1px solid var(--bdr)',color:'var(--tx3)',fontSize:10}}>Total Mano de Obra</td>
+                      <td style={{padding:'2px 6px',borderBottom:'1px solid var(--bdr)'}}/>
+                    </tr>
+
+                    <tr>
+                      <td style={{padding:'2px 8px',borderBottom:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',color:'var(--tx2)',fontSize:10}}>Se incluye en sección</td>
+                      <td style={{padding:'2px 8px',borderBottom:'1px solid var(--bdr)',textAlign:'center',borderRight:'1px solid var(--bdr)',color:'var(--tx3)',fontSize:10}}>A — Equipo</td>
+                      <td style={{padding:'2px 6px',borderBottom:'1px solid var(--bdr)'}}/>
+                    </tr>
+
+                    <tr><td colSpan={3} style={{padding:'3px 8px',background:'var(--bg2)',borderBottom:'1px solid var(--bdr)',fontWeight:700,color:'var(--warn)',fontSize:10,textAlign:'left'}}>
+                      <span>AIU</span>{' '}
+                      {esEditable&&(!editAIUSnap
+                        ?<button className="btn-edit" onClick={function(){setEditAIUSnap(true)}} title="Editar AIU" style={{background:'none',border:'none',cursor:'pointer',verticalAlign:'middle'}}><IconEdit/></button>
+                        :<button className="btn" onClick={function(){setEditAIUSnap(false)}} style={{fontSize:9,padding:'1px 6px',border:'1px solid var(--ok)',borderRadius:3,background:'none',color:'var(--ok)',cursor:'pointer',verticalAlign:'middle'}}>Listo</button>
+                      )}
+                    </td></tr>
+
+                    {[{label:'Administración',campo:'pct_a',com:'Esta asociado a los gastos de Administracion del proyecto'},{label:'Imprevistos',campo:'pct_i',com:'Es un valor establecido segun los riesgos de cada proyecto'},{label:'Utilidad',campo:'pct_u',com:'Establece un porcentaje de Utilidad estimado para el proyecto'},{label:'IVA',campo:'iva_pct',com:'IVA aplicado sobre la Utilidad'}].map(function(item){
+                      var val=(pres.aiu_override&&pres.aiu_override[item.campo]!==undefined)?Number(pres.aiu_override[item.campo]):0;
+                      return(<tr key={item.campo}>
+                        <td style={{padding:'2px 8px',borderBottom:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',color:'var(--tx2)',fontSize:10}}>{item.label}</td>
+                        <td style={{padding:'2px 8px',borderBottom:'1px solid var(--bdr)',textAlign:'center',borderRight:'1px solid var(--bdr)'}}>
+                          {editAIUSnap&&esEditable
+                            ?<NumInput step=".01" min="0" inputMode="decimal" value={val} onChange={function(v){actualizarAiuOverride(item.campo,v)}} style={{width:60,height:18,fontSize:10,border:'1px solid var(--bd)',borderRadius:4,textAlign:'center',fontWeight:700,color:'var(--warn)'}}/>
+                            :<span style={{fontWeight:700,fontSize:10,color:'var(--warn)'}}>{val.toFixed(2)+'%'}</span>
+                          }
+                        </td>
+                        <td style={{padding:'2px 6px',borderBottom:'1px solid var(--bdr)',whiteSpace:'normal',wordBreak:'break-word',lineHeight:'1.4',fontSize:9,color:'var(--tx3)'}}>{item.com}</td>
+                      </tr>);
+                    })}
+
+                    <tr>
+                      <td style={{padding:'2px 8px',borderBottom:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',color:'var(--tx2)',fontSize:10,fontWeight:700}}>TOTAL AIU</td>
+                      <td style={{padding:'2px 8px',borderBottom:'1px solid var(--bdr)',textAlign:'center',borderRight:'1px solid var(--bdr)',fontWeight:700,fontSize:10,color:'var(--warn)'}}>
+                        {(((pres.aiu_override&&pres.aiu_override.pct_a)||0)+((pres.aiu_override&&pres.aiu_override.pct_i)||0)+((pres.aiu_override&&pres.aiu_override.pct_u)||0)).toFixed(2)+'%'}
+                      </td>
+                      <td style={{padding:'2px 6px',borderBottom:'1px solid var(--bdr)'}}/>
+                    </tr>
+
+                    <tr>
+                      <td style={{padding:'2px 8px',borderBottom:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',color:'var(--tx2)',fontSize:10}}>Se coloca Vr. Resumido</td>
+                      <td style={{padding:'2px 8px',borderBottom:'1px solid var(--bdr)',textAlign:'center',borderRight:'1px solid var(--bdr)'}}>
+                        {editAIUSnap&&esEditable
+                          ?<select className="ni" value={(pres.aiu_override&&pres.aiu_override.vr_resumido)?'1':'0'} onChange={function(e){actualizarAiuOverride('vr_resumido',e.target.value==='1')}} style={{width:60,height:18,fontSize:10,border:'1px solid var(--bd)',borderRadius:4,textAlign:'center',fontWeight:700}}><option value='0'>NO</option><option value='1'>SI</option></select>
+                          :<span style={{fontWeight:700,fontSize:10,color:'var(--warn)'}}>{(pres.aiu_override&&pres.aiu_override.vr_resumido)?'SI':'NO'}</span>
+                        }
+                      </td>
+                      <td style={{padding:'2px 6px',borderBottom:'1px solid var(--bdr)',whiteSpace:'normal',wordBreak:'break-word',lineHeight:'1.4',fontSize:9,color:'var(--tx3)'}}>Establece si cuando se aplica el AIU, se discrimina o NO.</td>
+                    </tr>
+
+                    <tr>
+                      <td style={{padding:'2px 8px',borderBottom:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',color:'var(--tx2)',fontSize:10}}>Usar en Cada APU</td>
+                      <td style={{padding:'2px 8px',borderBottom:'1px solid var(--bdr)',textAlign:'center',borderRight:'1px solid var(--bdr)'}}>
+                        {editAIUSnap&&esEditable
+                          ?<select className="ni" value={(pres.aiu_override&&pres.aiu_override.usar_en_cada_apu!==false)?'1':'0'} onChange={function(e){actualizarAiuOverride('usar_en_cada_apu',e.target.value==='1')}} style={{width:60,height:18,fontSize:10,border:'1px solid var(--bd)',borderRadius:4,textAlign:'center',fontWeight:700}}><option value='0'>NO</option><option value='1'>SI</option></select>
+                          :<span style={{fontWeight:700,fontSize:10,color:'var(--warn)'}}>{(pres.aiu_override&&pres.aiu_override.usar_en_cada_apu!==false)?'SI':'NO'}</span>
+                        }
+                      </td>
+                      <td style={{padding:'2px 6px',borderBottom:'1px solid var(--bdr)',whiteSpace:'normal',wordBreak:'break-word',lineHeight:'1.4',fontSize:9,color:'var(--tx3)'}}>Si se usa en cada APU o al final en el presupuesto aplica.</td>
+                    </tr>
+
+                  </tbody>
+                </table>
               </div>
             </div>
 
             <div style={{background:'var(--bg2)',border:'1px solid var(--bdr)',borderRadius:6,padding:'12px 14px'}}>
               <div style={{fontSize:12,fontWeight:700,color:'var(--ac)',borderBottom:'1px solid var(--bdr)',paddingBottom:6,marginBottom:10}}>📋 Factor prestacional</div>
               {(!pres.factores_snap||pres.factores_snap.length===0)?(
-                <div style={{fontSize:11,color:'var(--tx3)'}}>Sin Factor Prestacional configurado.</div>
+                <div style={{fontSize:11,color:'var(--tx3)'}}>
+                  Sin Factor Prestacional configurado.
+                  {esEditable&&<button onClick={inicializarFactoresSnap} style={{marginLeft:8,fontSize:10,padding:'3px 8px',border:'1px solid var(--ac)',borderRadius:4,background:'transparent',color:'var(--ac)',cursor:'pointer'}}>Cargar desde catálogo general</button>}
+                </div>
               ):(
                 <React.Fragment>
-                  <table style={{width:'100%',borderCollapse:'collapse',fontSize:11}}>
+                  {esEditable&&<CrudFooter onAdd={agregarFactorSnap} addLabel="Factor" excel={fpParamsExcel} exportLabel="Exportar" countLabel="Factor(es):" count={(pres.factores_snap||[]).length}>
+                    <button className="btn" onClick={restaurarFpDesdeGlobal} title="Restaurar los valores del catálogo general de FP" style={{fontSize:11,borderRadius:4,display:'inline-flex',alignItems:'center',gap:4,border:'1px solid var(--warn)',background:'none',color:'var(--warn)',cursor:'pointer',whiteSpace:'nowrap'}}>↺ Restaurar</button>
+                  </CrudFooter>}
+                  <ExcelPreviewModal excel={fpParamsExcel}/>
+                  <div style={{maxHeight:420,overflowY:'auto',border:'1px solid var(--bdr)',borderRadius:4,marginTop:8}}>
+                  <table style={{width:'100%',borderCollapse:'separate',borderSpacing:0,fontSize:11,tableLayout:'fixed'}}>
+                    <colgroup><col style={{width:'7%'}}/><col style={{width:'11%'}}/><col style={{width:'36%'}}/><col style={{width:'16%'}}/><col style={{width:'15%'}}/><col style={{width:'15%'}}/></colgroup>
                     <thead><tr>
-                      <th style={{textAlign:'left',color:'var(--tx2)',fontWeight:500,padding:'4px 6px',borderBottom:'1px solid var(--bdr)'}}>Código</th>
-                      <th style={{textAlign:'left',color:'var(--tx2)',fontWeight:500,padding:'4px 6px',borderBottom:'1px solid var(--bdr)'}}>Nombre</th>
-                      <th style={{textAlign:'left',color:'var(--tx2)',fontWeight:500,padding:'4px 6px',borderBottom:'1px solid var(--bdr)'}}>Tipo</th>
-                      <th style={{textAlign:'right',color:'var(--tx2)',fontWeight:500,padding:'4px 6px',borderBottom:'1px solid var(--bdr)'}}>Factor (%)</th>
+                      <th style={Object.assign({},MOD_TH,{position:'sticky',top:0,zIndex:2,background:'var(--bg3)',textAlign:'center',borderTop:'1px solid var(--bdr)',borderLeft:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>#</th>
+                      <th style={Object.assign({},MOD_TH,{position:'sticky',top:0,zIndex:2,background:'var(--bg3)',textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Código</th>
+                      <th style={Object.assign({},MOD_TH,{position:'sticky',top:0,zIndex:2,background:'var(--bg3)',textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Factor</th>
+                      <th style={Object.assign({},MOD_TH,{position:'sticky',top:0,zIndex:2,background:'var(--bg3)',textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Valor (%)</th>
+                      <th style={Object.assign({},MOD_TH,{position:'sticky',top:0,zIndex:2,background:'var(--bg3)',textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Clasificación</th>
+                      <th style={Object.assign({},MOD_TH,{position:'sticky',top:0,zIndex:2,background:'var(--bg3)',textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Acciones</th>
                     </tr></thead>
                     <tbody>
-                      {(pres.factores_snap||[]).map(function(fp,i){
-                        return(<tr key={fp.id||i} style={{borderBottom:'1px solid var(--bdr)'}}>
-                          <td style={{padding:'4px 6px',color:'var(--tx3)'}}>{fp.codigo||'—'}</td>
-                          <td style={{padding:'4px 6px',color:'var(--tx)'}}>{fp.nombre||'—'}</td>
-                          <td style={{padding:'4px 6px',color:'var(--tx3)'}}>{fp.tipo||'—'}</td>
-                          <td style={{padding:'4px 6px',textAlign:'right'}}>
-                            {!readOnlyParams?(
-                              <input type="number" value={fp.factor||0} onChange={function(e){actualizarFactorSnap(i,'factor',parseFloat(e.target.value)||0)}} style={{width:64,fontSize:11,background:'var(--bg)',color:'var(--ok)',border:'1px solid var(--bdr)',borderRadius:3,padding:'1px 4px',textAlign:'right'}}/>
-                            ):(<span style={{color:'var(--ok)',fontWeight:600}}>{fp.factor||0}%</span>)}
-                          </td>
-                        </tr>);
+                      {fpCatOrderParams.map(function(cat){
+                        var items=(pres.factores_snap||[]).filter(function(f){return(f.tipo||'otros')===cat});
+                        if(items.length===0)return null;
+                        return[
+                          <tr key={'cat-'+cat}><td colSpan={6} style={{padding:'6px 10px 2px',fontSize:10,fontWeight:700,color:fpCatColorsParams[cat],borderBottom:'1px solid var(--bdr)'}}>{fpCatLabelsParams[cat]}</td></tr>
+                        ].concat(items.map(function(fp){
+                          var origIdx=(pres.factores_snap||[]).indexOf(fp);
+                          var enEdicion=esEditable&&fpRowEditIdx===origIdx;
+                          return(<tr key={fp.id||origIdx} onBlur={function(e){if(!e.currentTarget.contains(e.relatedTarget))setFpRowEditIdx(null)}}>
+                            <td style={Object.assign({},MOD_TD,{textAlign:'center',color:'var(--tx3)',borderLeft:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)'})}>{origIdx+1}</td>
+                            <td style={Object.assign({},MOD_TD,{textAlign:'center',color:'var(--ok)',fontWeight:600,borderRight:'1px solid var(--bdr)'})}>{fp.codigo||'—'}</td>
+                            <td style={Object.assign({},MOD_TD,{color:'var(--tx)',whiteSpace:'normal',wordBreak:'break-word',borderRight:'1px solid var(--bdr)'})}>
+                              {enEdicion?(
+                                <input className="ni" value={fp.nombre||''} onChange={function(e){actualizarFactorSnap(origIdx,'nombre',e.target.value)}} style={{width:'100%',fontSize:11}} onKeyDown={function(e){if(e.key==='Escape')setFpRowEditIdx(null)}}/>
+                              ):(fp.nombre||'—')}
+                            </td>
+                            <td style={Object.assign({},MOD_TD,{textAlign:'center',borderRight:'1px solid var(--bdr)'})}>
+                              {enEdicion?(
+                                <NumInput step=".01" min="0" inputMode="decimal" value={fp.factor||0} onChange={function(v){actualizarFactorSnap(origIdx,'factor',v)}} autoFocus onFocus={function(e){e.target.select()}} onKeyDown={function(e){if(e.key==='Enter'){e.preventDefault();setFpRowEditIdx(null)}else if(e.key==='Escape')setFpRowEditIdx(null)}} style={{width:64,height:18,fontSize:10,border:'1px solid var(--bd)',borderRadius:4,textAlign:'center'}}/>
+                              ):(<span style={{color:'var(--ok)',fontWeight:600}}>{fmtPct(fp.factor||0)}</span>)}
+                            </td>
+                            <td style={Object.assign({},MOD_TD,{textAlign:'center',borderRight:'1px solid var(--bdr)'})}>
+                              {enEdicion?(
+                                <select className="ni" value={fp.tipo||'otros'} onChange={function(e){actualizarFactorSnap(origIdx,'tipo',e.target.value)}} style={{fontSize:10,width:'100%'}}>{fpCatOrderParams.map(function(c){return <option key={c} value={c}>{fpCatLabelsParams[c]}</option>})}</select>
+                              ):(<span style={{fontSize:9,fontWeight:700,color:fpCatColorsParams[fp.tipo||'otros']}}>{fpCatLabelsParams[fp.tipo||'otros']}</span>)}
+                            </td>
+                            <td style={Object.assign({},MOD_TD,{textAlign:'center',borderRight:'1px solid var(--bdr)'})}>
+                              {esEditable&&<button className="btn-edit" onClick={function(){setFpRowEditIdx(enEdicion?null:origIdx)}} title="Editar" style={{background:'none',border:'none',cursor:'pointer'}}><IconEdit/></button>}
+                              {esEditable&&<button className="btn-del" onClick={function(){eliminarFactorSnap(origIdx)}} title="Eliminar" style={{background:'none',border:'none',cursor:'pointer'}}><IconDel/></button>}
+                            </td>
+                          </tr>);
+                        }));
                       })}
                     </tbody>
                   </table>
+                  </div>
                   <div style={{display:'flex',justifyContent:'flex-end',alignItems:'center',gap:6,marginTop:8,fontSize:11,color:'var(--tx2)'}}>
                     Total FP: <strong style={{fontSize:13,color:'var(--ok)'}}>{(pres.factores_snap.reduce(function(s,f){return s+(parseFloat(f.factor)||0)},0)).toFixed(2)}%</strong>
                   </div>
@@ -9227,37 +9502,27 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
               )}
             </div>
 
-            <div style={{background:'var(--bg2)',border:'1px solid var(--bdr)',borderRadius:6,padding:'12px 14px'}}>
-              <div style={{fontSize:12,fontWeight:700,color:'var(--ac)',borderBottom:'1px solid var(--bdr)',paddingBottom:6,marginBottom:10}}>💼 AIU del proyecto</div>
-              <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:10}}>
-                {!readOnlyParams&&<input type="checkbox" checked={!!(pres.aiu_override&&pres.aiu_override.activo)} onChange={function(e){actualizarAiuOverride('activo',e.target.checked)}} style={{cursor:'pointer'}}/>}
-                <span style={{fontSize:11,color:'var(--tx2)'}}>Usar AIU personalizado para este proyecto</span>
+            <div style={{background:'var(--bg2)',border:'1px solid var(--bdr)',borderRadius:6,display:'flex',flexDirection:'column'}}>
+              <div style={{padding:'12px 14px 10px',borderBottom:'1px solid var(--bdr)',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                <span style={{fontSize:12,fontWeight:700,color:'var(--ac)'}}>Clasificación Factor Prestacional</span>
+                {esEditable&&(!fpCatEditParams?<button className="btn-edit" onClick={function(){setFpCatEditParams(true)}} title="Editar clasificación" style={{background:'none',border:'none',cursor:'pointer',verticalAlign:'middle'}}><IconEdit/></button>:<button className="btn" onClick={function(){setFpCatEditParams(false)}} style={{fontSize:9,padding:'1px 6px',border:'1px solid var(--ok)',borderRadius:3,background:'none',color:'var(--ok)',cursor:'pointer',verticalAlign:'middle'}}>Listo</button>)}
               </div>
-              {!(pres.aiu_override&&pres.aiu_override.activo)&&<div style={{fontSize:10,color:'var(--tx3)',marginBottom:8}}>Usando AIU global del sistema</div>}
-              {(pres.aiu_override&&pres.aiu_override.activo)&&(
-                <React.Fragment>
-                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'6px 12px',marginBottom:10}}>
-                    {[{label:'Administración',campo:'pct_a'},{label:'Imprevistos',campo:'pct_i'},{label:'Utilidad',campo:'pct_u'},{label:'IVA',campo:'iva_pct'}].map(function(item){
-                      var val=(pres.aiu_override&&pres.aiu_override[item.campo]!==undefined)?pres.aiu_override[item.campo]:0;
-                      return(<div key={item.campo} style={{display:'flex',flexDirection:'column',gap:3}}>
-                        <label style={{fontSize:10,color:'var(--tx2)'}}>{item.label}</label>
-                        {readOnlyParams?(
-                          <span style={{fontSize:11,fontWeight:600,color:'var(--tx)'}}>{val}%</span>
-                        ):(
-                          <div style={{display:'flex',alignItems:'center',gap:4}}>
-                            <input type="number" value={val} onChange={function(e){actualizarAiuOverride(item.campo,parseFloat(e.target.value)||0)}} style={{width:56,fontSize:11,background:'var(--bg)',color:'var(--tx)',border:'1px solid var(--bdr)',borderRadius:3,padding:'2px 4px',textAlign:'right'}}/>
-                            <span style={{fontSize:10,color:'var(--tx3)'}}>%</span>
-                          </div>
-                        )}
-                      </div>);
-                    })}
+              <div style={{padding:'10px 14px',display:'flex',flexDirection:'column',gap:10}}>
+                {fpCatOrderParams.map(function(cat){
+                  var labelVal=(data.fp_categoria_labels&&data.fp_categoria_labels[cat])||fpCatLabelsParams[cat];
+                  var descVal=(data.fp_categoria_desc&&data.fp_categoria_desc[cat])||FP_CAT_DESC_DEFAULTS[cat]||'';
+                  return(
+                  <div key={cat}>
+                    {fpCatEditParams?(
+                      <input className="ni" value={labelVal} onChange={function(e){onChange(Object.assign({},data,{fp_categoria_labels:Object.assign({},data.fp_categoria_labels||{},{[cat]:e.target.value})}))}} style={{width:'100%',fontSize:10,fontWeight:700,color:fpCatColorsParams[cat],marginBottom:4,border:'1px solid var(--bdr)',borderRadius:4,background:'var(--bg)',padding:'2px 6px',height:22}}/>
+                    ):(<div style={{fontSize:10,fontWeight:700,color:fpCatColorsParams[cat],marginBottom:4,border:'1px solid var(--bd)',borderRadius:4,background:'var(--bg3)',padding:'3px 6px'}}>{labelVal}</div>)}
+                    {fpCatEditParams?(
+                      <textarea className="ni" value={descVal} onChange={function(e){onChange(Object.assign({},data,{fp_categoria_desc:Object.assign({},data.fp_categoria_desc||{},{[cat]:e.target.value})}))}} style={{width:'100%',fontSize:10,minHeight:70,resize:'vertical',lineHeight:'1.4',border:'1px solid var(--bdr)',borderRadius:4,background:'var(--bg)',padding:'6px 8px',cursor:'text'}} placeholder={'Describe cuando aplica '+labelVal.toLowerCase()+' segun el pais...'}/>
+                    ):(<div style={{fontSize:10,color:'var(--tx2)',lineHeight:'1.4',border:'1px solid var(--bd)',borderRadius:4,background:'var(--bg3)',padding:'6px 8px',minHeight:70,boxSizing:'border-box'}}>{descVal||'—'}</div>)}
                   </div>
-                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',paddingTop:8,borderTop:'1px solid var(--bdr)',fontSize:11}}>
-                    <span style={{color:'var(--tx2)'}}>Total AIU (sin IVA)</span>
-                    <strong style={{color:'var(--ok)'}}>{(((pres.aiu_override&&pres.aiu_override.pct_a)||0)+((pres.aiu_override&&pres.aiu_override.pct_i)||0)+((pres.aiu_override&&pres.aiu_override.pct_u)||0)).toFixed(2)}%</strong>
-                  </div>
-                </React.Fragment>
-              )}
+                )})}
+                <div style={{fontSize:9,color:'var(--tx3)',lineHeight:'1.4'}}>Estas descripciones son de referencia y se pueden ajustar por país o normativa vigente. Son configuración global — aplican también en Catálogos → Factor Prestacional.</div>
+              </div>
             </div>
           </div>
         )}
@@ -9537,7 +9802,7 @@ function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,i
       fecha_creacion:new Date().toISOString().slice(0,10),ciudad:'',departamento:'',elaborado_por:'',
       activo:false,con_sub_proyectos:false,tipo_proyecto:'',observaciones:'',parent_id:null,
       estado:'borrador',fecha_cierre:null,items:[],
-      aiu_override:{activo:false,pct_a:0,pct_i:0,pct_u:0,iva_pct:19},
+      aiu_override:{activo:false,pct_a:0,pct_i:0,pct_u:0,iva_pct:19,vr_resumido:false,usar_en_cada_apu:true},
       factores_snap:(data.factoresPrestaciones||[]).map(function(f){return Object.assign({},f)}),
       cargos_snap:(data.cargos||[]).map(function(c){return Object.assign({},c)}),
       insumos_snap:(data.insumos||[]).map(function(i){return Object.assign({},i)}),
@@ -9561,7 +9826,7 @@ function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,i
       fecha_creacion:new Date().toISOString().slice(0,10),ciudad:parent.ciudad||'',departamento:parent.departamento||'',
       elaborado_por:parent.elaborado_por||'',tipo_proyecto:'',observaciones:'',
       estado:'borrador',fecha_cierre:null,items:[],
-      aiu_override:{activo:false,pct_a:0,pct_i:0,pct_u:0,iva_pct:19},
+      aiu_override:{activo:false,pct_a:0,pct_i:0,pct_u:0,iva_pct:19,vr_resumido:false,usar_en_cada_apu:true},
       factores_snap:(data.factoresPrestaciones||[]).map(function(f){return Object.assign({},f)}),
       cargos_snap:(data.cargos||[]).map(function(c){return Object.assign({},c)}),
       insumos_snap:(data.insumos||[]).map(function(i){return Object.assign({},i)}),
@@ -9614,14 +9879,14 @@ function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,i
 
   var cambiarPerfilPais=async function(idx,nuevoCodigo){
     var p=presupuestos[idx];
-    if(!p)return;
-    if(p.estado!=='borrador'){showToast('El perfil de país solo puede cambiarse en estado borrador.',{type:'warn'});return}
-    if(!(await askConfirm('¿Cambiar el perfil de país de este proyecto?\n\nEsto recalculará los costos de personal y APU con los nuevos parámetros.\nLos precios de insumos y equipos no se modifican.')))return;
+    if(!p)return false;
+    if(p.estado==='cerrado'){showToast('El perfil de país no puede cambiarse con el presupuesto cerrado.',{type:'warn'});return false}
+    if(!(await askConfirm('¿Cambiar el perfil de país de este proyecto?\n\nEsto recalculará los costos de personal y APU con los nuevos parámetros.\nLos precios de insumos y equipos no se modifican.')))return false;
     var nuevoPerfil=getPaisData(nuevoCodigo,data.config_listas&&data.config_listas.perfiles_pais);
     var n=presupuestos.slice();
     n[idx]=Object.assign({},p,{perfil_pais_snap:nuevoPerfil?Object.assign({},nuevoPerfil):null});
     onChange(Object.assign({},data,{presupuestos:n}));
-    showToast('Perfil de país actualizado. Los costos han sido recalculados.',{type:'ok'});
+    return true;
   };
 
   function saveEditForm(){

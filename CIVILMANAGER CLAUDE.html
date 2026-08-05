@@ -1271,7 +1271,7 @@ function FactorPrestacionalTab({data,onChange,factorPrest,cargosCalc,cargoMap,es
 
                 <tr>
 
-                  <th style={{textAlign:'center'}}><input type="checkbox" checked={filteredCargos.length>0&&filteredCargos.every(function(c){return cargoSel.has(c.id)})} onChange={function(){setCargoSel(filteredCargos.length>0&&filteredCargos.every(function(c){return cargoSel.has(c.id)})?new Set():new Set(filteredCargos.map(function(c){return c.id})))}}/></th>
+                  <th style={{textAlign:'center'}}><input type="checkbox" disabled={readOnly} checked={filteredCargos.length>0&&filteredCargos.every(function(c){return cargoSel.has(c.id)})} onChange={function(){setCargoSel(filteredCargos.length>0&&filteredCargos.every(function(c){return cargoSel.has(c.id)})?new Set():new Set(filteredCargos.map(function(c){return c.id})))}}/></th>
 
                   <th className="col-rn">#</th>
 
@@ -1307,7 +1307,7 @@ function FactorPrestacionalTab({data,onChange,factorPrest,cargosCalc,cargoMap,es
 
                     <tr key={c.id} onBlur={function(e){if(!e.currentTarget.contains(e.relatedTarget))setCargosEditIdx(null)}}>
 
-                      <td style={{textAlign:'center'}}><input type="checkbox" checked={cargoSel.has(c.id)} onChange={function(){cargoToggleSel(c.id)}}/></td>
+                      <td style={{textAlign:'center'}}><input type="checkbox" disabled={readOnly} checked={cargoSel.has(c.id)} onChange={function(){cargoToggleSel(c.id)}}/></td>
 
                       <XLRowNum n={i+1}/>
 
@@ -2064,7 +2064,7 @@ function EquiposTab({data,onChange,provMap,_unidades,contextoProyecto,readOnly})
 
               <tr>
 
-                <th style={{textAlign:'center'}}><input type="checkbox" checked={filteredEquiposF.length>0&&filteredEquiposF.every(function(e){return eqSel.has(e.id)})} onChange={function(){setEqSel(filteredEquiposF.length>0&&filteredEquiposF.every(function(e){return eqSel.has(e.id)})?new Set():new Set(filteredEquiposF.map(function(e){return e.id})))}}/></th>
+                <th style={{textAlign:'center'}}><input type="checkbox" disabled={readOnly} checked={filteredEquiposF.length>0&&filteredEquiposF.every(function(e){return eqSel.has(e.id)})} onChange={function(){setEqSel(filteredEquiposF.length>0&&filteredEquiposF.every(function(e){return eqSel.has(e.id)})?new Set():new Set(filteredEquiposF.map(function(e){return e.id})))}}/></th>
 
                 <th className="col-rn">#</th>
 
@@ -2098,7 +2098,7 @@ function EquiposTab({data,onChange,provMap,_unidades,contextoProyecto,readOnly})
 
                   <tr key={e.id} onBlur={function(ev){if(!ev.currentTarget.contains(ev.relatedTarget))setEditIdx(null)}}>
 
-                    <td style={{textAlign:'center'}}><input type="checkbox" checked={eqSel.has(e.id)} onChange={function(){eqToggleSel(e.id)}}/></td>
+                    <td style={{textAlign:'center'}}><input type="checkbox" disabled={readOnly} checked={eqSel.has(e.id)} onChange={function(){eqToggleSel(e.id)}}/></td>
 
                     <XLRowNum n={i+1}/>
 
@@ -2344,7 +2344,7 @@ function InsumosTab({data,onChange,provMap,cargosCalc,cargoMap,esHora,_unidades,
 
               <tr>
 
-                <th style={{textAlign:'center'}}><input type="checkbox" checked={filteredInsumos.length>0&&filteredInsumos.every(function(x){return insSel.has(x.id)})} onChange={function(){setInsSel(filteredInsumos.length>0&&filteredInsumos.every(function(x){return insSel.has(x.id)})?new Set():new Set(filteredInsumos.map(function(x){return x.id})))}}/></th>
+                <th style={{textAlign:'center'}}><input type="checkbox" disabled={readOnly} checked={filteredInsumos.length>0&&filteredInsumos.every(function(x){return insSel.has(x.id)})} onChange={function(){setInsSel(filteredInsumos.length>0&&filteredInsumos.every(function(x){return insSel.has(x.id)})?new Set():new Set(filteredInsumos.map(function(x){return x.id})))}}/></th>
 
                 <th className="col-rn">#</th>
 
@@ -2394,7 +2394,7 @@ function InsumosTab({data,onChange,provMap,cargosCalc,cargoMap,esHora,_unidades,
 
                   <tr key={ins.id} onBlur={function(ev){if(!ev.currentTarget.contains(ev.relatedTarget))setEditIdx(null)}}>
 
-                    <td style={{textAlign:'center'}}><input type="checkbox" checked={insSel.has(ins.id)} onChange={function(){insToggleSel(ins.id)}}/></td>
+                    <td style={{textAlign:'center'}}><input type="checkbox" disabled={readOnly} checked={insSel.has(ins.id)} onChange={function(){insToggleSel(ins.id)}}/></td>
 
                     <XLRowNum n={i+1}/>
 

@@ -9206,6 +9206,10 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
           contextoProyecto={{codigo:pres.codigo,nombre:pres.nombre}}/>}
 
         {tipo==='parametros'&&(
+          <React.Fragment>
+          {!esEditable&&(
+            <div style={{fontSize:11,padding:'6px 10px',marginBottom:8,border:'1px solid var(--warn)',borderRadius:4,background:'rgba(251,191,36,.08)',color:'var(--warn)',fontWeight:600}}>🔒 Presupuesto cerrado — solo lectura, no se aceptan cambios.</div>
+          )}
           <div style={{padding:'4px 2px',maxWidth:1600,display:'grid',gridTemplateColumns:'1fr 1.3fr 0.9fr',gap:16,alignItems:'start'}}>
             <div style={{display:'flex',flexDirection:'column',gap:16}}>
               <div style={{background:'var(--bg2)',border:'1px solid var(--bdr)',borderRadius:6,padding:'8px 12px'}}>
@@ -9525,6 +9529,7 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
               </div>
             </div>
           </div>
+          </React.Fragment>
         )}
       </div>
     </div>

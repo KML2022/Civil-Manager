@@ -1150,7 +1150,7 @@ function useExcelImportExport({items,data,onChange,dataKey,prefix,title,sheetNam
 
 
 
-function FactorPrestacionalTab({data,onChange,factorPrest,cargosCalc,cargoMap,esHora,tab,setTab,setSelCuadrillaIdx,setPrevTab,contextoProyecto}){
+function FactorPrestacionalTab({data,onChange,factorPrest,cargosCalc,cargoMap,esHora,tab,setTab,setSelCuadrillaIdx,setPrevTab,contextoProyecto,readOnly}){
 
   var tituloExportCargos=contextoProyecto?'CATALOGO DE COLABORADORES — '+contextoProyecto.codigo+' '+contextoProyecto.nombre:'CATALOGO DE COLABORADORES';
   var filenameExportCargos=contextoProyecto?'colaboradores_'+contextoProyecto.codigo+'.xlsx':'colaboradores.xlsx';
@@ -1323,7 +1323,7 @@ function FactorPrestacionalTab({data,onChange,factorPrest,cargosCalc,cargoMap,es
 
                       <td style={TD_R}>{fmt(calc.costo_base_hora)}</td>
 
-                      <XLAct onEdit={function(){setCargosEditIdx(origIdx)}} onDelete={function(){delCargo(origIdx)}}/>
+                      {readOnly?<td className="col-act"/>:<XLAct onEdit={function(){setCargosEditIdx(origIdx)}} onDelete={function(){delCargo(origIdx)}}/>}
 
                     </tr>
 
@@ -1357,7 +1357,7 @@ function FactorPrestacionalTab({data,onChange,factorPrest,cargosCalc,cargoMap,es
 
                       <td style={TD_R}>{fmt(cr.costoHora)}</td>
 
-                      <XLAct onEdit={function(){editCuadrilla(cr.idx)}} onDelete={function(){deleteCuadrilla(cr.idx)}}/>
+                      {readOnly?<td className="col-act"/>:<XLAct onEdit={function(){editCuadrilla(cr.idx)}} onDelete={function(){deleteCuadrilla(cr.idx)}}/>}
 
                     </tr>
 
@@ -1371,8 +1371,8 @@ function FactorPrestacionalTab({data,onChange,factorPrest,cargosCalc,cargoMap,es
 
           </div>
 
-        <CrudFooter onAdd={addCargo} addLabel="Colaborador" excel={cargosExcel} exportLabel="Exportar" onSearch={{v:cargoSearch,set:setCargoSearch}} searchPlaceholder="Buscar colaborador..." countLabel="No. de Colaboradores:" count={cargos.length}>
-          {cargoSel.size>0&&<button className="btn" onClick={cargoEliminarSeleccionados} style={{fontSize:11,border:'1px solid #f87171',borderRadius:4,color:'#f87171'}}>🗑 Eliminar {cargoSel.size} seleccionado(s)</button>}
+        <CrudFooter onAdd={readOnly?null:addCargo} addLabel="Colaborador" excel={readOnly?null:cargosExcel} exportLabel="Exportar" onSearch={{v:cargoSearch,set:setCargoSearch}} searchPlaceholder="Buscar colaborador..." countLabel="No. de Colaboradores:" count={cargos.length}>
+          {!readOnly&&cargoSel.size>0&&<button className="btn" onClick={cargoEliminarSeleccionados} style={{fontSize:11,border:'1px solid #f87171',borderRadius:4,color:'#f87171'}}>🗑 Eliminar {cargoSel.size} seleccionado(s)</button>}
         </CrudFooter>
 
         <div style={{padding:'6px 10px',fontSize:10,color:'var(--tx3)',lineHeight:'1.5'}}><b style={{color:'var(--warn)'}}>NOTA:</b> "# S.B." Se refiere a la cantidad de Salarios Básicos de cada país que se requieren para obtener el Salario Básico de cada Colaborador.</div>
@@ -1389,7 +1389,7 @@ function FactorPrestacionalTab({data,onChange,factorPrest,cargosCalc,cargoMap,es
 
 
 
-function CuadrillasTab({data,onChange,cargosCalc,cargoMap,esHora,selCuadrillaIdx,setSelCuadrillaIdx,setTab,prevTab,setPrevTab}){
+function CuadrillasTab({data,onChange,cargosCalc,cargoMap,esHora,selCuadrillaIdx,setSelCuadrillaIdx,setTab,prevTab,setPrevTab,readOnly}){
 
   var cuadrillas=data.cuadrillas||[];
 
@@ -1662,7 +1662,7 @@ function CuadrillasTab({data,onChange,cargosCalc,cargoMap,esHora,selCuadrillaIdx
 
                       <td style={TD_R}>{fmt(costoQHH)}</td>
 
-                      <td className="col-act" style={{textAlign:'center'}}><button className="btn-edit" onClick={function(e){e.stopPropagation();setSelectedIdx(qi);setEditCuadIdx(qi)}} title="Editar"><IconEdit/></button><button className="btn-del" onClick={function(e){e.stopPropagation();delCuad(qi)}} title="Eliminar"><IconDel/></button></td>
+                      <td className="col-act" style={{textAlign:'center'}}>{!readOnly&&<React.Fragment><button className="btn-edit" onClick={function(e){e.stopPropagation();setSelectedIdx(qi);setEditCuadIdx(qi)}} title="Editar"><IconEdit/></button><button className="btn-del" onClick={function(e){e.stopPropagation();delCuad(qi)}} title="Eliminar"><IconDel/></button></React.Fragment>}</td>
 
                     </tr>
 
@@ -1676,7 +1676,7 @@ function CuadrillasTab({data,onChange,cargosCalc,cargoMap,esHora,selCuadrillaIdx
 
           </div>
 
-          <CrudFooter onAdd={addCuad} addLabel="Cuadrilla" addDisabled={selCuad&&(selCuad.integrantes||[]).length===0} excel={cuadExcel} exportLabel="Exportar" countLabel="No. Cuadrillas:" count={cuadrillas.length}/>
+          <CrudFooter onAdd={readOnly?null:addCuad} addLabel="Cuadrilla" addDisabled={selCuad&&(selCuad.integrantes||[]).length===0} excel={readOnly?null:cuadExcel} exportLabel="Exportar" countLabel="No. Cuadrillas:" count={cuadrillas.length}/>
 
         </div>
 
@@ -1696,7 +1696,7 @@ function CuadrillasTab({data,onChange,cargosCalc,cargoMap,esHora,selCuadrillaIdx
 
               <span className="f1"/>
 
-              <span style={{fontSize:16,color:'var(--ok)',fontWeight:600}}>{selCuad.codigo} - {editName?<input className="ni" value={selCuad.descripcion||''} placeholder="Descripcion cuadrilla" onChange={function(e){updCuad(selectedIdx,'descripcion',e.target.value)}} onKeyDown={function(e){if(e.key==='Enter'||e.key==='Escape')setEditName(false)}} onBlur={function(){setEditName(false)}} autoFocus style={{fontSize:11,width:200,verticalAlign:'middle',color:'var(--ok)',fontWeight:600,background:'rgba(255,193,7,.15)',borderBottom:'2px solid var(--warn)'}}/>:<React.Fragment><span>{selCuad.descripcion||'Sin descripcion'}</span> <button className="btn-edit" onClick={function(){setEditName(true)}} title="Editar nombre" style={{verticalAlign:'middle'}}><IconEdit/></button></React.Fragment>}</span>
+              <span style={{fontSize:16,color:'var(--ok)',fontWeight:600}}>{selCuad.codigo} - {editName&&!readOnly?<input className="ni" value={selCuad.descripcion||''} placeholder="Descripcion cuadrilla" onChange={function(e){updCuad(selectedIdx,'descripcion',e.target.value)}} onKeyDown={function(e){if(e.key==='Enter'||e.key==='Escape')setEditName(false)}} onBlur={function(){setEditName(false)}} autoFocus style={{fontSize:11,width:200,verticalAlign:'middle',color:'var(--ok)',fontWeight:600,background:'rgba(255,193,7,.15)',borderBottom:'2px solid var(--warn)'}}/>:<React.Fragment><span>{selCuad.descripcion||'Sin descripcion'}</span> {!readOnly&&<button className="btn-edit" onClick={function(){setEditName(true)}} title="Editar nombre" style={{verticalAlign:'middle'}}><IconEdit/></button>}</React.Fragment>}</span>
 
               <span className="f1"/>
 
@@ -1790,7 +1790,7 @@ function CuadrillasTab({data,onChange,cargosCalc,cargoMap,esHora,selCuadrillaIdx
 
                         <td style={TD_R}>{fmt(parcialHH)}</td>
 
-                        <td className="col-act" style={{textAlign:'center'}}><button className="btn-edit" onClick={function(){setEditCuadIdx(selectedIdx);setEditIntIdx(isEdit?null:ii)}} title="Editar"><IconEdit/></button><button className="btn-del" onClick={function(){delInt(selectedIdx,ii)}} title="Eliminar"><IconDel/></button></td>
+                        <td className="col-act" style={{textAlign:'center'}}>{!readOnly&&<React.Fragment><button className="btn-edit" onClick={function(){setEditCuadIdx(selectedIdx);setEditIntIdx(isEdit?null:ii)}} title="Editar"><IconEdit/></button><button className="btn-del" onClick={function(){delInt(selectedIdx,ii)}} title="Eliminar"><IconDel/></button></React.Fragment>}</td>
 
                       </tr>
 
@@ -1952,7 +1952,7 @@ const ExcelPreviewModal=React.memo(function ExcelPreviewModal({excel}){
 
 
 
-function EquiposTab({data,onChange,provMap,_unidades,contextoProyecto}){
+function EquiposTab({data,onChange,provMap,_unidades,contextoProyecto,readOnly}){
 
   var proveedores=data.proveedores;
 
@@ -2126,7 +2126,7 @@ function EquiposTab({data,onChange,provMap,_unidades,contextoProyecto}){
 
                       :<span style={{padding:'0 6px'}}>{(provMap.get(e.proveedor_id)||{}).nombre||'—'}</span>}</td>
 
-                    <XLAct onEdit={function(){setEditIdx(origIdx)}} onDelete={function(){delEquipo(origIdx)}}/>
+                    {readOnly?<td className="col-act"/>:<XLAct onEdit={function(){setEditIdx(origIdx)}} onDelete={function(){delEquipo(origIdx)}}/>}
 
                   </tr>
 
@@ -2140,9 +2140,9 @@ function EquiposTab({data,onChange,provMap,_unidades,contextoProyecto}){
 
         </div>
 
-        <CrudFooter onAdd={add} addLabel="Equipo" onClearAll={async function(){if(!(await askConfirm('¿Desea eliminar todo el contenido de Equipos? Esta acción no se puede deshacer.')))return;onChange(Object.assign({},data,{equipos:[]}))}} clearLabel="Borrar" excel={eqExcel} exportLabel="Exportar Excel" onSearch={{v:search,set:setSearch}} searchPlaceholder="Buscar equipo..." countLabel="No. de Equipos:" count={tipoFilter!=='Todos'||search?filteredEquiposF.length+'/'+equipos.length:equipos.length}>
+        <CrudFooter onAdd={readOnly?null:add} addLabel="Equipo" onClearAll={readOnly?null:(async function(){if(!(await askConfirm('¿Desea eliminar todo el contenido de Equipos? Esta acción no se puede deshacer.')))return;onChange(Object.assign({},data,{equipos:[]}))})} clearLabel="Borrar" excel={readOnly?null:eqExcel} exportLabel="Exportar Excel" onSearch={{v:search,set:setSearch}} searchPlaceholder="Buscar equipo..." countLabel="No. de Equipos:" count={tipoFilter!=='Todos'||search?filteredEquiposF.length+'/'+equipos.length:equipos.length}>
 
-          {eqSel.size>0&&<button className="btn" onClick={eqEliminarSeleccionados} style={{fontSize:11,border:'1px solid #f87171',borderRadius:4,color:'#f87171'}}>🗑 Eliminar {eqSel.size} seleccionado(s)</button>}
+          {!readOnly&&eqSel.size>0&&<button className="btn" onClick={eqEliminarSeleccionados} style={{fontSize:11,border:'1px solid #f87171',borderRadius:4,color:'#f87171'}}>🗑 Eliminar {eqSel.size} seleccionado(s)</button>}
 
           <span style={{fontSize:11}}>Filtrar por Categoria:</span>
 
@@ -2170,7 +2170,7 @@ function EquiposTab({data,onChange,provMap,_unidades,contextoProyecto}){
 
 
 
-function InsumosTab({data,onChange,provMap,cargosCalc,cargoMap,esHora,_unidades,equipos,factorPrest,usarFpEnApu,apusBasico,contextoProyecto}){
+function InsumosTab({data,onChange,provMap,cargosCalc,cargoMap,esHora,_unidades,equipos,factorPrest,usarFpEnApu,apusBasico,contextoProyecto,readOnly}){
 
   var tituloExportIns=contextoProyecto?'CATALOGO DE INSUMOS — '+contextoProyecto.codigo+' '+contextoProyecto.nombre:'CATALOGO DE INSUMOS';
   var filenameExportIns=contextoProyecto?'insumos_'+contextoProyecto.codigo+'.xlsx':'catalogo_insumos.xlsx';
@@ -2450,7 +2450,7 @@ function InsumosTab({data,onChange,provMap,cargosCalc,cargoMap,esHora,_unidades,
 
                       )}</td>
 
-                    <XLAct onEdit={function(){setEditIdx(origIdx)}} onDelete={function(){delInsumo(origIdx)}}/>
+                    {readOnly?<td className="col-act"/>:<XLAct onEdit={function(){setEditIdx(origIdx)}} onDelete={function(){delInsumo(origIdx)}}/>}
 
                   </tr>
 
@@ -2464,9 +2464,9 @@ function InsumosTab({data,onChange,provMap,cargosCalc,cargoMap,esHora,_unidades,
 
         </div>
 
-        <CrudFooter onAdd={add} addLabel="Insumo" onClearAll={async function(){if(!(await askConfirm('¿Desea eliminar todo el contenido de Insumos? Esta acción no se puede deshacer.')))return;onChange(Object.assign({},data,{insumos:[]}))}} clearLabel="Borrar" excel={insExcel} exportLabel="Exportar Excel" onSearch={{v:search,set:setSearch}} searchPlaceholder="Buscar insumo..." countLabel="No. Insumos:" count={catFilter!=='Todas'||origFilter!=='Todos'||search?filteredInsumos.length+'/'+insumos.length:insumos.length}>
+        <CrudFooter onAdd={readOnly?null:add} addLabel="Insumo" onClearAll={readOnly?null:(async function(){if(!(await askConfirm('¿Desea eliminar todo el contenido de Insumos? Esta acción no se puede deshacer.')))return;onChange(Object.assign({},data,{insumos:[]}))})} clearLabel="Borrar" excel={readOnly?null:insExcel} exportLabel="Exportar Excel" onSearch={{v:search,set:setSearch}} searchPlaceholder="Buscar insumo..." countLabel="No. Insumos:" count={catFilter!=='Todas'||origFilter!=='Todos'||search?filteredInsumos.length+'/'+insumos.length:insumos.length}>
 
-          {insSel.size>0&&<button className="btn" onClick={insEliminarSeleccionados} style={{fontSize:11,border:'1px solid #f87171',borderRadius:4,color:'#f87171'}}>🗑 Eliminar {insSel.size} seleccionado(s)</button>}
+          {!readOnly&&insSel.size>0&&<button className="btn" onClick={insEliminarSeleccionados} style={{fontSize:11,border:'1px solid #f87171',borderRadius:4,color:'#f87171'}}>🗑 Eliminar {insSel.size} seleccionado(s)</button>}
 
           <span style={{fontSize:11}}>Filtrar Insumo por:</span>
 
@@ -4193,7 +4193,7 @@ function ImportApuModal({repositorio,contextoCalc,onAplicar,onClose,origenProyec
   );
 }
 
-function APUTab({data,onChange,cargosCalc,cargoMap,esHora,eqMap,insMap,cuadrillasCalc,_unidades,equipos,insumos,factorPrest,usarFpEnApu,view,apusBasico,contextoProyecto,catalogoApusReal,onPromoverAPU}){
+function APUTab({data,onChange,cargosCalc,cargoMap,esHora,eqMap,insMap,cuadrillasCalc,_unidades,equipos,insumos,factorPrest,usarFpEnApu,view,apusBasico,contextoProyecto,catalogoApusReal,onPromoverAPU,readOnly}){
 
   var apus=data.apus;
 
@@ -4721,7 +4721,7 @@ function APUTab({data,onChange,cargosCalc,cargoMap,esHora,eqMap,insMap,cuadrilla
 
                         <button className="btn-edit" onClick={function(e){e.stopPropagation();setSelectedIdx(selectedIdx===origIdx?null:origIdx);setIsEditing(false)}} title="Ver detalle" style={{color:selectedIdx===origIdx?'#facc15':'#4ade80',background:'none',border:'none',cursor:'pointer',padding:0,display:'inline-flex',alignItems:'center'}}><svg viewBox="0 0 20 20" width="18" height="18"><path d="M10,4C5,4,1.7,8.7,1,10c.7,1.3,4,6,9,6s8.3-4.7,9-6c-.7-1.3-4-6-9-6Zm0,10c-2.2,0-4-1.8-4-4s1.8-4,4-4,4,1.8,4,4-1.8,4-4,4Z" fill={eyeC}/><circle cx="10" cy="10" r="2" fill={eyeC}/></svg></button>
 
-                        <button className="btn-del" onClick={function(e){e.stopPropagation();del(origIdx)}} title="Eliminar" style={{color:'#f87171',background:'none',border:'none',cursor:'pointer',padding:0,display:'inline-flex',alignItems:'center'}}><svg viewBox="0 0 16 16" width="18" height="18"><path d="M4,5 L12,5 L11,14 L5,14 Z" fill="none" stroke="#E84848" strokeWidth="1.3"/><line x1="6" y1="7" x2="6" y2="12" stroke="#E84848" strokeWidth="1"/><line x1="8" y1="7" x2="8" y2="12" stroke="#E84848" strokeWidth="1"/><line x1="10" y1="7" x2="10" y2="12" stroke="#E84848" strokeWidth="1"/><path d="M3,5 L13,5" fill="none" stroke="#E84848" strokeWidth="1.3" strokeLinecap="round"/><path d="M6.5,3 L9.5,3" fill="none" stroke="#E84848" strokeWidth="1.2" strokeLinecap="round"/></svg></button>
+                        {!readOnly&&<button className="btn-del" onClick={function(e){e.stopPropagation();del(origIdx)}} title="Eliminar" style={{color:'#f87171',background:'none',border:'none',cursor:'pointer',padding:0,display:'inline-flex',alignItems:'center'}}><svg viewBox="0 0 16 16" width="18" height="18"><path d="M4,5 L12,5 L11,14 L5,14 Z" fill="none" stroke="#E84848" strokeWidth="1.3"/><line x1="6" y1="7" x2="6" y2="12" stroke="#E84848" strokeWidth="1"/><line x1="8" y1="7" x2="8" y2="12" stroke="#E84848" strokeWidth="1"/><line x1="10" y1="7" x2="10" y2="12" stroke="#E84848" strokeWidth="1"/><path d="M3,5 L13,5" fill="none" stroke="#E84848" strokeWidth="1.3" strokeLinecap="round"/><path d="M6.5,3 L9.5,3" fill="none" stroke="#E84848" strokeWidth="1.2" strokeLinecap="round"/></svg></button>}
 
                         </span>
 
@@ -4741,7 +4741,7 @@ function APUTab({data,onChange,cargosCalc,cargoMap,esHora,eqMap,insMap,cuadrilla
 
           <div className="xl-foot" style={{display:'flex',alignItems:'center',flexWrap:'wrap',gap:6,flex:'0 0 auto',overflow:'visible',height:'auto'}}>
 
-            <button className="btn" onClick={add} style={{fontSize:11,border:'1px solid var(--ok)',borderRadius:4,display:'inline-flex',alignItems:'center',gap:4}}><IconPlus/> Nuevo APU</button><button className="btn" onClick={addBasico} style={{fontSize:11,border:'1px solid var(--ac)',borderRadius:4,display:'inline-flex',alignItems:'center',gap:4,marginLeft:4}}><IconPlus/> Nuevo APU Basico</button>
+            {!readOnly&&<React.Fragment><button className="btn" onClick={add} style={{fontSize:11,border:'1px solid var(--ok)',borderRadius:4,display:'inline-flex',alignItems:'center',gap:4}}><IconPlus/> Nuevo APU</button><button className="btn" onClick={addBasico} style={{fontSize:11,border:'1px solid var(--ac)',borderRadius:4,display:'inline-flex',alignItems:'center',gap:4,marginLeft:4}}><IconPlus/> Nuevo APU Basico</button></React.Fragment>}
             {seleccionados.size>0&&<button className="btn" onClick={eliminarSeleccionados} style={{fontSize:11,border:'1px solid #f87171',borderRadius:4,color:'#f87171',display:'inline-flex',alignItems:'center',gap:4,marginLeft:4}}>🗑 Eliminar {seleccionados.size} seleccionado(s)</button>}
 
             <select className="ni" value={catFilter} onChange={function(e){setCatFilter(e.target.value)}} style={{width:160,height:22,fontSize:11,border:'1px solid var(--ac)',borderRadius:4}}>
@@ -4758,7 +4758,7 @@ function APUTab({data,onChange,cargosCalc,cargoMap,esHora,eqMap,insMap,cuadrilla
 
             <button className="btn" onClick={descargarPlantillaApu} title="Descargar plantilla Excel para importar multiples APU" style={{fontSize:10,border:'1px solid var(--ac)',borderRadius:4,display:'inline-flex',alignItems:'center',gap:4}}><IconExport/> Descargar plantilla APU</button>
 
-            <button className="btn" onClick={function(){setShowImportModal(true)}} title="Importar varios APU de una vez desde un Excel con la estructura de la plantilla" style={{fontSize:10,border:'1px solid var(--ac)',borderRadius:4,display:'inline-flex',alignItems:'center',gap:4}}><IconPlus/> Importar Multi-APU</button>
+            {!readOnly&&<button className="btn" onClick={function(){setShowImportModal(true)}} title="Importar varios APU de una vez desde un Excel con la estructura de la plantilla" style={{fontSize:10,border:'1px solid var(--ac)',borderRadius:4,display:'inline-flex',alignItems:'center',gap:4}}><IconPlus/> Importar Multi-APU</button>}
 
             <span className="f1"/>
 
@@ -4792,7 +4792,7 @@ function APUTab({data,onChange,cargosCalc,cargoMap,esHora,eqMap,insMap,cuadrilla
 
               <span className="f1"/>
 
-              {!isEditing&&<button className="btn" onClick={function(){setIsEditing(true)}} title="Editar" style={{fontSize:10,padding:'3px 8px',display:'inline-flex',alignItems:'center',gap:4,border:'1px solid var(--ac)',borderRadius:4,background:'none',color:'var(--ac)',cursor:'pointer'}}><IconEdit/> Editar</button>}
+              {!isEditing&&!readOnly&&<button className="btn" onClick={function(){setIsEditing(true)}} title="Editar" style={{fontSize:10,padding:'3px 8px',display:'inline-flex',alignItems:'center',gap:4,border:'1px solid var(--ac)',borderRadius:4,background:'none',color:'var(--ac)',cursor:'pointer'}}><IconEdit/> Editar</button>}
 
               {isEditing&&<button className="btn" onClick={function(){setIsEditing(false)}} title="Vista previa" style={{fontSize:10,padding:'3px 8px',display:'inline-flex',alignItems:'center',gap:4,border:'1px solid var(--tx3)',borderRadius:4,background:'none',color:'var(--tx3)',cursor:'pointer'}}>Vista previa</button>}
 
@@ -9183,25 +9183,30 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
         {tipo==='insumos'&&<InsumosTab data={adaptado.data} onChange={onChangeSnap} provMap={provMap}
           cargosCalc={cargosCalcSnap} cargoMap={personMapSnap} esHora={esHora} _unidades={_unidades}
           equipos={equiposSnapEfectivo} factorPrest={factorPrestSnap} usarFpEnApu={usarFpEnApu} apusBasico={apusBasico}
+          readOnly={!esEditable}
           contextoProyecto={{codigo:pres.codigo,nombre:pres.nombre}}/>}
 
         {tipo==='equipos'&&<EquiposTab data={adaptado.data} onChange={onChangeSnap} provMap={provMap} _unidades={_unidades}
+          readOnly={!esEditable}
           contextoProyecto={{codigo:pres.codigo,nombre:pres.nombre}}/>}
 
         {tipo==='cargos'&&<FactorPrestacionalTab data={adaptado.data} onChange={onChangeSnap}
           factorPrest={factorPrestSnap} cargosCalc={cargosCalcSnap} cargoMap={personMapSnap} esHora={esHora}
           tab={tipo} setTab={function(){setTipo('cuadrillas')}} setSelCuadrillaIdx={setCuadrillaLocalIdx} setPrevTab={setPrevTipo}
+          readOnly={!esEditable}
           contextoProyecto={{codigo:pres.codigo,nombre:pres.nombre}}/>}
 
         {tipo==='cuadrillas'&&<CuadrillasTab data={adaptado.data} onChange={onChangeSnap}
           cargosCalc={cargosCalcSnap} cargoMap={personMapSnap} esHora={esHora}
           selCuadrillaIdx={cuadrillaLocalIdx} setSelCuadrillaIdx={setCuadrillaLocalIdx}
+          readOnly={!esEditable}
           tab={tipo} setTab={function(t){setTipo(t)}} prevTab={prevTipo} setPrevTab={setPrevTipo}/>}
 
         {tipo==='apus'&&<APUTab data={adaptado.data} onChange={onChangeSnap} cargosCalc={cargosCalcSnap}
           cargoMap={personMapSnap} esHora={esHora} eqMap={eqMapSnap} insMap={insMapSnap} cuadrillasCalc={cuadrillasCalcSnap}
           _unidades={_unidades} equipos={equiposSnapEfectivo} insumos={insumosSnapEfectivo} factorPrest={factorPrestSnap}
           usarFpEnApu={usarFpEnApu} view="catalog" apusBasico={apusBasico}
+          readOnly={!esEditable}
           catalogoApusReal={data.apus} onPromoverAPU={promoverApuACatalogo}
           contextoProyecto={{codigo:pres.codigo,nombre:pres.nombre}}/>}
 

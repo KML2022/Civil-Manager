@@ -7493,7 +7493,7 @@ function PresProyectosPanel({presupuestos,selPresIdx,setSelPresIdx,data,onChange
                     <td style={{textAlign:'center',fontSize:10}}>{fmtDate(p.fecha_creacion)}</td>
                     <td style={{textAlign:'center'}}><span onClick={async function(){var r=await toggleEstado(i);if(r&&r.texto)setProyMsg({tipo:r.ok?'ok':'err',texto:r.texto})}} style={{cursor:'pointer',fontSize:9,padding:'1px 6px',borderRadius:3,border:'1px solid '+estadoColor(p.estado),color:estadoColor(p.estado),fontWeight:600,whiteSpace:'nowrap',display:'inline-block'}}>{estadoLabel(p.estado)}</span></td>
                     <td style={{textAlign:'center'}}>
-                      {isEdit&&p.estado==='borrador'?(
+                      {isEdit&&p.estado!=='cerrado'?(
                         <select className="ni sel" value={(p.perfil_pais_snap&&p.perfil_pais_snap.codigo)||''} onChange={async function(e){if(await cambiarPerfilPais(i,e.target.value))setProyMsg({tipo:'ok',texto:'Perfil de país actualizado. Los costos han sido recalculados.'})}} style={{fontSize:9,padding:'1px 2px'}}>
                           <option value="">—</option>
                           {((data.config_listas&&data.config_listas.perfiles_pais)||[]).filter(function(pp){return pp.activo!==false}).map(function(pp){return <option key={pp.codigo} value={pp.codigo}>{pp.nombre||pp.codigo}</option>})}

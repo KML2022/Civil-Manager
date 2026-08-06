@@ -1405,6 +1405,8 @@ function CuadrillasTab({data,onChange,cargosCalc,cargoMap,esHora,selCuadrillaIdx
 
   var [cuadDelErr,setCuadDelErr]=useState('');
 
+  var [cuadMsg,setCuadMsg]=useState(null);
+
   var [cuadEmptyErr,setCuadEmptyErr]=useState('');
 
   var [showApuList,setShowApuList]=useState(false);
@@ -1462,7 +1464,7 @@ function CuadrillasTab({data,onChange,cargosCalc,cargoMap,esHora,selCuadrillaIdx
      codigo si existe, si no por descripcion) — ya no vacia integrantes:[] silenciosamente. */
   var cuadExcelFileRef=useRef(null);
   var exportCuadrillasDetalle=function(){
-    if(cuadrillas.length===0){showToast('No hay cuadrillas para exportar',{type:'err'});return}
+    if(cuadrillas.length===0){setCuadMsg({tipo:'err',texto:'No hay cuadrillas para exportar'});return}
     var S=estilosApuExcel();
     var ce=function(r,c){return XLSX.utils.encode_cell({r:r,c:c})};
     var rows=[];var merges=[];var rowStyle=[];
@@ -1505,7 +1507,7 @@ function CuadrillasTab({data,onChange,cargosCalc,cargoMap,esHora,selCuadrillaIdx
     var wb=XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb,ws,'Cuadrillas');
     XLSX.writeFile(wb,'cuadrillas_detalle.xlsx');
-    showToast('Cuadrillas exportadas con detalle de integrantes',{type:'ok'});
+    setCuadMsg({tipo:'ok',texto:'Cuadrillas exportadas con detalle de integrantes'});
   };
   var parseCuadrillasBloques=function(aoa){
     function filaVacia(fila){return!fila||fila.every(function(c){return c===undefined||c===null||String(c).trim()===''})}
@@ -1533,7 +1535,7 @@ function CuadrillasTab({data,onChange,cargosCalc,cargoMap,esHora,selCuadrillaIdx
   };
   var importCuadrillasDetalle=function(e){
     var file=e.target.files[0];if(!file)return;
-    if(!file.name.match(/\.xlsx?$/i)){showToast('Solo se permiten archivos .xlsx o .xls',{type:'err'});e.target.value='';return}
+    if(!file.name.match(/\.xlsx?$/i)){setCuadMsg({tipo:'err',texto:'Solo se permiten archivos .xlsx o .xls'});e.target.value='';return}
     var reader=new FileReader();
     reader.onload=function(ev){
       try{
@@ -1541,7 +1543,7 @@ function CuadrillasTab({data,onChange,cargosCalc,cargoMap,esHora,selCuadrillaIdx
         var ws=wb.Sheets[wb.SheetNames[0]];
         var aoa=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
         var bloques=parseCuadrillasBloques(aoa);
-        if(bloques.length===0){showToast('No se encontraron cuadrillas validas en el archivo',{type:'err'});e.target.value='';return}
+        if(bloques.length===0){setCuadMsg({tipo:'err',texto:'No se encontraron cuadrillas validas en el archivo'});e.target.value='';return}
         var dNow=dataRef.current;
         var cargosArr=dNow.cargos||[];
         function resolverCargoId(codigo,descripcion){
@@ -1569,11 +1571,11 @@ function CuadrillasTab({data,onChange,cargosCalc,cargoMap,esHora,selCuadrillaIdx
           else{existing.push({id:uid(),codigo:b.codigo||genCodeFor(existing,'CU'),descripcion:b.descripcion,integrantes:integrantesFinal});creadas++}
         });
         onChange(Object.assign({},dNow,{cuadrillas:existing}));
-        showToast(bloques.length+' cuadrillas importadas ('+creadas+' nuevas, '+actualizadas+' actualizadas)'+(sinMatch>0?'. '+sinMatch+' integrante(s) sin match en Colaboradores':''),{type:sinMatch>0?'err':'ok',dur:4000});
-      }catch(err){showToast('Error leyendo archivo Excel: '+err.message,{type:'err'})}
+        setCuadMsg({tipo:sinMatch>0?'err':'ok',texto:bloques.length+' cuadrillas importadas ('+creadas+' nuevas, '+actualizadas+' actualizadas)'+(sinMatch>0?'. '+sinMatch+' integrante(s) sin match en Colaboradores':'')});
+      }catch(err){setCuadMsg({tipo:'err',texto:'Error leyendo archivo Excel: '+err.message})}
       e.target.value='';
     };
-    reader.onerror=function(){showToast('Error leyendo el archivo',{type:'err'});e.target.value=''};
+    reader.onerror=function(){setCuadMsg({tipo:'err',texto:'Error leyendo el archivo'});e.target.value=''};
     reader.readAsArrayBuffer(file);
   };
   var cuadExcel={fileRef:cuadExcelFileRef,exportExcel:exportCuadrillasDetalle,doImportSelect:importCuadrillasDetalle,previewModal:null};
@@ -1603,6 +1605,8 @@ function CuadrillasTab({data,onChange,cargosCalc,cargoMap,esHora,selCuadrillaIdx
         </div>
 
         {cuadDelErr&&<div style={{padding:'8px 10px',fontSize:12,color:'#f87171',background:'rgba(248,113,113,0.08)',border:'1px solid rgba(248,113,113,0.2)',borderRadius:4,marginBottom:8,width:650,display:'flex',alignItems:'center',justifyContent:'space-between'}}><span>{cuadDelErr}</span><button onClick={function(){setCuadDelErr('')}} style={{background:'none',border:'none',color:'#f87171',cursor:'pointer',fontSize:16,lineHeight:1,padding:'0 4px'}} title="Cerrar">{'✕'}</button></div>}
+
+        {cuadMsg&&<div style={{padding:'8px 10px',fontSize:12,color:cuadMsg.tipo==='ok'?'var(--ok)':'#f87171',background:cuadMsg.tipo==='ok'?'rgba(74,222,128,.08)':'rgba(248,113,113,0.08)',border:'1px solid '+(cuadMsg.tipo==='ok'?'var(--ok)':'rgba(248,113,113,0.2)'),borderRadius:4,marginBottom:8,width:650,display:'flex',alignItems:'center',justifyContent:'space-between'}}><span>{cuadMsg.texto}</span><button onClick={function(){setCuadMsg(null)}} style={{background:'none',border:'none',color:'inherit',cursor:'pointer',fontSize:16,lineHeight:1,padding:'0 4px'}} title="Cerrar">{'✕'}</button></div>}
 
         <div className="xl-wrap" style={{width:650}}>
 
@@ -4215,6 +4219,8 @@ function APUTab({data,onChange,cargosCalc,cargoMap,esHora,eqMap,insMap,cuadrilla
 
   var[apuDelErr,setApuDelErr]=useState('');
 
+  var[apuMsg,setApuMsg]=useState(null);
+
   var personMap=useMemo(function(){var m=new Map(cargoMap);cuadrillasCalc.forEach(function(c){m.set(c.id,c)});return m},[cargoMap,cuadrillasCalc]);
 
   var herrPct=config.herr_pct!=null?Number(config.herr_pct):5;
@@ -4323,7 +4329,7 @@ function APUTab({data,onChange,cargosCalc,cargoMap,esHora,eqMap,insMap,cuadrilla
 
   var exportApuExcel=useCallback(function(){
 
-    if(apus.length===0){showToast('No hay APU para exportar',{type:'err'});return}
+    if(apus.length===0){setApuMsg({tipo:'err',texto:'No hay APU para exportar'});return}
 
     var ce=function(r,c){return XLSX.utils.encode_cell({r:r,c:c})};
 
@@ -4568,7 +4574,7 @@ function APUTab({data,onChange,cargosCalc,cargoMap,esHora,eqMap,insMap,cuadrilla
 
     XLSX.writeFile(wb,(contextoProyecto?'apus_'+contextoProyecto.codigo:'APU_CIVILMANAGER_'+new Date().toISOString().slice(0,10))+'.xlsx');
 
-    showToast(apus.length+' APU exportados a Excel con fórmulas',{type:'ok'});
+    setApuMsg({tipo:'ok',texto:apus.length+' APU exportados a Excel con fórmulas'});
 
   },[apus,apuCalcMap,abCalcList,eqMap,insMap,personMap,config,factorPrest,usarFpEnApu,esHora,categorias_apu,herrPct,contextoProyecto]);
 
@@ -4634,7 +4640,7 @@ function APUTab({data,onChange,cargosCalc,cargoMap,esHora,eqMap,insMap,cuadrilla
     var wb=XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb,ws,'Plantilla APU');
     XLSX.writeFile(wb,'Plantilla_Import_MultiAPU_CIVILMANAGER.xlsx');
-    showToast('Plantilla descargada',{type:'ok'});
+    setApuMsg({tipo:'ok',texto:'Plantilla descargada'});
   },[]);
 
   return(
@@ -4652,6 +4658,8 @@ function APUTab({data,onChange,cargosCalc,cargoMap,esHora,eqMap,insMap,cuadrilla
         </div>
 
         {apuDelErr&&<div style={{padding:'8px 10px',fontSize:12,color:'#f87171',background:'rgba(248,113,113,0.08)',border:'1px solid rgba(248,113,113,0.2)',borderRadius:4,marginBottom:8,width:959,display:'flex',alignItems:'center',justifyContent:'space-between'}}><span>{apuDelErr}</span><button onClick={function(){setApuDelErr('')}} style={{background:'none',border:'none',color:'#f87171',cursor:'pointer',fontSize:16,lineHeight:1,padding:'0 4px'}} title="Cerrar">✕</button></div>}
+
+        {apuMsg&&<div style={{padding:'8px 10px',fontSize:12,color:apuMsg.tipo==='ok'?'var(--ok)':'#f87171',background:apuMsg.tipo==='ok'?'rgba(74,222,128,.08)':'rgba(248,113,113,0.08)',border:'1px solid '+(apuMsg.tipo==='ok'?'var(--ok)':'rgba(248,113,113,0.2)'),borderRadius:4,marginBottom:8,width:959,display:'flex',alignItems:'center',justifyContent:'space-between'}}><span>{apuMsg.texto}</span><button onClick={function(){setApuMsg(null)}} style={{background:'none',border:'none',color:'inherit',cursor:'pointer',fontSize:16,lineHeight:1,padding:'0 4px'}} title="Cerrar">✕</button></div>}
 
         <div className="xl-wrap" style={{width:959,display:'flex',flexDirection:'column'}}>
 
@@ -9870,7 +9878,7 @@ function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,i
     showToast(hijos.length>0?'Presupuesto y '+hijos.length+' sub-proyecto(s) eliminados':'Presupuesto eliminado',{type:'ok',dur:2000});
   }
 
-  function toggleEstado(idx){
+  async function toggleEstado(idx){
     if(idx===null||idx===undefined||!presupuestos[idx])return;
     var n=presupuestos.slice();
     var p=n[idx];
@@ -9882,6 +9890,12 @@ function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,i
         return;
       }
     }
+    if(p.estado==='cerrado'){
+      if(!(await askConfirm('Este presupuesto está cerrado. ¿Desea reabrirlo y volver a permitir cambios?')))return;
+    }
+    n=presupuestos.slice();
+    p=n[idx];
+    if(!p)return;
     n[idx]=Object.assign({},p,{estado:next,fecha_cierre:next==='cerrado'?new Date().toISOString().slice(0,10):null});
     onChange(Object.assign({},data,{presupuestos:n}));
     showToast('Estado: '+estadoLabel(next),{type:'ok',dur:1800});

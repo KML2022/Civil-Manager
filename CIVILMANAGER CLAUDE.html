@@ -7390,13 +7390,13 @@ function PresProyectosPanel({presupuestos,selPresIdx,setSelPresIdx,data,onChange
 
   return(
     <div>
-      <div className="sec-hdr" style={{border:'1px solid var(--bdr)',borderRadius:4,padding:'2px 10px',height:25,marginBottom:8,display:'flex',alignItems:'center',justifyContent:'space-between',width:1535}}>
+      <div className="sec-hdr" style={{border:'1px solid var(--bdr)',borderRadius:4,padding:'2px 10px',height:25,marginBottom:8,display:'flex',alignItems:'center',justifyContent:'space-between',width:1305}}>
         <span className="title" style={{fontSize:15,lineHeight:'19px'}}>1. CATALOGO DE PROYECTOS</span>
       </div>
-      {proyMsg&&<div style={{padding:'8px 10px',fontSize:12,color:proyMsg.tipo==='ok'?'var(--ok)':'#f87171',background:proyMsg.tipo==='ok'?'rgba(74,222,128,.08)':'rgba(248,113,113,0.08)',border:'1px solid '+(proyMsg.tipo==='ok'?'var(--ok)':'rgba(248,113,113,0.2)'),borderRadius:4,marginBottom:8,width:1535,display:'flex',alignItems:'center',justifyContent:'space-between'}}><span>{proyMsg.texto}</span><button onClick={function(){setProyMsg(null)}} style={{background:'none',border:'none',color:'inherit',cursor:'pointer',fontSize:16,lineHeight:1,padding:'0 4px'}} title="Cerrar">✕</button></div>}
-      <div className="xl-wrap" style={{width:1625}}>
+      {proyMsg&&<div style={{padding:'8px 10px',fontSize:12,color:proyMsg.tipo==='ok'?'var(--ok)':'#f87171',background:proyMsg.tipo==='ok'?'rgba(74,222,128,.08)':'rgba(248,113,113,0.08)',border:'1px solid '+(proyMsg.tipo==='ok'?'var(--ok)':'rgba(248,113,113,0.2)'),borderRadius:4,marginBottom:8,width:1305,display:'flex',alignItems:'center',justifyContent:'space-between'}}><span>{proyMsg.texto}</span><button onClick={function(){setProyMsg(null)}} style={{background:'none',border:'none',color:'inherit',cursor:'pointer',fontSize:16,lineHeight:1,padding:'0 4px'}} title="Cerrar">✕</button></div>}
+      <div className="xl-wrap" style={{width:1395}}>
         <div className="xl-scroll">
-          <table style={{tableLayout:'fixed',width:'1625px'}}>
+          <table style={{tableLayout:'fixed',width:'1395px'}}>
             <colgroup>
               <col className="col-rn" style={{width:'30px'}}/>
               <col style={{width:'70px'}}/>
@@ -7412,7 +7412,6 @@ function PresProyectosPanel({presupuestos,selPresIdx,setSelPresIdx,data,onChange
               <col style={{width:'65px'}}/>
               <col style={{width:'75px'}}/>
               <col style={{width:'110px'}}/>
-              <col style={{width:'230px'}}/>
               <col className="col-act" style={{width:'90px'}}/>
             </colgroup>
             <thead><tr style={{height:34}}>
@@ -7430,11 +7429,10 @@ function PresProyectosPanel({presupuestos,selPresIdx,setSelPresIdx,data,onChange
               <th style={{whiteSpace:'normal',lineHeight:'1.2'}}>Plazo (días)</th>
               <th style={{whiteSpace:'normal',lineHeight:'1.2'}}>Con Sub Proyectos?</th>
               <th style={{whiteSpace:'normal',lineHeight:'1.2'}}>Tipo de Proyecto</th>
-              <th>Observaciones</th>
               <th className="col-act">Acciones</th>
             </tr></thead>
             <tbody>
-              {flatPresupuestos.length===0&&<tr className="empty-row"><td colSpan={16}>{presupuestos.length===0?'Sin proyectos. Agregue uno con "+ Nuevo".':'Sin resultados para el filtro aplicado.'}</td></tr>}
+              {flatPresupuestos.length===0&&<tr className="empty-row"><td colSpan={15}>{presupuestos.length===0?'Sin proyectos. Agregue uno con "+ Nuevo".':'Sin resultados para el filtro aplicado.'}</td></tr>}
               {flatPresupuestos.map(function(row,fi){
                 var p=row.pres,level=row.level;
                 var i=presupuestos.indexOf(p);
@@ -7478,7 +7476,6 @@ function PresProyectosPanel({presupuestos,selPresIdx,setSelPresIdx,data,onChange
                     <td style={{textAlign:'center'}}>{isEdit?<input className="ni" type="number" value={p.plazo||''} onChange={function(e){updField(i,'plazo',e.target.value)}} style={{width:'100%',textAlign:'center'}}/>:<span>{p.plazo?p.plazo+' d':'—'}</span>}</td>
                     <td style={{textAlign:'center'}}>{esSub?<span style={{color:'var(--muted)'}}>{'—'}</span>:isEdit?<select className="ni sel" value={p.con_sub_proyectos?'1':'0'} onChange={function(e){updField(i,'con_sub_proyectos',e.target.value==='1')}}><option value='0'>No</option><option value='1'>Si</option></select>:p.con_sub_proyectos?<button onClick={function(){setEditIdx(presupuestos.length);addSubProyecto(i)}} title="Agregar sub-proyecto" style={{background:'transparent',border:'none',color:'var(--ok)',fontWeight:700,fontSize:19,lineHeight:'1',padding:0,cursor:'pointer'}}>{'+'}</button>:<span style={{color:'var(--muted)',fontSize:10}}>No</span>}</td>
                     <td>{isEdit?<input className="ni" value={p.tipo_proyecto||''} onChange={function(e){updField(i,'tipo_proyecto',e.target.value)}}/>:<span style={{padding:'0 6px'}}>{p.tipo_proyecto||'—'}</span>}</td>
-                    <td>{isEdit?<input className="ni" value={p.observaciones||''} onChange={function(e){updField(i,'observaciones',e.target.value)}}/>:<span style={{padding:'0 6px'}}>{p.observaciones||'—'}</span>}</td>
                     <td className="col-act" style={{textAlign:'center'}}>
                       <span style={{display:'inline-flex',alignItems:'center',gap:4}}>
                         <button className="btn-edit" title={isEdit?'Listo':'Editar'} onClick={function(){setEditIdx(isEdit?null:i)}} style={{background:'none',border:'none',cursor:'pointer',padding:0}}>{isEdit?<span style={{fontSize:9,color:'var(--ok)',fontWeight:700}}>Listo</span>:<IconEdit/>}</button>

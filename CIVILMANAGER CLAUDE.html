@@ -7455,7 +7455,7 @@ function PresProyectosPanel({presupuestos,selPresIdx,setSelPresIdx,data,onChange
                       </span>
                     </td>
                     <td style={{textAlign:'center',fontSize:10}}>{fmtDate(p.fecha_creacion)}</td>
-                    <td style={{textAlign:'center'}}><span onClick={function(){toggleEstado(i)}} style={{cursor:'pointer',fontSize:9,padding:'1px 6px',borderRadius:3,border:'1px solid '+estadoColor(p.estado),color:estadoColor(p.estado),fontWeight:600}}>{estadoLabel(p.estado)}</span></td>
+                    <td style={{textAlign:'center'}}><span onClick={async function(){var r=await toggleEstado(i);if(r&&r.texto)setProyMsg({tipo:r.ok?'ok':'err',texto:r.texto})}} style={{cursor:'pointer',fontSize:9,padding:'1px 6px',borderRadius:3,border:'1px solid '+estadoColor(p.estado),color:estadoColor(p.estado),fontWeight:600}}>{estadoLabel(p.estado)}</span></td>
                     <td style={{textAlign:'center'}}>
                       {isEdit&&p.estado==='borrador'?(
                         <select className="ni sel" value={(p.perfil_pais_snap&&p.perfil_pais_snap.codigo)||''} onChange={async function(e){if(await cambiarPerfilPais(i,e.target.value))setProyMsg({tipo:'ok',texto:'Perfil de país actualizado. Los costos han sido recalculados.'})}} style={{fontSize:9,padding:'1px 2px'}}>
@@ -9888,19 +9888,18 @@ function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,i
     if(p.estado==='borrador'){
       var v=validarExportacionFormulario(p);
       if(!v.valido){
-        showToast('No se puede avanzar: '+v.pendientes.length+' ítem(s) sin APU asignado.',{type:'err',dur:4000});
-        return;
+        return{ok:false,error:'No se puede avanzar: '+v.pendientes.length+' ítem(s) sin APU asignado.'};
       }
     }
     if(p.estado==='cerrado'){
-      if(!(await askConfirm('Este presupuesto está cerrado. ¿Desea reabrirlo y volver a permitir cambios?')))return;
+      if(!(await askConfirm('Este presupuesto está cerrado. ¿Desea reabrirlo y volver a permitir cambios?')))return{ok:false};
     }
     n=presupuestos.slice();
     p=n[idx];
-    if(!p)return;
+    if(!p)return{ok:false};
     n[idx]=Object.assign({},p,{estado:next,fecha_cierre:next==='cerrado'?new Date().toISOString().slice(0,10):null});
     onChange(Object.assign({},data,{presupuestos:n}));
-    showToast('Estado: '+estadoLabel(next),{type:'ok',dur:1800});
+    return{ok:true,texto:'Estado: '+estadoLabel(next)};
   }
 
   var cambiarPerfilPais=async function(idx,nuevoCodigo){

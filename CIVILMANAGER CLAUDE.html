@@ -7349,6 +7349,35 @@ var SUBS=[
 /* MODULO PRESUPUESTOS */
 
 /* MODULO PRESUPUESTOS */
+function BannerEstadoProyecto({pres,estadoLabel,estadoColor}){
+  if(!pres)return null;
+  var estado=pres.estado||'borrador';
+  var color=estadoColor(estado);
+  var msgs={
+    borrador:{
+      icono:'🟡',
+      texto:'En construcción activa — todos los campos son editables. El formulario, recursos y parámetros pueden modificarse libremente.'
+    },
+    en_revision:{
+      icono:'🔵',
+      texto:'Revisión de Costos — el formulario de cantidades está congelado (no se pueden crear, modificar ni eliminar ítems). Solo se pueden ajustar recursos, precios y parámetros. El resumen financiero se recalcula con esos cambios.'
+    },
+    cerrado:{
+      icono:'🟢',
+      texto:'Versión oficial cerrada — todo el proyecto es de solo lectura. Para realizar cambios, cambie el estado a Borrador.'
+    }
+  };
+  var m=msgs[estado]||msgs.borrador;
+  return(
+    <div style={{display:'flex',alignItems:'flex-start',gap:8,padding:'6px 12px',borderRadius:4,border:'1px solid '+color,background:'transparent',marginBottom:4,flexShrink:0}}>
+      <span style={{fontSize:12,flexShrink:0,marginTop:1}}>{m.icono}</span>
+      <span style={{fontSize:10,color:'var(--tx2)',lineHeight:1.5}}>
+        <span style={{fontWeight:700,color:color}}>{estadoLabel(estado)}</span>
+        {' — '}{m.texto}
+      </span>
+    </div>
+  );
+}
 /* ══════════════════ 1. PROYECTOS (sub-componente de PresupuestosTab) ══════════════════ */
 function PresProyectosPanel({presupuestos,selPresIdx,setSelPresIdx,data,onChange,estadoColor,estadoLabel,addPresupuesto,addSubProyecto,toggleEstado,cambiarPerfilPais,delPresupuesto,setTab}){
   var editIdxState=useState(null);
@@ -7393,17 +7422,26 @@ function PresProyectosPanel({presupuestos,selPresIdx,setSelPresIdx,data,onChange
       <div className="sec-hdr" style={{border:'1px solid var(--bdr)',borderRadius:4,padding:'2px 10px',height:25,marginBottom:8,display:'flex',alignItems:'center',justifyContent:'space-between',width:300}}>
         <span className="title" style={{fontSize:15,lineHeight:'19px'}}>1. CATALOGO DE PROYECTOS</span>
       </div>
+      <div style={{display:'flex',gap:12,padding:'8px 10px',borderRadius:4,border:'1px solid var(--bdr)',background:'var(--bg2)',fontSize:10,color:'var(--tx2)',lineHeight:1.6,flexShrink:0,flexWrap:'wrap',marginBottom:8}}>
+        <span style={{fontWeight:700,color:'var(--tx)',marginRight:4}}>Estados del proyecto:</span>
+        <span><span style={{color:'var(--warn)',fontWeight:700}}>🟡 Borrador</span> — construcción activa, todo editable.</span>
+        <span style={{color:'var(--bdr)'}}>|</span>
+        <span><span style={{color:'var(--ac)',fontWeight:700}}>🔵 Revisión de Costos</span> — formulario congelado, solo recursos y parámetros editables.</span>
+        <span style={{color:'var(--bdr)'}}>|</span>
+        <span><span style={{color:'var(--ok)',fontWeight:700}}>🟢 Cerrado</span> — versión oficial, solo lectura total.</span>
+        <span style={{color:'var(--tx3)',marginLeft:4}}>(Clic en el badge de estado para cambiar)</span>
+      </div>
       {proyMsg&&<div style={{padding:'8px 10px',fontSize:12,color:proyMsg.tipo==='ok'?'var(--ok)':'#f87171',background:proyMsg.tipo==='ok'?'rgba(74,222,128,.08)':'rgba(248,113,113,0.08)',border:'1px solid '+(proyMsg.tipo==='ok'?'var(--ok)':'rgba(248,113,113,0.2)'),borderRadius:4,marginBottom:8,width:300,display:'flex',alignItems:'center',justifyContent:'space-between'}}><span>{proyMsg.texto}</span><button onClick={function(){setProyMsg(null)}} style={{background:'none',border:'none',color:'inherit',cursor:'pointer',fontSize:16,lineHeight:1,padding:'0 4px'}} title="Cerrar">✕</button></div>}
-      <div className="xl-wrap" style={{width:1395}}>
+      <div className="xl-wrap" style={{width:1425}}>
         <div className="xl-scroll">
-          <table style={{tableLayout:'fixed',width:'1395px'}}>
+          <table style={{tableLayout:'fixed',width:'1425px'}}>
             <colgroup>
               <col className="col-rn" style={{width:'30px'}}/>
               <col style={{width:'70px'}}/>
               <col className="cw-80"/>
               <col style={{width:'220px'}}/>
               <col style={{width:'75px'}}/>
-              <col style={{width:'80px'}}/>
+              <col style={{width:'110px'}}/>
               <col style={{width:'90px'}}/>
               <col style={{width:'110px'}}/>
               <col style={{width:'110px'}}/>
@@ -7453,7 +7491,7 @@ function PresProyectosPanel({presupuestos,selPresIdx,setSelPresIdx,data,onChange
                       </span>
                     </td>
                     <td style={{textAlign:'center',fontSize:10}}>{fmtDate(p.fecha_creacion)}</td>
-                    <td style={{textAlign:'center'}}><span onClick={async function(){var r=await toggleEstado(i);if(r&&r.texto)setProyMsg({tipo:r.ok?'ok':'err',texto:r.texto})}} style={{cursor:'pointer',fontSize:9,padding:'1px 6px',borderRadius:3,border:'1px solid '+estadoColor(p.estado),color:estadoColor(p.estado),fontWeight:600}}>{estadoLabel(p.estado)}</span></td>
+                    <td style={{textAlign:'center'}}><span onClick={async function(){var r=await toggleEstado(i);if(r&&r.texto)setProyMsg({tipo:r.ok?'ok':'err',texto:r.texto})}} style={{cursor:'pointer',fontSize:9,padding:'1px 6px',borderRadius:3,border:'1px solid '+estadoColor(p.estado),color:estadoColor(p.estado),fontWeight:600,whiteSpace:'nowrap',display:'inline-block'}}>{estadoLabel(p.estado)}</span></td>
                     <td style={{textAlign:'center'}}>
                       {isEdit&&p.estado==='borrador'?(
                         <select className="ni sel" value={(p.perfil_pais_snap&&p.perfil_pais_snap.codigo)||''} onChange={async function(e){if(await cambiarPerfilPais(i,e.target.value))setProyMsg({tipo:'ok',texto:'Perfil de país actualizado. Los costos han sido recalculados.'})}} style={{fontSize:9,padding:'1px 2px'}}>
@@ -7501,7 +7539,7 @@ function PresProyectosPanel({presupuestos,selPresIdx,setSelPresIdx,data,onChange
 /* ══════════════════ 3. RESUMEN FINANCIERO (sub-componente de PresupuestosTab) ══════════════════ */
 function PresResumenPanel({pres,presupuestos,selPresIdx,data,onChange,calcResumenPres,setTab}){
   if(!pres)return <PresBannerProyecto pres={pres} presupuestos={presupuestos} setTab={setTab}/>;
-  var readOnly=pres.estado!=='borrador';
+  var readOnly=pres.estado==='cerrado';
   var r=calcResumenPres();
   var useOv=pres.aiu_override&&pres.aiu_override.activo;
 
@@ -8012,7 +8050,7 @@ function PresBannerProyecto({pres,presupuestos,setTab}){
 var FORM_TABLE_MAXW=1145; /* debe igualar la suma del colgroup de la tabla de items (fase revision) */
 var SCROLLBAR_W=16; /* ancho tipico de scrollbar vertical webkit/blink; xl-scroll usa scrollbarGutter:'stable' para reservarlo siempre, asi esta resta es valida haya o no overflow vertical */
 var FORM_TABLE_INNERW=FORM_TABLE_MAXW-2-SCROLLBAR_W; /* xl-wrap tiene border 1px+1px; tabla/footer deben usar el ancho interno real, no el externo, para no forzar scroll horizontal */
-function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModal,setApuModal,apus,categorias_apu,calcItemVal,setTab,estadoLabel,cargosCalc,cargosCalcSnap,personMap,esHora,eqMap,insMap,factorPrest,factorPrestSnap,usarFpEnApu,equipos,insumos,apusBasico}){
+function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModal,setApuModal,apus,categorias_apu,calcItemVal,setTab,estadoLabel,estadoColor,cargosCalc,cargosCalcSnap,personMap,esHora,eqMap,insMap,factorPrest,factorPrestSnap,usarFpEnApu,equipos,insumos,apusBasico}){
   var faseState=useState('inicio');var fase=faseState[0],setFase=faseState[1];
   var tipoPrecioFormularioState=useState('apu');var tipoPrecioFormulario=tipoPrecioFormularioState[0],setTipoPrecioFormulario=tipoPrecioFormularioState[1];
   var alarmasPrecioFaltanteState=useState(null);var alarmasPrecioFaltante=alarmasPrecioFaltanteState[0],setAlarmasPrecioFaltante=alarmasPrecioFaltanteState[1];
@@ -8468,6 +8506,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
     <div style={{maxWidth:FORM_TABLE_MAXW,display:'flex',flexDirection:'column',gap:8,height:'calc(100vh - 150px)',minHeight:0,minWidth:0}}>
       <div style={{flexShrink:0,display:'flex',flexDirection:'column',gap:8}}>
         <TituloSubTab pres={pres} presupuestos={presupuestos} tituloSubTab="Formulario de Cantidades y Precios" extra={<span style={{fontSize:14,fontWeight:700,color:'var(--tx)',textAlign:'right'}}>CD: {fmt(cdTotal)}</span>}/>
+        <BannerEstadoProyecto pres={pres} estadoLabel={estadoLabel} estadoColor={estadoColor}/>
         <div style={{display:'flex',gap:6,alignItems:'center'}}>
           {!readOnly&&<button className="btn" onClick={addCapitulo} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--ok)',borderRadius:4,background:'rgba(74,222,128,.06)',color:'var(--ok)',cursor:'pointer'}}>+ Capitulo</button>}
           {!readOnly&&<button className="btn" onClick={reimportar} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--bdr)',borderRadius:4,background:'none',color:'var(--tx2)',cursor:'pointer'}}>{'↩ '+(fo?'Reimportar':'Subir Excel')}</button>}
@@ -8476,7 +8515,6 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
           {pres.adjudicado===true&&<span style={{fontSize:10,color:'var(--ok)'}}>✓ Proyecto adjudicado</span>}
           <button onClick={function(){setTab(14)}} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--bdr)',borderRadius:4,background:'transparent',color:'var(--tx2)',cursor:'pointer'}}>📦 Ver recursos del proyecto</button>
           <input className="ni" placeholder="Buscar item..." value={busq} onChange={function(e){setBusq(e.target.value);setPage(0)}} style={{width:160,height:22,fontSize:10,border:'1px solid var(--ac)',borderRadius:4,marginLeft:8}}/>
-          {readOnly&&<span style={{fontSize:10,color:'var(--warn)',marginLeft:8,padding:'2px 8px',border:'1px solid var(--warn)',borderRadius:3}}>Solo lectura (presupuesto {estadoLabel(pres.estado).toLowerCase()})</span>}
         </div>
         {alarmasPrecioFaltante&&alarmasPrecioFaltante.length>0&&(
           <div style={{display:'flex',alignItems:'flex-start',gap:10,padding:'8px 14px',borderRadius:4,fontSize:11,lineHeight:1.6,background:'rgba(248,113,113,.08)',border:'1px solid #f87171',color:'#f87171'}}>
@@ -8758,7 +8796,7 @@ function etiquetaFirma(firma){return FIRMA_LABEL[firma]||'⚠ Múltiples diferen
 
 function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
   cargosCalcSnap,cuadrillasCalcSnap,equiposSnapEfectivo,insumosSnapEfectivo,factorPrestSnap,personMapSnap,
-  eqMapSnap,insMapSnap,herrPct,usarFpEnApu,esHora,abCalcList,apusBasico,provMap,_unidades,cambiarPerfilPais}){
+  eqMapSnap,insMapSnap,herrPct,usarFpEnApu,esHora,abCalcList,apusBasico,provMap,_unidades,cambiarPerfilPais,estadoLabel,estadoColor}){
 
   var[tipo,setTipo]=useState('parametros');
   var[fpRowEditIdx,setFpRowEditIdx]=useState(null);
@@ -9136,6 +9174,7 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
   return(
     <React.Fragment>
     <div>
+      <BannerEstadoProyecto pres={pres} estadoLabel={estadoLabel} estadoColor={estadoColor}/>
       {/* TituloSubTab, tabs y el contenido reutilizado (InsumosTab/EquiposTab/etc) viven TODOS dentro
          de este contenedor: es el unico asi que tiene un contexto de scroll REAL propio (height fijo,
          no maxHeight condicional) al que position:sticky puede pegar el titulo/tabs/footer. Fuera de
@@ -9805,7 +9844,7 @@ function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,i
   },[apusBasico,cargosCalc,equipos,insumos,herrPct,factorPrest,usarFpEnApu,esHora,personMap,eqMap,insMap]);
 
   function estadoColor(e){return e==='borrador'?'var(--warn)':e==='en_revision'?'var(--ac)':'var(--ok)'}
-  function estadoLabel(e){return e==='borrador'?'Borrador':e==='en_revision'?'En Revision':'Cerrado'}
+  function estadoLabel(e){return e==='borrador'?'Borrador':e==='en_revision'?'Revisión de Costos':'Cerrado'}
 
   function genCodigoPpto(){
     var maxN=0;
@@ -10046,14 +10085,14 @@ function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,i
   var PRES_NAV=[
     {tab:9,label:'1. CATALOGO DE PROYECTOS'},
     {tab:10,label:'2. FORMULARIO DE CANTIDADES Y PRECIOS'},
-    {tab:12,label:'3. RESUMEN FINANCIERO'},
-    {tab:13,label:'4. ENTREGABLES'},
-    {tab:14,label:'5. RECURSOS DEL PROYECTO'}
+    {tab:12,label:'3. RESUMEN FINANCIERO',conEstado:true},
+    {tab:13,label:'4. ENTREGABLES',conEstado:true},
+    {tab:14,label:'5. RECURSOS DEL PROYECTO',conEstado:true}
   ];
-  var presContent=tab===10?<PresFormularioPanel pres={pres} presupuestos={presupuestos} selPresIdx={selPresIdx} data={data} onChange={onChange} apuModal={apuModal} setApuModal={setApuModal} apus={apus} categorias_apu={categorias_apu} calcItemVal={calcItemVal} setTab={setTab} estadoLabel={estadoLabel} cargosCalc={cargosCalc} cargosCalcSnap={cargosCalcSnap} personMap={personMap} esHora={esHora} eqMap={eqMap} insMap={insMap} factorPrest={factorPrest} factorPrestSnap={factorPrestSnap} usarFpEnApu={usarFpEnApu} equipos={equipos} insumos={insumos} apusBasico={apusBasico}/>
+  var presContent=tab===10?<PresFormularioPanel pres={pres} presupuestos={presupuestos} selPresIdx={selPresIdx} data={data} onChange={onChange} apuModal={apuModal} setApuModal={setApuModal} apus={apus} categorias_apu={categorias_apu} calcItemVal={calcItemVal} setTab={setTab} estadoLabel={estadoLabel} estadoColor={estadoColor} cargosCalc={cargosCalc} cargosCalcSnap={cargosCalcSnap} personMap={personMap} esHora={esHora} eqMap={eqMap} insMap={insMap} factorPrest={factorPrest} factorPrestSnap={factorPrestSnap} usarFpEnApu={usarFpEnApu} equipos={equipos} insumos={insumos} apusBasico={apusBasico}/>
     :tab===12?<PresResumenPanel pres={pres} presupuestos={presupuestos} selPresIdx={selPresIdx} data={data} onChange={onChange} calcResumenPres={calcResumenPres} setTab={setTab}/>
     :tab===13?<PresEntregablesPanel pres={pres} presupuestos={presupuestos} calcResumenPres={calcResumenPres} calcItemVal={calcItemVal} calcResumenFor={calcResumenFor} calcItemValFor={calcItemValFor} buildSnapCtx={buildSnapCtx} setTab={setTab}/>
-    :tab===14?<PresCatalogoProyectoPanel pres={pres} presupuestos={presupuestos} selPresIdx={selPresIdx} data={data} onChange={onChange} cargosCalcSnap={cargosCalcSnap} cuadrillasCalcSnap={cuadrillasCalcSnap} equiposSnapEfectivo={equiposSnapEfectivo} insumosSnapEfectivo={insumosSnapEfectivo} factorPrestSnap={factorPrestSnap} personMapSnap={personMapSnap} eqMapSnap={eqMapSnap} insMapSnap={insMapSnap} herrPct={herrPct} usarFpEnApu={usarFpEnApu} esHora={esHora} abCalcList={abCalcList} apusBasico={apusBasico} provMap={provMap} _unidades={_unidades} cambiarPerfilPais={cambiarPerfilPais}/>
+    :tab===14?<PresCatalogoProyectoPanel pres={pres} presupuestos={presupuestos} selPresIdx={selPresIdx} data={data} onChange={onChange} cargosCalcSnap={cargosCalcSnap} cuadrillasCalcSnap={cuadrillasCalcSnap} equiposSnapEfectivo={equiposSnapEfectivo} insumosSnapEfectivo={insumosSnapEfectivo} factorPrestSnap={factorPrestSnap} personMapSnap={personMapSnap} eqMapSnap={eqMapSnap} insMapSnap={insMapSnap} herrPct={herrPct} usarFpEnApu={usarFpEnApu} esHora={esHora} abCalcList={abCalcList} apusBasico={apusBasico} provMap={provMap} _unidades={_unidades} cambiarPerfilPais={cambiarPerfilPais} estadoLabel={estadoLabel} estadoColor={estadoColor}/>
     :<PresProyectosPanel presupuestos={presupuestos} selPresIdx={selPresIdx} setSelPresIdx={setSelPresIdx} data={data} onChange={onChange} estadoColor={estadoColor} estadoLabel={estadoLabel} addPresupuesto={addPresupuesto} addSubProyecto={addSubProyecto} toggleEstado={toggleEstado} cambiarPerfilPais={cambiarPerfilPais} delPresupuesto={delPresupuesto} setTab={setTab}/>;
 
   return(
@@ -10062,7 +10101,14 @@ function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,i
         {PRES_NAV.map(function(nav){
           var activo=tab===nav.tab||(nav.tab===9&&tab<9);
           return(
-            <button key={nav.tab} onClick={function(){setTab(nav.tab)}} style={{textAlign:'left',padding:'6px 10px',fontSize:10.5,border:activo?'1px solid var(--ok)':'1px solid var(--bdr)',borderRadius:4,background:activo?'rgba(74,222,128,.1)':'transparent',color:activo?'var(--ok)':'var(--tx3)',fontWeight:activo?700:400,cursor:'pointer',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{nav.label}</button>
+            <button key={nav.tab} onClick={function(){setTab(nav.tab)}} style={{textAlign:'left',padding:'6px 10px',fontSize:10.5,border:activo?'1px solid var(--ok)':'1px solid var(--bdr)',borderRadius:4,background:activo?'rgba(74,222,128,.1)':'transparent',color:activo?'var(--ok)':'var(--tx3)',fontWeight:activo?700:400,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'space-between',gap:6,width:'100%'}}>
+              <span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{nav.label}</span>
+              {nav.conEstado&&pres&&(
+                <span style={{flexShrink:0,fontSize:8,padding:'1px 5px',borderRadius:3,border:'1px solid '+estadoColor(pres.estado),color:estadoColor(pres.estado),fontWeight:700,lineHeight:'14px',whiteSpace:'nowrap'}}>
+                  {estadoLabel(pres.estado)}
+                </span>
+              )}
+            </button>
           );
         })}
       </div>

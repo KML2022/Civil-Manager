@@ -1028,6 +1028,42 @@ function askConfirm(msg){if(_showConfirm)return _showConfirm(msg);return Promise
 
 const genCodeFor=function(items,prefix,codeOverride,padLen){if(codeOverride&&String(codeOverride).trim())return String(codeOverride).trim();padLen=padLen||3;var maxNum=items.reduce(function(m,item){var match=(item.codigo||'').match(new RegExp(prefix+'-(\\d+)'));return match?Math.max(m,parseInt(match[1])):m},0);return prefix+'-'+String(maxNum+1).padStart(padLen,'0')};
 
+/* Genera un codigo secuencial exclusivo del proyecto con formato 'EQ-001 PPT-001'.
+   Conteo independiente del catalogo general: solo mira codigos que ya terminan con
+   el codigo del proyecto (ej. 'EQ-002 PPT-001'). Si no hay codigo de proyecto, cae
+   a genCodeFor normal (seguridad para llamadas sin contexto de proyecto). */
+const genCodeForProyecto=function(items,prefix,codigoProyecto,padLen){
+  padLen=padLen||3;
+  var re=/(\d+)\s+(PPT-\d+)$/i;
+  var maxNum=0;
+  (items||[]).forEach(function(item){
+    var c=(item.codigo||'').trim();
+    var m=c.match(re);
+    if(!m)return;
+    if(codigoProyecto&&m[2].toUpperCase()!==String(codigoProyecto).toUpperCase())return;
+    maxNum=Math.max(maxNum,parseInt(m[1]));
+  });
+  return prefix+'-'+String(maxNum+1).padStart(padLen,'0')+(codigoProyecto?' '+codigoProyecto:'');
+};
+
+/* True si el codigo pertenece a un proyecto (formato 'EQ-001 PPT-001'), no al catalogo general.
+   Usado para excluir codigos de proyecto cuando se construye el mapa de codigos del catalogo
+   general en analizarActualizacionCatalogo(). */
+const esCodigoDeProyecto=function(codigo){
+  if(!codigo)return false;
+  return / (PPT-\d+)$/i.test(String(codigo).trim());
+};
+
+/* Renderiza un codigo: si trae el complemento de proyecto 'PPT-XXX' se muestra un 25% mas
+   pequeno (fontSize .75em) para distinguir de un vistazo el codigo base vs el sufijo de proyecto. */
+function mostrarCodigo(cod){
+  if(!cod)return <span>—</span>;
+  var s=String(cod);
+  var m=s.match(/^(\S+)\s+(PPT-\d+)$/i);
+  if(m)return <span>{m[1]} <span style={{fontSize:'0.75em',opacity:.75,color:'var(--tx3)'}}>{m[2]}</span></span>;
+  return <span>{s}</span>;
+}
+
 const handleTabKeyDown=function(setEditIdx){return function(i,e){if(e.key==='Enter'){e.preventDefault();var tr=e.target.closest('tr');var inputs=[].slice.call(tr.querySelectorAll('input.ni,select.sel'));var idx=inputs.indexOf(e.target);if(idx<inputs.length-1)inputs[idx+1].focus();else setEditIdx(null)}else if(e.key==='Escape')setEditIdx(null)}};
 
 
@@ -1251,9 +1287,9 @@ function FactorPrestacionalTab({data,onChange,factorPrest,cargosCalc,cargoMap,es
 
                 <col className="col-rn" style={{width:'40px'}}/>
 
-                <col className="cw-90"/>
+                <col className="cw-110"/>
 
-                <col className="cw-200"/>
+                <col className="cw-180"/>
 
                 <col className="cw-70"/>
 
@@ -1311,7 +1347,7 @@ function FactorPrestacionalTab({data,onChange,factorPrest,cargosCalc,cargoMap,es
 
                       <XLRowNum n={i+1}/>
 
-                      <td style={{padding:'0 6px',textAlign:'left'}}>{c.codigo||'\u2014'}</td>
+                      <td style={{padding:'0 6px',textAlign:'left'}}>{mostrarCodigo(c.codigo)}</td>
 
                       <td>{isEdit?<input className="ni" value={c.descripcion||''} onChange={function(e){updCargo(origIdx,'descripcion',e.target.value)}} onKeyDown={function(e){handleCargosKeyDown(origIdx,e)}} autoFocus/>:<span style={{padding:'0 6px'}}>{c.descripcion||'\u2014'}</span>}</td>
 
@@ -1768,7 +1804,7 @@ function CuadrillasTab({data,onChange,cargosCalc,cargoMap,esHora,selCuadrillaIdx
 
                         <XLRowNum n={ii+1}/>
 
-                        <td style={{padding:'0 6px'}}>{cargo?(cargo.codigo||'\u2014'):'\u2014'}</td>
+                        <td style={{padding:'0 6px'}}>{mostrarCodigo(cargo?(cargo.codigo||'\u2014'):'\u2014')}</td>
 
                         <td style={editBg}>{isEdit?
 
@@ -2046,9 +2082,9 @@ function EquiposTab({data,onChange,provMap,_unidades,contextoProyecto,readOnly})
 
               <col className="col-rn" style={{width:'50px'}}/>
 
-              <col className="cw-60"/>
+              <col className="cw-110"/>
 
-              <col className="cw-280"/>
+              <col className="cw-230"/>
 
               <col className="cw-150"/>
 
@@ -2106,7 +2142,7 @@ function EquiposTab({data,onChange,provMap,_unidades,contextoProyecto,readOnly})
 
                     <XLRowNum n={i+1}/>
 
-                    <td style={{padding:'0 6px',textAlign:'left'}}>{e.codigo||'—'}</td>
+                    <td style={{padding:'0 6px',textAlign:'left'}}>{mostrarCodigo(e.codigo)}</td>
 
                     <td>{isEdit?<input className="ni" value={e.nombre||''} onChange={function(ev){upd(origIdx,'nombre',ev.target.value)}} onKeyDown={function(ev){handleKeyDown(origIdx,ev)}} autoFocus/>:<span style={{padding:'0 6px'}}>{e.nombre||'—'}</span>}</td>
 
@@ -2322,11 +2358,11 @@ function InsumosTab({data,onChange,provMap,cargosCalc,cargoMap,esHora,_unidades,
 
               <col className="col-rn" style={{width:'60px'}}/>
 
-              <col className="cw-80"/>
+              <col className="cw-110"/>
 
               <col className="cw-200"/>
 
-              <col className="cw-300"/>
+              <col className="cw-270"/>
 
               <col className="cw-80"/>
 
@@ -2402,7 +2438,7 @@ function InsumosTab({data,onChange,provMap,cargosCalc,cargoMap,esHora,_unidades,
 
                     <XLRowNum n={i+1}/>
 
-                    <td style={{padding:'0 6px',textAlign:'left'}}>{isEdit?<input className="ni" value={ins.codigo||''} onChange={function(ev){upd(origIdx,'codigo',ev.target.value)}} onKeyDown={function(ev){handleKeyDown(origIdx,ev)}}/>:ins.codigo||'—'}</td>
+                    <td style={{padding:'0 6px',textAlign:'left'}}>{isEdit?<input className="ni" value={ins.codigo||''} onChange={function(ev){upd(origIdx,'codigo',ev.target.value)}} onKeyDown={function(ev){handleKeyDown(origIdx,ev)}}/>:mostrarCodigo(ins.codigo)}</td>
 
                     <td style={{padding:'0 6px',textAlign:'left'}}>{isEdit?<select className="sel" value={ins.categoria||'Pétreos'} onChange={function(ev){var newCat=ev.target.value;upd(origIdx,'categoria',newCat);upd(origIdx,'subcategoria','');var bestProv=getMostCommonProvForCat(newCat);if(bestProv){upd(origIdx,'proveedor_id',bestProv)}}} onKeyDown={function(ev){handleKeyDown(origIdx,ev)}}>{_catIns.map(function(c){return <option key={c} value={c}>{c}</option>})}</select>:<span style={{padding:'0 6px'}}>{ins.categoria||'Pétreos'}</span>}</td>
 
@@ -2899,7 +2935,7 @@ function consolidarRecursosApu(bloques){
       (b[sec]||[]).forEach(function(r){
         var key=claveDeRecursoCrudo(r);
         if(!mapa.has(key)){
-          mapa.set(key,{tipo:r.tipo,codigo:r.codigo||null,nombre_normalizado:normalizarTexto(r.nombre),nombre_variantes:[],unidad:r.unidad,precio_excel:r.precio,precio_excel_variantes:[],apariciones:[],match:null,severidad:null,decision:null,edicion:{},desperdicio_valido:true});
+          mapa.set(key,{_uid:uid(),tipo:r.tipo,codigo:r.codigo||null,nombre_normalizado:normalizarTexto(r.nombre),nombre_variantes:[],unidad:r.unidad,precio_excel:r.precio,precio_excel_variantes:[],apariciones:[],match:null,severidad:null,decision:null,edicion:{},desperdicio_valido:true});
         }
         var e=mapa.get(key);
         if(e.nombre_variantes.indexOf(r.nombre)===-1)e.nombre_variantes.push(r.nombre);
@@ -3090,22 +3126,22 @@ function calcularSeveridadDeMatch(recurso,match,umbralPct,matchPorCodigo){
   return'sin_match';
 }
 
-/* Resuelve match+severidad+decision de un recurso unico: intenta por Codigo primero; si no hay codigo
-   o el codigo no matchea, cae a matching por nombre/unidad/precio. Todo match (codigo o nombre) pasa
-   por la misma verificacion de unidad+precio. Usado en cada (re)calculo de recursosUnicos. */
+/* Resuelve match+severidad+decision de un recurso unico: siempre por nombre/unidad/precio
+   (buscarCandidatos). El codigo del Excel ya no determina el match automatico -- queda solo
+   como referencia visual/editable (buscarMatchPorCodigo sigue disponible para busqueda manual
+   explicita desde la fila expandida). Usado en cada (re)calculo de recursosUnicos. */
 function resolverMatchYSeveridad(ru,base,umbralPct){
   var n=Object.assign({},ru);
-  if(n.tipo==='INSUMO'&&!n.desperdicio_valido){n.match=n.codigo?buscarMatchPorCodigo(n,base):buscarMatch(n,base);n.severidad='bloqueante';return n}
-  var matchPorCodigo=n.codigo?buscarMatchPorCodigo(n,base):null;
-  if(matchPorCodigo){
-    n.match=matchPorCodigo;
-    n.candidatos=[]; // busqueda exacta por codigo, no aplica el concepto de candidatos alternativos
-    n.severidad=calcularSeveridadDeMatch(n,matchPorCodigo,umbralPct,true);
-  }else{
+  if(n.tipo==='INSUMO'&&!n.desperdicio_valido){
     n.candidatos=buscarCandidatos(n,base,3);
     n.match=n.candidatos.length?n.candidatos[0]:null;
-    n.severidad=calcularSeveridadDeMatch(n,n.match,umbralPct,false);
+    n.severidad='bloqueante';
+    return n;
   }
+  // Match siempre por descripcion+unidad+precio. El codigo del Excel es solo referencia, no determina el vinculo.
+  n.candidatos=buscarCandidatos(n,base,3);
+  n.match=n.candidatos.length?n.candidatos[0]:null;
+  n.severidad=calcularSeveridadDeMatch(n,n.match,umbralPct,false);
   if(!n.decision){
     if(n.severidad==='baja')n.decision='vincular';
     else if(n.severidad==='sin_match')n.decision='crear_nuevo';
@@ -3235,9 +3271,23 @@ function similitudNombre(a,b){
 var UMBRAL_VERDE=0.60;
 var UMBRAL_AMARILLO=0.30;
 
+/* Busca en globalArr el recurso con mayor similitud de descripcion contra nombreSnap.
+   Retorna {match, score} si score >= 0.25, o null si no hay match suficiente. */
+function buscarMatchDescripcion(nombreSnap,globalArr){
+  if(!nombreSnap||!globalArr||!globalArr.length)return null;
+  var bestScore=0,bestMatch=null;
+  for(var i=0;i<globalArr.length;i++){
+    var g=globalArr[i];
+    var nombreGlobal=(g.nombre||g.descripcion||'').trim().toLowerCase();
+    var score=similitudNombre(nombreSnap,nombreGlobal);
+    if(score>bestScore){bestScore=score;bestMatch=g}
+  }
+  return bestScore>=0.25?{match:bestMatch,score:bestScore}:null;
+}
+
 /* Analisis read-only (no muta nada) de los recursos que los APU del proyecto realmente referencian,
-   contra el catalogo general, en 3 pasos por recurso: match por ID (actualizable automaticamente),
-   match por codigo (solo se sugiere, requiere confirmacion del usuario), o huerfano (sin equivalente).
+   contra el catalogo general. El criterio primario de matching es la DESCRIPCION (similitud >= 25%),
+   no el codigo. El codigo solo se usa como señal secundaria.
    Cuadrillas (cargo_id que empieza con 'CU-') no tienen equivalente en el catalogo general de
    colaboradores y se excluyen: son un agregado calculado desde cuadrillas_snap, no un recurso propio. */
 function analizarActualizacionCatalogo(pres,data){
@@ -3247,9 +3297,15 @@ function analizarActualizacionCatalogo(pres,data){
   var insGlobalPorId=new Map((data.insumos||[]).map(function(g){return[g.id,g]}));
   var eqGlobalPorId=new Map((data.equipos||[]).map(function(g){return[g.id,g]}));
   var caGlobalPorId=new Map((data.cargos||[]).map(function(g){return[g.id,g]}));
-  var insGlobalPorCod=new Map((data.insumos||[]).filter(function(g){return g.codigo}).map(function(g){return[g.codigo.trim().toLowerCase(),g]}));
-  var eqGlobalPorCod=new Map((data.equipos||[]).filter(function(g){return g.codigo}).map(function(g){return[g.codigo.trim().toLowerCase(),g]}));
-  var caGlobalPorCod=new Map((data.cargos||[]).filter(function(g){return g.codigo}).map(function(g){return[g.codigo.trim().toLowerCase(),g]}));
+  /* Los mapas por codigo del catalogo general excluyen codigos con sufijo de proyecto
+     (EQ-001 PPT-001): esos pertenecen a proyectos, no al catalogo. */
+  var insGlobalPorCod=new Map((data.insumos||[]).filter(function(g){return g.codigo&&!esCodigoDeProyecto(g.codigo)}).map(function(g){return[g.codigo.trim().toLowerCase(),g]}));
+  var eqGlobalPorCod=new Map((data.equipos||[]).filter(function(g){return g.codigo&&!esCodigoDeProyecto(g.codigo)}).map(function(g){return[g.codigo.trim().toLowerCase(),g]}));
+  var caGlobalPorCod=new Map((data.cargos||[]).filter(function(g){return g.codigo&&!esCodigoDeProyecto(g.codigo)}).map(function(g){return[g.codigo.trim().toLowerCase(),g]}));
+  /* Listas globales por tipo (sin codigos de proyecto) para busqueda por descripcion. */
+  var insGlobalArr=(data.insumos||[]).filter(function(g){return!esCodigoDeProyecto(g.codigo)});
+  var eqGlobalArr=(data.equipos||[]).filter(function(g){return!esCodigoDeProyecto(g.codigo)});
+  var caGlobalArr=(data.cargos||[]).filter(function(g){return!esCodigoDeProyecto(g.codigo)});
 
   var porId=[],porCodigo=[],huerfanos=[];
   var vistos=new Set();
@@ -3262,7 +3318,7 @@ function analizarActualizacionCatalogo(pres,data){
     if(apuCodigo)refs.get(key).add(apuCodigo);
   }
 
-  function procesar(tipo,id,snapMap,globalPorId,globalPorCod,campoPrecio){
+  function procesar(tipo,id,snapMap,globalPorId,globalPorCod,campoPrecio,globalArr){
     if(!id)return;
     var key=tipo+'|'+id;
     if(vistos.has(key))return;
@@ -3271,6 +3327,8 @@ function analizarActualizacionCatalogo(pres,data){
     if(!snapReg)return; // recurso aun no copiado al snapshot: lo cubre repararRecursosFaltantesDeApus()
     if(snapReg._mantenido)return; // decision del usuario en panel de huerfanos: no comparar precio, no listar
     var apus=Array.from(refs.get(key)||[]);
+
+    // 1. Match por ID (mas fuerte): auto-repair si el precio cambio en el catalogo global.
     var enGlobal=globalPorId.get(id);
     if(enGlobal){
       if(!snapReg._editado_local&&enGlobal[campoPrecio]!==snapReg[campoPrecio]){
@@ -3278,24 +3336,49 @@ function analizarActualizacionCatalogo(pres,data){
       }
       return;
     }
+
+    // 2. Match por DESCRIPCION (criterio primario): busca el recurso del catalogo general con
+    //    mayor similitud de descripcion. Si el score >= 25%, es un candidato.
+    var nombreSnap=(snapReg.nombre||snapReg.descripcion||'').trim().toLowerCase();
+    var descMatch=buscarMatchDescripcion(nombreSnap,globalArr);
+
+    if(descMatch){
+      var cat=descMatch.match;
+      var nombreGlobal=(cat.nombre||cat.descripcion||'').trim();
+      var nombreSnapFull=(snapReg.nombre||snapReg.descripcion||'').trim();
+      var precioIgual=(parseFloat(snapReg[campoPrecio])||0)===(parseFloat(cat[campoPrecio])||0);
+      var nombreIgual=nombreSnapFull===nombreGlobal;
+      var unIgual=(snapReg.unidad||'').trim().toLowerCase()===(cat.unidad||'').trim().toLowerCase();
+
+      // Verifica si ademas el codigo coincide (senal fuerte: ambas descripciones + codigo matchean).
+      var cod=(snapReg.codigo||'').trim().toLowerCase();
+      var enGlobalPorCodigo=cod?globalPorCod.get(cod):null;
+      var codigoMatch=enGlobalPorCodigo&&enGlobalPorCodigo.id===cat.id;
+
+      if(precioIgual&&nombreIgual&&unIgual)return; // ya sincronizado: no hay nada que revisar
+
+      if(codigoMatch){
+        // Match por descripcion Y codigo → confianza alta, va a porCodigo.
+        var nivel=descMatch.score>=UMBRAL_VERDE?'verde':'amarillo';
+        porCodigo.push({tipo:tipo,id:id,snapReg:snapReg,globalReg:cat,campoPrecio:campoPrecio,precioNuevo:cat[campoPrecio],apus:apus,score:descMatch.score,nivelConfianza:nivel});
+        return;
+      }
+      // Match solo por descripcion → huerfano con comparativa disponible.
+      huerfanos.push({tipo:tipo,id:id,snapReg:snapReg,apus:apus,causa:'match_descripcion',matchParcial:cat,score:descMatch.score});
+      return;
+    }
+
+    // 3. Sin match por descripcion. Verifica si el codigo coincide por coincidencia
+    //    (mismo codigo, descripcion distinta): es informativo, no sirve para comparar.
     var cod=(snapReg.codigo||'').trim().toLowerCase();
     var enGlobalPorCodigo=cod?globalPorCod.get(cod):null;
     if(enGlobalPorCodigo){
-      var nombreSnap=(snapReg.nombre||snapReg.descripcion||'').trim();
-      var nombreGlobal=(enGlobalPorCodigo.nombre||enGlobalPorCodigo.descripcion||'').trim();
-      var score=similitudNombre(nombreSnap,nombreGlobal);
-      if(score>=UMBRAL_AMARILLO){
-        var precioIgual=(parseFloat(snapReg[campoPrecio])||0)===(parseFloat(enGlobalPorCodigo[campoPrecio])||0);
-        var nombreIgual=nombreSnap===nombreGlobal;
-        var unIgual=(snapReg.unidad||'').trim().toLowerCase()===(enGlobalPorCodigo.unidad||'').trim().toLowerCase();
-        if(precioIgual&&nombreIgual&&unIgual)return; // ya sincronizado: no hay nada que revisar
-        var nivel=score>=UMBRAL_VERDE?'verde':'amarillo';
-        porCodigo.push({tipo:tipo,id:id,snapReg:snapReg,globalReg:enGlobalPorCodigo,campoPrecio:campoPrecio,precioNuevo:enGlobalPorCodigo[campoPrecio],apus:apus,score:score,nivelConfianza:nivel});
-        return;
-      }
-      // codigo coincide pero el nombre es demasiado distinto: probable colision de codigo, no mismo recurso
+      huerfanos.push({tipo:tipo,id:id,snapReg:snapReg,apus:apus,causa:'codigo_diferente',matchParcial:null,score:null});
+      return;
     }
-    huerfanos.push({tipo:tipo,id:id,snapReg:snapReg,apus:apus});
+
+    // 4. Sin match alguno.
+    huerfanos.push({tipo:tipo,id:id,snapReg:snapReg,apus:apus,causa:cod?'sin_id':'sin_codigo',matchParcial:null,score:null});
   }
 
   (pres.apus_snap||[]).forEach(function(apu){
@@ -3306,12 +3389,12 @@ function analizarActualizacionCatalogo(pres,data){
   });
 
   (pres.apus_snap||[]).forEach(function(apu){
-    (apu.recursos_ins||[]).forEach(function(r){procesar('insumo',r.insumo_id,insSnapMap,insGlobalPorId,insGlobalPorCod,'costo_unitario')});
-    (apu.recursos_eq||[]).forEach(function(r){procesar('equipo',r.equipo_id,eqSnapMap,eqGlobalPorId,eqGlobalPorCod,'costo_hora')});
-    (apu.recursos_transporte||[]).forEach(function(r){procesar('equipo',r.equipo_id,eqSnapMap,eqGlobalPorId,eqGlobalPorCod,'costo_hora')});
+    (apu.recursos_ins||[]).forEach(function(r){procesar('insumo',r.insumo_id,insSnapMap,insGlobalPorId,insGlobalPorCod,'costo_unitario',insGlobalArr)});
+    (apu.recursos_eq||[]).forEach(function(r){procesar('equipo',r.equipo_id,eqSnapMap,eqGlobalPorId,eqGlobalPorCod,'costo_hora',eqGlobalArr)});
+    (apu.recursos_transporte||[]).forEach(function(r){procesar('equipo',r.equipo_id,eqSnapMap,eqGlobalPorId,eqGlobalPorCod,'costo_hora',eqGlobalArr)});
     (apu.recursos_mo||[]).forEach(function(r){
       if(!r.cargo_id||r.cargo_id.indexOf('CU-')===0)return;
-      procesar('cargo',r.cargo_id,caSnapMap,caGlobalPorId,caGlobalPorCod,'num_salarios_base');
+      procesar('cargo',r.cargo_id,caSnapMap,caGlobalPorId,caGlobalPorCod,'num_salarios_base',caGlobalArr);
     });
   });
 
@@ -3886,12 +3969,50 @@ function ImportApuModal({repositorio,contextoCalc,onAplicar,onClose,origenProyec
   var numPendientes=st.recursosUnicos.length-numAuto;
   var faltaElegirDestino=!!origenProyecto&&!modoDestino;
   var despMasivoState=useState('');var despMasivo=despMasivoState[0],setDespMasivo=despMasivoState[1];
-  var popoverResolverState=useState(null);var popoverResolver=popoverResolverState[0],setPopoverResolver=popoverResolverState[1];
+  var expandidosState=useState(function(){return new Set()});var expandidos=expandidosState[0],setExpandidos=expandidosState[1];
+  var selCamposState=useState(function(){return new Map()});var selCampos=selCamposState[0],setSelCampos=selCamposState[1];
   var porSeveridad=useMemo(function(){
     var m={bloqueante:0,critica:0,alta:0,media:0,baja:0,sin_match:0};
     st.recursosUnicos.forEach(function(ru){m[ru.severidad]=(m[ru.severidad]||0)+1});
     return m;
   },[st.recursosUnicos]);
+
+  useEffect(function(){
+    if(st.fase!==3)return;
+    var iniciales=new Set();
+    var selIniciales=new Map();
+    st.recursosUnicos.forEach(function(ru){
+      var sev=ru.severidad;
+      if(sev==='bloqueante'||sev==='critica'||sev==='alta'||sev==='media')iniciales.add(ru._uid);
+      if(ru.match){
+        selIniciales.set(ru._uid+'|nombre','excel');
+        var unidadIgual=normalizarTexto(ru.unidad)===normalizarTexto(ru.match.unidad);
+        selIniciales.set(ru._uid+'|unidad',unidadIgual?'catalogo':'excel');
+        selIniciales.set(ru._uid+'|precio','catalogo');
+      }
+    });
+    setExpandidos(iniciales);
+    setSelCampos(selIniciales);
+  },[st.fase]);
+
+  var toggleExpandido=function(uidRu){
+    setExpandidos(function(prev){var next=new Set(prev);if(next.has(uidRu))next.delete(uidRu);else next.add(uidRu);return next});
+  };
+  var expandirTodos=function(uids){
+    setExpandidos(function(prev){var next=new Set(prev);uids.forEach(function(u){next.add(u)});return next});
+  };
+  var elegirCampo=function(ru,campo,origen){
+    setSelCampos(function(prev){var next=new Map(prev);next.set(ru._uid+'|'+campo,origen);return next});
+    var m=ru.match;
+    if(campo==='nombre'){
+      st.editarRecurso(claveDeRU(ru),'nombre',origen==='catalogo'?m.nombre:ru.nombre_variantes[0]);
+    }else if(campo==='unidad'){
+      st.editarRecurso(claveDeRU(ru),'unidad',origen==='catalogo'?m.unidad:ru.unidad);
+    }else if(campo==='precio'){
+      st.editarRecurso(claveDeRU(ru),'precio',origen==='catalogo'?m.precio:ru.precio_excel);
+      if(origen==='catalogo')st.setDecision(claveDeRU(ru),'vincular');
+    }
+  };
 
   var handleConfirmar=function(){
     var resultado=st.confirmar();
@@ -3999,6 +4120,13 @@ function ImportApuModal({repositorio,contextoCalc,onAplicar,onClose,origenProyec
                     </div>
                   </div>
                 )}
+                {porSeveridad.baja>0&&(
+                  <div style={{marginTop:8}}>
+                  <button className="btn" onClick={function(){
+                    st.recursosUnicos.forEach(function(ru){if(ru.severidad==='baja')st.setDecision(claveDeRU(ru),'vincular')});
+                  }} style={{fontSize:10,padding:'4px 10px'}}>✅ Aprobar TODOS los pre-aprobados ({porSeveridad.baja} recursos)</button>
+                  </div>
+                )}
                 {(porSeveridad.alta+porSeveridad.media)>0&&(
                   <div style={{marginTop:8}}>
                   <div style={{fontSize:10,color:'var(--tx3)',marginBottom:4}}>Si las coincidencias sugeridas por el sistema son correctas, se pueden aceptar todas de una vez. Si se prefiere revisar caso por caso, es posible elegir la decisión en cada fila individualmente.</div>
@@ -4016,38 +4144,58 @@ function ImportApuModal({repositorio,contextoCalc,onAplicar,onClose,origenProyec
               </div>
               <div className="xl-scroll" style={{flex:1,minHeight:0,overflowY:'auto',border:'1px solid var(--bdr)',borderRadius:4}}>
                 <table style={{tableLayout:'fixed',width:'100%',fontSize:10}}>
-                  <colgroup><col style={{width:60}}/><col style={{width:70}}/><col style={{width:130}}/><col style={{width:60}}/><col style={{width:80}}/><col style={{width:160}}/><col style={{width:80}}/><col style={{width:130}}/><col style={{width:40}}/></colgroup>
+                  <colgroup><col style={{width:60}}/><col style={{width:170}}/><col style={{width:60}}/><col style={{width:90}}/><col style={{width:110}}/><col style={{width:150}}/><col style={{width:40}}/></colgroup>
                   <thead style={{position:'sticky',top:0,background:'var(--bg3)'}}><tr>
-                    <th>Tipo</th><th>Codigo</th><th>Nombre</th><th>Unidad</th><th>Vr Base Importado</th><th>Match en catalogo</th><th>Severidad</th><th>Decision</th><th>#</th>
+                    <th>Tipo</th><th>Descripción (Excel)</th><th>UN</th><th>Vr. Excel</th><th>Estado</th><th>Decisión</th><th></th>
                   </tr></thead>
                   <tbody>
                     {TIPO_ORDEN.filter(function(t){return recursosPorTipo[t].length>0}).map(function(tipo,idxGrupo){
+                      var grupo=recursosPorTipo[tipo];
+                      var nBaja=grupo.filter(function(ru){return ru.severidad==='baja'}).length;
+                      var nRevisar=grupo.filter(function(ru){return ru.severidad==='media'||ru.severidad==='alta'||ru.severidad==='critica'}).length;
+                      var nNuevo=grupo.filter(function(ru){return ru.severidad==='sin_match'}).length;
                       return(
                         <React.Fragment key={tipo}>
                           <tr>
-                            <td colSpan={9} style={{background:'#2F5496',color:'#fff',fontSize:10,fontWeight:700,padding:'4px 8px',borderTop:idxGrupo>0?'3px solid var(--bg)':'none'}}>{TIPO_LABEL[tipo]} ({recursosPorTipo[tipo].length})</td>
+                            <td colSpan={7} style={{background:'#2F5496',color:'#fff',fontSize:10,fontWeight:700,padding:'4px 8px',borderTop:idxGrupo>0?'3px solid var(--bg)':'none'}}>
+                              {TIPO_LABEL[tipo]} ({grupo.length})
+                              {nBaja>0&&<span style={{fontWeight:400}}> · ✅ {nBaja} pre-aprobados</span>}
+                              {nRevisar>0&&<span style={{fontWeight:400}}> · ⚠ {nRevisar} revisar</span>}
+                              {nNuevo>0&&<span style={{fontWeight:400}}> · ⚪ {nNuevo} nuevo{nNuevo>1?'s':''}</span>}
+                            </td>
                           </tr>
-                          {recursosPorTipo[tipo].map(function(ru){
+                          {(nBaja>0||nRevisar>0)&&(
+                            <tr>
+                              <td colSpan={7} style={{background:'var(--bg2)',padding:'4px 8px',display:'flex',gap:8}}>
+                                {nBaja>0&&<button onClick={function(){
+                                  grupo.forEach(function(ru){if(ru.severidad==='baja')st.setDecision(claveDeRU(ru),'vincular')});
+                                }} style={{fontSize:9,padding:'3px 8px',border:'1px solid var(--ok)',borderRadius:3,background:'transparent',color:'var(--ok)',cursor:'pointer'}}>✅ Aprobar pre-aprobados de este grupo ({nBaja})</button>}
+                                {nRevisar>0&&<button onClick={function(){
+                                  expandirTodos(grupo.filter(function(ru){return ru.severidad==='media'||ru.severidad==='alta'||ru.severidad==='critica'}).map(function(ru){return ru._uid}));
+                                }} style={{fontSize:9,padding:'3px 8px',border:'1px solid '+SEVERIDAD_COLOR.alta,borderRadius:3,background:'transparent',color:SEVERIDAD_COLOR.alta,cursor:'pointer'}}>⚠ Expandir todos con revisión ({nRevisar})</button>}
+                              </td>
+                            </tr>
+                          )}
+                          {grupo.map(function(ru){
                             var key=claveDeRU(ru);
                             var codigoVal=ru.codigo||'';
                             var nombreVal=(ru.edicion&&ru.edicion.nombre)!=null?ru.edicion.nombre:ru.nombre_variantes[0];
                             var unidadVal=(ru.edicion&&ru.edicion.unidad)!=null?ru.edicion.unidad:ru.unidad;
                             var despVal=(ru.edicion&&ru.edicion.desperdicios_pct)!=null?ru.edicion.desperdicios_pct:'';
+                            var abierto=expandidos.has(ru._uid);
+                            var estadoInfo=ru.severidad==='baja'?{icono:'✅',texto:'Pre-aprobado',color:SEVERIDAD_COLOR.baja}:
+                              (ru.severidad==='sin_match'?{icono:'⚪',texto:'Sin match',color:SEVERIDAD_COLOR.sin_match}:
+                              (ru.severidad==='bloqueante'||ru.severidad==='critica'?{icono:'🔴',texto:SEVERIDAD_LABEL[ru.severidad],color:SEVERIDAD_COLOR[ru.severidad]}:
+                              {icono:'⚠',texto:'Revisar',color:SEVERIDAD_COLOR[ru.severidad]}));
+                            var toggleLabel=ru.severidad==='baja'?'Ver detalle':(ru.severidad==='sin_match'?(ru.decision==='crear_nuevo'?'+ Crear nuevo':'🔍 Buscar'):'⚠ Revisar');
                             return(
-                              <React.Fragment key={key}>
+                              <React.Fragment key={ru._uid}>
                               <tr style={ru.severidad==='bloqueante'||ru.severidad==='critica'?{background:'rgba(248,113,113,.06)'}:{}}>
                                 <td style={{textAlign:'center'}}>{ru.tipo}</td>
-                                <td style={{textAlign:'center',fontSize:10}}>{codigoVal||'—'}</td>
                                 <td style={{fontSize:10}}>{nombreVal}</td>
-                                <td><input className="ni" value={unidadVal} onChange={function(e){st.editarRecurso(key,'unidad',e.target.value)}} style={Object.assign({fontSize:10,width:'100%',textAlign:'center'},estiloCampoRelevante(ru,'unidad'))}/></td>
-                                <td style={{textAlign:'right',fontSize:10,padding:'0 8px'}}>{fmt(r2(ru.precio_excel))}
-                                  {ru.tipo==='INSUMO'&&(<div style={{marginTop:2,display:'flex',alignItems:'center',gap:2}}><input className="ni" type="number" placeholder="Desp %" value={despVal} onChange={function(e){st.editarRecurso(key,'desperdicios_pct',e.target.value)}} style={{fontSize:9,width:'100%',textAlign:'right',borderColor:ru.desperdicio_valido?undefined:'#f87171'}}/></div>)}
-                                </td>
-                                <td style={{fontSize:9}}>
-                                  {ru.match?<span>{ru.match.nombre} — {fmt(ru.match.precio)} / {ru.match.unidad}</span>:'— sin coincidencia —'}
-                                  <button onClick={function(){setPopoverResolver(popoverResolver===key?null:key)}} style={{fontSize:9,padding:'2px 8px',border:'1px solid var(--ac)',borderRadius:3,background:'transparent',color:'var(--ac)',cursor:'pointer',marginTop:4,display:'block'}}>🔍 Resolver</button>
-                                </td>
-                                <td style={{textAlign:'center'}}><span title={SEVERIDAD_AYUDA[ru.severidad]?SEVERIDAD_AYUDA[ru.severidad].texto:''} style={{fontSize:9,padding:'2px 6px',borderRadius:3,border:'1px solid '+SEVERIDAD_COLOR[ru.severidad],color:SEVERIDAD_COLOR[ru.severidad],cursor:'help'}}>{SEVERIDAD_LABEL[ru.severidad]}</span></td>
+                                <td style={{textAlign:'center',fontSize:10}}>{unidadVal}</td>
+                                <td style={{textAlign:'right',fontSize:10,padding:'0 8px'}}>{fmt(r2(ru.precio_excel))}</td>
+                                <td style={{textAlign:'center'}}><span title={SEVERIDAD_AYUDA[ru.severidad]?SEVERIDAD_AYUDA[ru.severidad].texto:''} style={{fontSize:9,padding:'2px 6px',borderRadius:3,border:'1px solid '+estadoInfo.color,color:estadoInfo.color,cursor:'help'}}>{estadoInfo.icono} {estadoInfo.texto}</span></td>
                                 <td>
                                   <select className="ni sel" value={ru.decision||''} onChange={function(e){st.setDecision(key,e.target.value)}} style={{fontSize:9,width:'100%'}} disabled={ru.severidad==='bloqueante'}>
                                     <option value="">-- elegir --</option>
@@ -4056,69 +4204,80 @@ function ImportApuModal({repositorio,contextoCalc,onAplicar,onClose,origenProyec
                                     <option value="crear_nuevo">Crear nuevo</option>
                                   </select>
                                 </td>
-                                <td style={{textAlign:'center'}}>{ru.apariciones.length}</td>
+                                <td style={{textAlign:'center'}}>
+                                  <button onClick={function(){toggleExpandido(ru._uid)}} style={{fontSize:9,padding:'2px 6px',border:'1px solid '+estadoInfo.color,borderRadius:3,background:'transparent',color:estadoInfo.color,cursor:'pointer'}} title={toggleLabel}>{abierto?'▲':'▼'}</button>
+                                </td>
                               </tr>
-                              {popoverResolver===key&&(
+                              {abierto&&(
                                 <tr>
-                                  <td colSpan={9} style={{background:'var(--bg2)',padding:12,border:'2px solid var(--ok)',borderRadius:6,boxShadow:'0 0 0 2px rgba(74,222,128,.15)'}}>
-                                    <div style={{maxWidth:480}}>
-                                      <div style={{fontSize:10,fontWeight:700,marginBottom:6}}>¿Cómo se puede resolver este recurso?</div>
-                                      <div style={{marginBottom:8}}>
-                                        <div style={{fontSize:9,color:'var(--tx2)',marginBottom:2}}>1. Si se conoce el código de catálogo:</div>
-                                        <input className="ni" placeholder="Código" value={codigoVal} onChange={function(e){st.editarRecurso(key,'codigo',e.target.value)}} style={{fontSize:10,background:'var(--bg3)',border:'1px solid var(--bdr)',borderRadius:4,padding:'4px 8px',width:220}}/>
-                                      </div>
-                                      <div style={{marginBottom:8}}>
-                                        <div style={{fontSize:9,color:'var(--tx2)',marginBottom:2}}>2. O corregir el nombre para buscar de nuevo:</div>
-                                        <input className="ni" value={nombreVal} onChange={function(e){st.editarRecurso(key,'nombre',e.target.value)}} style={{fontSize:10,background:'var(--bg3)',border:'1px solid var(--bdr)',borderRadius:4,padding:'4px 8px',width:320}}/>
-                                      </div>
-                                      <div>
-                                        <div style={{fontSize:9,color:'var(--tx2)',marginBottom:4}}>
-                                          3. {ru.severidad==='bloqueante'?'Es necesario completar primero el % de Desperdicio en la tabla — la búsqueda de coincidencias se activa después.':(ru.candidatos&&ru.candidatos.length>0?'Comparar y elegir una coincidencia:':'No se encontraron coincidencias parecidas en el catálogo.')}
-                                        </div>
-
-                                        {ru.candidatos&&ru.candidatos.length>0&&(
-                                          <div style={{border:'1px solid var(--bdr)',borderRadius:4,overflow:'hidden',marginBottom:6}}>
-                                            <div style={{display:'grid',gridTemplateColumns:'1fr 60px 90px 60px',gap:0,fontSize:9,fontWeight:700,background:'var(--bg3)',padding:'4px 6px',borderBottom:'1px solid var(--bdr)'}}>
-                                              <span>Importado</span><span style={{textAlign:'center'}}>UN</span>
-                                              <span style={{textAlign:'right'}}>Precio</span><span></span>
-                                            </div>
-                                            <div style={{display:'grid',gridTemplateColumns:'1fr 60px 90px 60px',gap:0,fontSize:9,padding:'4px 6px',background:'rgba(77,143,247,.06)'}}>
-                                              <span>{nombreVal}</span><span style={{textAlign:'center'}}>{unidadVal}</span>
-                                              <span style={{textAlign:'right'}}>{fmt(r2(ru.precio_excel))}</span><span></span>
-                                            </div>
-                                          </div>
-                                        )}
-
-                                        {ru.candidatos&&ru.candidatos.length>0?(
-                                          <div style={{border:'1px solid var(--bdr)',borderRadius:4,overflow:'hidden'}}>
-                                            <div style={{display:'grid',gridTemplateColumns:'1fr 60px 90px 60px 60px',gap:0,fontSize:9,fontWeight:700,background:'var(--bg3)',padding:'4px 6px',borderBottom:'1px solid var(--bdr)'}}>
-                                              <span>Nombre en catálogo</span><span style={{textAlign:'center'}}>UN</span>
-                                              <span style={{textAlign:'right'}}>Precio</span><span style={{textAlign:'center'}}>% Similar</span><span></span>
-                                            </div>
-                                            {ru.candidatos.map(function(c){
-                                              var elegido=ru.match&&c.id===ru.match.id;
-                                              return(
-                                                <div key={c.id} style={{display:'grid',gridTemplateColumns:'1fr 60px 90px 60px 60px',gap:0,fontSize:9,padding:'4px 6px',alignItems:'center',borderTop:'1px solid var(--bdr)',background:elegido?'rgba(74,222,128,.14)':'transparent'}}>
-                                                  <span>{c.nombre}</span>
-                                                  <span style={{textAlign:'center'}}>{c.unidad}</span>
-                                                  <span style={{textAlign:'right'}}>{fmt(r2(c.precio))}</span>
-                                                  <span style={{textAlign:'center'}}>{c.sim.toFixed(0)}%</span>
-                                                  <button onClick={function(){st.elegirCandidato(key,c)}} style={{fontSize:8,padding:'2px 6px',border:'1px solid '+(elegido?'var(--ok)':'var(--ac)'),borderRadius:3,background:'transparent',color:elegido?'var(--ok)':'var(--ac)',cursor:'pointer'}}>
-                                                    {elegido?'✓ Elegido':'Elegir'}
-                                                  </button>
-                                                </div>
-                                              );
-                                            })}
-                                          </div>
-                                        ):(ru.severidad!=='bloqueante'&&(
-                                          <div style={{fontSize:9,color:'var(--tx2)',lineHeight:1.4,maxWidth:400}}>
-                                            No se encontró nada parecido en el catálogo actual. Esto normalmente significa que es un recurso nuevo — por eso la Decisión ya viene preseleccionada como <b>"Crear nuevo"</b>.
-                                            <br/>Si ya existe con un nombre muy distinto, se puede probar escribiendo su código exacto arriba, en el punto 1.
-                                          </div>
-                                        ))}
-                                      </div>
-                                      <button onClick={function(){setPopoverResolver(null)}} style={{marginTop:8,fontSize:9,padding:'4px 10px',border:'1px solid var(--ok)',borderRadius:4,background:'transparent',color:'var(--ok)',cursor:'pointer'}}>Cerrar</button>
+                                  <td colSpan={7} style={{background:'var(--bg2)',padding:12,border:'1px solid var(--bdr)'}}>
+                                    <div style={{display:'flex',gap:16,flexWrap:'wrap',marginBottom:8,fontSize:9,color:'var(--tx3)'}}>
+                                      <span>Código Excel: <input className="ni" placeholder="Código" value={codigoVal} onChange={function(e){st.editarRecurso(key,'codigo',e.target.value)}} style={{fontSize:9,background:'var(--bg3)',border:'1px solid var(--bdr)',borderRadius:4,padding:'2px 6px',width:140}}/></span>
+                                      {ru.tipo==='INSUMO'&&<span>Desp %: <input className="ni" type="number" placeholder="Desp %" value={despVal} onChange={function(e){st.editarRecurso(key,'desperdicios_pct',e.target.value)}} style={{fontSize:9,width:70,borderColor:ru.desperdicio_valido?undefined:'#f87171'}}/></span>}
                                     </div>
+                                    {ru.match?(
+                                      <div style={{border:'1px solid var(--bdr)',borderRadius:4,overflow:'hidden',marginBottom:8}}>
+                                        <div style={{display:'grid',gridTemplateColumns:'80px 1fr 1fr 70px',gap:0,fontSize:9,fontWeight:700,background:'var(--bg3)',padding:'4px 6px',borderBottom:'1px solid var(--bdr)'}}>
+                                          <span></span><span style={{color:'var(--ac)'}}>📄 EXCEL (importado)</span><span style={{color:'var(--ok)'}}>🌐 CATÁLOGO (candidato)</span><span></span>
+                                        </div>
+                                        {[
+                                          {campo:'nombre',label:'Descripción',valExcel:ru.nombre_variantes[0],valCat:ru.match.nombre,igual:normalizarTexto(ru.nombre_variantes[0])===normalizarTexto(ru.match.nombre)},
+                                          {campo:'unidad',label:'Unidad',valExcel:ru.unidad,valCat:ru.match.unidad,igual:normalizarTexto(ru.unidad)===normalizarTexto(ru.match.unidad)},
+                                          {campo:'precio',label:'Valor',valExcel:fmt(r2(ru.precio_excel)),valCat:fmt(r2(ru.match.precio)),igual:r2(ru.precio_excel)===r2(ru.match.precio)}
+                                        ].map(function(fila){
+                                          var sel=selCampos.get(ru._uid+'|'+fila.campo)||'excel';
+                                          return(
+                                            <div key={fila.campo} style={{display:'grid',gridTemplateColumns:'80px 1fr 1fr 70px',gap:0,fontSize:9,padding:'4px 6px',alignItems:'center',borderTop:'1px solid var(--bdr)'}}>
+                                              <span style={{color:'var(--tx3)'}}>{fila.label}:</span>
+                                              <span style={{color:'var(--ac)'}}>{fila.valExcel}</span>
+                                              <span style={{color:'var(--ok)'}}>{fila.valCat}</span>
+                                              {fila.igual?<span></span>:(
+                                                <span style={{display:'flex',gap:4}}>
+                                                  <label title="Usar valor del Excel" style={{cursor:'pointer'}}><input type="radio" checked={sel==='excel'} onChange={function(){elegirCampo(ru,fila.campo,'excel')}}/></label>
+                                                  <label title="Usar valor del catálogo" style={{cursor:'pointer'}}><input type="radio" checked={sel==='catalogo'} onChange={function(){elegirCampo(ru,fila.campo,'catalogo')}}/></label>
+                                                </span>
+                                              )}
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    ):(
+                                      <div style={{fontSize:9,color:'var(--tx2)',lineHeight:1.4,marginBottom:8}}>
+                                        No se encontró este recurso en el catálogo. Se creará como nuevo.
+                                      </div>
+                                    )}
+                                    <div style={{marginBottom:8}}>
+                                      <div style={{fontSize:9,color:'var(--tx2)',marginBottom:2}}>Corregir el nombre para buscar de nuevo:</div>
+                                      <input className="ni" value={nombreVal} onChange={function(e){st.editarRecurso(key,'nombre',e.target.value)}} style={{fontSize:10,background:'var(--bg3)',border:'1px solid var(--bdr)',borderRadius:4,padding:'4px 8px',width:320}}/>
+                                    </div>
+                                    {ru.candidatos&&ru.candidatos.length>0&&(
+                                      <div style={{border:'1px solid var(--bdr)',borderRadius:4,overflow:'hidden'}}>
+                                        <div style={{display:'grid',gridTemplateColumns:'1fr 60px 90px 60px 60px',gap:0,fontSize:9,fontWeight:700,background:'var(--bg3)',padding:'4px 6px',borderBottom:'1px solid var(--bdr)'}}>
+                                          <span>Candidatos en catálogo</span><span style={{textAlign:'center'}}>UN</span>
+                                          <span style={{textAlign:'right'}}>Precio</span><span style={{textAlign:'center'}}>% Similar</span><span></span>
+                                        </div>
+                                        {ru.candidatos.map(function(c){
+                                          var elegido=ru.match&&c.id===ru.match.id;
+                                          return(
+                                            <div key={c.id} style={{display:'grid',gridTemplateColumns:'1fr 60px 90px 60px 60px',gap:0,fontSize:9,padding:'4px 6px',alignItems:'center',borderTop:'1px solid var(--bdr)',background:elegido?'rgba(74,222,128,.14)':'transparent'}}>
+                                              <span>{c.nombre}</span>
+                                              <span style={{textAlign:'center'}}>{c.unidad}</span>
+                                              <span style={{textAlign:'right'}}>{fmt(r2(c.precio))}</span>
+                                              <span style={{textAlign:'center'}}>{c.sim.toFixed(0)}%</span>
+                                              <button onClick={function(){st.elegirCandidato(key,c)}} style={{fontSize:8,padding:'2px 6px',border:'1px solid '+(elegido?'var(--ok)':'var(--ac)'),borderRadius:3,background:'transparent',color:elegido?'var(--ok)':'var(--ac)',cursor:'pointer'}}>
+                                                {elegido?'✓ Elegido':'Elegir'}
+                                              </button>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    )}
+                                    {(!ru.candidatos||ru.candidatos.length===0)&&ru.severidad==='sin_match'&&(
+                                      <div style={{fontSize:9,color:'var(--tx2)',lineHeight:1.4,maxWidth:400}}>
+                                        No se encontró nada parecido en el catálogo actual. Esto normalmente significa que es un recurso nuevo — por eso la Decisión ya viene preseleccionada como <b>"Crear nuevo"</b>.
+                                        <br/>Si ya existe con un nombre muy distinto, se puede probar escribiendo su código exacto arriba.
+                                      </div>
+                                    )}
                                   </td>
                                 </tr>
                               )}
@@ -4141,8 +4300,9 @@ function ImportApuModal({repositorio,contextoCalc,onAplicar,onClose,origenProyec
               <div style={{marginBottom:12,paddingBottom:12,borderBottom:'1px solid var(--bdr)'}}>
                 <b style={{color:'var(--ac)'}}>Match en catálogo</b>
                 <div style={{marginTop:3}}><b style={{color:'var(--warn)'}}>Qué es:</b> lo que el sistema encontró en el catálogo actual que podría ser este mismo recurso.</div>
-                <div style={{marginTop:2}}><b style={{color:'var(--ac)'}}>Cómo se origina:</b> busca primero por Código; si no encuentra, busca por Nombre+Unidad+Precio. "— sin coincidencia —" = no encontró nada parecido.</div>
-                <div style={{marginTop:2}}><b style={{color:'var(--ok)'}}>Cómo se resuelve:</b> no se edita directamente. Usar el botón <b>🔍 Resolver</b> de la fila para corregir el Código o el Nombre, o elegir entre las coincidencias encontradas — el Match se recalcula solo.</div>
+                <div style={{marginTop:2}}><b style={{color:'var(--ac)'}}>Cómo se origina:</b> el sistema busca por Nombre + Unidad + Precio. El código del Excel es solo referencia — no determina el vínculo automático.</div>
+                <div style={{marginTop:2}}><b style={{color:'var(--ok)'}}>Cómo se resuelve:</b> no se edita directamente. Expandir la fila (▼) para corregir el Código o el Nombre, o elegir entre las coincidencias encontradas — el Match se recalcula solo.</div>
+                <div style={{marginTop:2}}><b style={{color:'var(--warn)'}}>Expansión:</b> las filas en amarillo/rojo se abren automáticamente para que puedas revisar la comparativa. Las verdes (pre-aprobadas) puedes expandirlas con "Ver detalle" si quieres confirmar visualmente.</div>
               </div>
               <div style={{marginBottom:12,paddingBottom:12,borderBottom:'1px solid var(--bdr)'}}>
                 <b style={{color:'var(--ac)'}}>Severidad</b>
@@ -4925,7 +5085,7 @@ function APUTab({data,onChange,cargosCalc,cargoMap,esHora,eqMap,insMap,cuadrilla
 
                           <tr key={r.id}>
 
-                            <td style={TD_C}>{eq?(eq.codigo||'EQ-'+String(ri+1).padStart(2,'0')):'EQ-XX'}</td>
+                            <td style={TD_C}>{mostrarCodigo(eq?(eq.codigo||'EQ-'+String(ri+1).padStart(2,'0')):'EQ-XX')}</td>
 
                             <td colSpan={2} style={{padding:'0 4px'}}><select className="sel" value={r.equipo_id} onChange={function(e){if(selectedIdx===null)return;var n=apus.slice();var rr=n[selectedIdx].recursos_eq.slice();rr[ri]=Object.assign({},rr[ri],{equipo_id:e.target.value,rendimiento:1});n[selectedIdx]=Object.assign({},n[selectedIdx],{recursos_eq:rr});onChange(Object.assign({},data,{apus:n}))}} disabled={!isEditing} style={{fontSize:10}}>
 
@@ -5025,7 +5185,7 @@ function APUTab({data,onChange,cargosCalc,cargoMap,esHora,eqMap,insMap,cuadrilla
 
                           <tr key={r.id}>
 
-                            <td style={TD_C}>{ins?(ins.codigo||'IN-'+String(ri+1).padStart(2,'0')):'IN-XX'}</td>
+                            <td style={TD_C}>{mostrarCodigo(ins?(ins.codigo||'IN-'+String(ri+1).padStart(2,'0')):'IN-XX')}</td>
 
                             <td style={{padding:'0 4px'}}><select className="sel" value={r.insumo_id} onChange={function(e){updRes('recursos_ins',ri,'insumo_id',e.target.value)}} disabled={!isEditing} style={{fontSize:10}}>
 
@@ -5113,7 +5273,7 @@ function APUTab({data,onChange,cargosCalc,cargoMap,esHora,eqMap,insMap,cuadrilla
 
                           <tr key={r.id}>
 
-                            <td style={TD_C}>{eq?(eq.codigo||'EQ-'+String(ri+1).padStart(2,'0')):'EQ-XX'}</td>
+                            <td style={TD_C}>{mostrarCodigo(eq?(eq.codigo||'EQ-'+String(ri+1).padStart(2,'0')):'EQ-XX')}</td>
 
                             <td colSpan={2} style={{padding:'0 4px'}}><select className="sel" value={r.equipo_id} onChange={function(e){updRes('recursos_transporte',ri,'equipo_id',e.target.value)}} disabled={!isEditing} style={{fontSize:10}}>
 
@@ -5205,7 +5365,7 @@ function APUTab({data,onChange,cargosCalc,cargoMap,esHora,eqMap,insMap,cuadrilla
 
                           <tr key={r.id}>
 
-                            <td style={TD_C}>{cargo?(cargo.codigo||'MO-'+String(ri+1).padStart(2,'0')):'MO-XX'}</td>
+                            <td style={TD_C}>{mostrarCodigo(cargo?(cargo.codigo||'MO-'+String(ri+1).padStart(2,'0')):'MO-XX')}</td>
 
                             <td style={{padding:'0 4px'}}><select className="sel" value={r.cargo_id} onChange={function(e){updRes('recursos_mo',ri,'cargo_id',e.target.value)}} disabled={!isEditing} style={{fontSize:10}}>
 
@@ -7349,7 +7509,7 @@ var SUBS=[
 /* MODULO PRESUPUESTOS */
 
 /* MODULO PRESUPUESTOS */
-function BannerEstadoProyecto({pres,estadoLabel,estadoColor}){
+function BannerEstadoProyecto({pres,estadoLabel,estadoColor,width}){
   if(!pres)return null;
   var estado=pres.estado||'borrador';
   var color=estadoColor(estado);
@@ -7369,7 +7529,7 @@ function BannerEstadoProyecto({pres,estadoLabel,estadoColor}){
   };
   var m=msgs[estado]||msgs.borrador;
   return(
-    <div style={{display:'flex',alignItems:'flex-start',gap:8,padding:'6px 12px',borderRadius:4,border:'1px solid '+color,background:'transparent',marginBottom:4,flexShrink:0}}>
+    <div style={{display:'flex',alignItems:'flex-start',gap:8,padding:'6px 12px',borderRadius:4,border:'1px solid '+color,background:'transparent',marginBottom:0,flexShrink:0,width:width||'100%'}}>
       <span style={{fontSize:12,flexShrink:0,marginTop:1}}>{m.icono}</span>
       <span style={{fontSize:10,color:'var(--tx2)',lineHeight:1.5}}>
         <span style={{fontWeight:700,color:color}}>{estadoLabel(estado)}</span>
@@ -7390,6 +7550,7 @@ function PresProyectosPanel({presupuestos,selPresIdx,setSelPresIdx,data,onChange
   var searchTipo=searchTipoState[0];
   var setSearchTipo=searchTipoState[1];
   var[proyMsg,setProyMsg]=useState(null);
+  React.useEffect(function(){if(!proyMsg)return;var t=setTimeout(function(){setProyMsg(null)},5000);return function(){clearTimeout(t)}},[proyMsg]);
 
   var updField=function(idx,key,val){
     var n=presupuestos.slice();n[idx]=Object.assign({},n[idx],{[key]:val});
@@ -7419,19 +7580,23 @@ function PresProyectosPanel({presupuestos,selPresIdx,setSelPresIdx,data,onChange
 
   return(
     <div onClick={function(){if(proyMsg)setProyMsg(null)}}>
-      <div className="sec-hdr" style={{border:'1px solid var(--bdr)',borderRadius:4,padding:'2px 10px',height:25,marginBottom:8,display:'flex',alignItems:'center',justifyContent:'space-between',width:300}}>
+      <div className="sec-hdr" style={{border:'1px solid var(--bdr)',borderRadius:4,padding:'2px 10px',height:25,marginBottom:8,display:'flex',alignItems:'center',justifyContent:'space-between',width:1425}}>
         <span className="title" style={{fontSize:15,lineHeight:'19px'}}>1. CATALOGO DE PROYECTOS</span>
       </div>
-      <div style={{display:'flex',gap:12,padding:'8px 10px',borderRadius:4,border:'1px solid var(--bdr)',background:'var(--bg2)',fontSize:10,color:'var(--tx2)',lineHeight:1.6,flexShrink:0,flexWrap:'wrap',marginBottom:8}}>
-        <span style={{fontWeight:700,color:'var(--tx)',marginRight:4}}>Estados del proyecto:</span>
-        <span><span style={{color:'var(--warn)',fontWeight:700}}>🟡 Borrador</span> — construcción activa, todo editable.</span>
-        <span style={{color:'var(--bdr)'}}>|</span>
-        <span><span style={{color:'var(--ac)',fontWeight:700}}>🔵 Revisión de Costos</span> — formulario congelado, solo recursos y parámetros editables.</span>
-        <span style={{color:'var(--bdr)'}}>|</span>
-        <span><span style={{color:'var(--ok)',fontWeight:700}}>🟢 Cerrado</span> — versión oficial, solo lectura total.</span>
-        <span style={{color:'var(--tx3)',marginLeft:4}}>(Clic en el badge de estado para cambiar)</span>
+      <div style={{display:'grid',gridTemplateColumns:'auto 1fr',gap:'0px 6px',padding:'4px 10px',borderRadius:4,border:'1px solid var(--bdr)',background:'var(--bg2)',fontSize:10,color:'var(--tx2)',lineHeight:1.6,flexShrink:0,marginBottom:8,width:1425}}>
+        <span style={{fontWeight:700,color:'var(--tx)',whiteSpace:'nowrap'}}>Estados del proyecto:</span>
+        <span style={{display:'flex',gap:6,alignItems:'center'}}>
+          <span><span style={{color:'var(--warn)',fontWeight:700}}>🟡 Borrador</span> — construcción activa, todo editable.</span>
+          <span style={{color:'var(--bdr)'}}>|</span>
+          <span><span style={{color:'var(--ac)',fontWeight:700}}>🔵 Revisión de Costos</span> — formulario congelado, solo recursos y parámetros editables.</span>
+        </span>
+        <span></span>
+        <span style={{display:'flex',gap:6,alignItems:'center'}}>
+          <span><span style={{color:'var(--ok)',fontWeight:700}}>🟢 Cerrado</span> — versión oficial, solo lectura total.</span>
+          <span style={{color:'var(--tx3)'}}>(Clic en el badge de estado para cambiar)</span>
+        </span>
       </div>
-      {proyMsg&&<div style={{padding:'8px 10px',fontSize:12,color:proyMsg.tipo==='ok'?'var(--ok)':'#f87171',background:proyMsg.tipo==='ok'?'rgba(74,222,128,.08)':'rgba(248,113,113,0.08)',border:'1px solid '+(proyMsg.tipo==='ok'?'var(--ok)':'rgba(248,113,113,0.2)'),borderRadius:4,marginBottom:8,width:300,display:'flex',alignItems:'center',justifyContent:'space-between'}}><span>{proyMsg.texto}</span><button onClick={function(){setProyMsg(null)}} style={{background:'none',border:'none',color:'inherit',cursor:'pointer',fontSize:16,lineHeight:1,padding:'0 4px'}} title="Cerrar">✕</button></div>}
+      {proyMsg&&<div style={{padding:'8px 10px',fontSize:12,color:proyMsg.tipo==='ok'?'var(--ok)':'#f87171',background:proyMsg.tipo==='ok'?'rgba(74,222,128,.08)':'rgba(248,113,113,0.08)',border:'1px solid '+(proyMsg.tipo==='ok'?'var(--ok)':'rgba(248,113,113,0.2)'),borderRadius:4,marginBottom:8,width:300}}><span>{proyMsg.texto}</span></div>}
       <div className="xl-wrap" style={{width:1425}}>
         <div className="xl-scroll">
           <table style={{tableLayout:'fixed',width:'1425px'}}>
@@ -7537,7 +7702,7 @@ function PresProyectosPanel({presupuestos,selPresIdx,setSelPresIdx,data,onChange
 }
 
 /* ══════════════════ 3. RESUMEN FINANCIERO (sub-componente de PresupuestosTab) ══════════════════ */
-function PresResumenPanel({pres,presupuestos,selPresIdx,data,onChange,calcResumenPres,setTab}){
+function PresResumenPanel({pres,presupuestos,selPresIdx,data,onChange,calcResumenPres,setTab,estadoLabel,estadoColor}){
   if(!pres)return <PresBannerProyecto pres={pres} presupuestos={presupuestos} setTab={setTab}/>;
   var readOnly=pres.estado==='cerrado';
   var r=calcResumenPres();
@@ -7555,6 +7720,7 @@ function PresResumenPanel({pres,presupuestos,selPresIdx,data,onChange,calcResume
   return(
     <div style={{display:'flex',flexDirection:'column',gap:8}}>
       <TituloSubTab pres={pres} presupuestos={presupuestos} tituloSubTab="Resumen Financiero" extra={<span style={{fontSize:10,color:'var(--tx3)'}}>{r.itemsArr.length} items &middot; CD: {fmt(r.cdTotal)}</span>}/>
+      <BannerEstadoProyecto pres={pres} estadoLabel={estadoLabel} estadoColor={estadoColor}/>
       <div style={{display:'flex',gap:6,alignItems:'center'}}>
         <button className="btn" onClick={function(){setTab(10)}} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--bdr)',borderRadius:4,background:'none',color:'var(--tx2)',cursor:'pointer'}}>{'< Items'}</button>
         <button className="btn" onClick={function(){setTab(13)}} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--ac)',borderRadius:4,background:'rgba(77,143,247,.06)',color:'var(--ac)',cursor:'pointer'}}>{'Entregables >'}</button>
@@ -7617,7 +7783,7 @@ function PresResumenPanel({pres,presupuestos,selPresIdx,data,onChange,calcResume
 }
 
 /* ══════════════════ 4. EXPORTAR / ENTREGABLES (sub-componente de PresupuestosTab) ══════════════════ */
-function PresEntregablesPanel({pres,presupuestos,calcResumenPres,calcItemVal,calcResumenFor,calcItemValFor,buildSnapCtx,setTab}){
+function PresEntregablesPanel({pres,presupuestos,calcResumenPres,calcItemVal,calcResumenFor,calcItemValFor,buildSnapCtx,setTab,estadoLabel,estadoColor}){
   var pendientesState=useState(null);var pendientes=pendientesState[0],setPendientes=pendientesState[1];
   if(!pres)return <PresBannerProyecto pres={pres} presupuestos={presupuestos} setTab={setTab}/>;
   var r=calcResumenPres();
@@ -7904,6 +8070,7 @@ function PresEntregablesPanel({pres,presupuestos,calcResumenPres,calcItemVal,cal
   return(
     <div style={{display:'flex',flexDirection:'column',gap:8}}>
       <TituloSubTab pres={pres} presupuestos={presupuestos} tituloSubTab="Entregables" extra={<span style={{fontSize:10,color:'var(--tx3)'}}>{itemsArr.length} items &middot; Valor total: {fmt(r.valorTotal)}</span>}/>
+      <BannerEstadoProyecto pres={pres} estadoLabel={estadoLabel} estadoColor={estadoColor}/>
       <div style={{display:'flex',gap:6,alignItems:'center'}}>
         <button className="btn" onClick={function(){setTab(12)}} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--bdr)',borderRadius:4,background:'none',color:'var(--tx2)',cursor:'pointer'}}>{'< Resumen'}</button>
       </div>
@@ -7990,7 +8157,7 @@ function TituloSubTab({pres,presupuestos,tituloSubTab,extra,width,stacked}){
   );
   if(stacked){
     return(
-      <div className="sec-hdr" style={{border:'1px solid var(--bdr)',borderRadius:4,padding:'6px 10px',flexDirection:'column',alignItems:'stretch',width:width}}>
+      <div className="sec-hdr" style={{border:'1px solid var(--bdr)',borderRadius:4,padding:'6px 10px',flexDirection:'column',alignItems:'stretch',width:width,marginBottom:0}}>
         {titulo}
         {extra&&<div style={{display:'flex',alignItems:'center',gap:10,marginTop:6}}>
           {extra}
@@ -8833,8 +9000,23 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
   var[mensajeActualizacion,setMensajeActualizacion]=useState(null); // {tipo,texto} — mensaje inline bajo los botones (reemplaza toast de sincronizar)
   React.useEffect(function(){setMensajeActualizacion(null)},[selPresIdx]);
   var[selecciones,setSelecciones]=useState({}); // {[itemId]:{precio,nombre,unidad,codigo}} — decision 'proy'|'cat'|null por campo
-  var[panelHuerfanos,setPanelHuerfanos]=useState(null); // [{tipo,id,snapReg,apus}]
+  var[panelHuerfanos,setPanelHuerfanos]=useState(null); // [{tipo,id,snapReg,apus,causa,matchParcial,score}]
   var[buscarPara,setBuscarPara]=useState(null); // {tipo,id} — item del panel de huerfanos en modo "Buscar"
+  var[selHuerfano,setSelHuerfano]=useState({}); // {[key]:{codigo,nombre,unidad,precio}} — decision 'proy'|'cat' por campo en comparativa
+  var[promoverPara,setPromoverPara]=useState(null); // {tipo,id} — huerfano en modo elegir destino (global vs proyecto)
+  var[huerfanosExpandidos,setHuerfanosExpandidos]=useState(function(){return new Set()}); // Set de 'tipo|id' de filas expandidas en el panel de huerfanos
+  var[bannerVisible,setBannerVisible]=useState(false); // mostrar/ocultar el banner de instrucciones del panel de huerfanos
+  var prevPanelHuerfanosAbierto=useRef(false);
+  React.useEffect(function(){
+    var yaEstabaAbierto=prevPanelHuerfanosAbierto.current;
+    prevPanelHuerfanosAbierto.current=!!panelHuerfanos;
+    if(panelHuerfanos&&!yaEstabaAbierto){
+      var iniciales=new Set();
+      panelHuerfanos.forEach(function(it){if(it.matchParcial)iniciales.add(it.tipo+'|'+it.id)});
+      setHuerfanosExpandidos(iniciales);
+      setBannerVisible(false);
+    }
+  },[panelHuerfanos]);
 
   var nombreRecurso=function(reg){return reg&&(reg.nombre||reg.descripcion)||'—'};
   var etiquetaTipo={insumo:'Insumo',equipo:'Equipo',cargo:'Personal'};
@@ -9061,6 +9243,97 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
     setBuscarPara(null);
     showToast('Recurso asociado correctamente.',{type:'ok'});
   };
+  /* Seleccion por defecto de la comparativa: cuando hay diferencia, el codigo y el precio
+     se toman del catalogo (valor oficial), mientras nombre y unidad se conservan del proyecto
+     (mismo criterio que seleccionDefault en la revision por codigo). */
+  var selHuerfanoDefault=function(it){
+    if(!it.matchParcial)return{};
+    var campoPrecio={insumo:'costo_unitario',equipo:'costo_hora',cargo:'num_salarios_base'}[it.tipo];
+    var snap=it.snapReg,cat=it.matchParcial;
+    var diffCod=(snap.codigo||'').trim().toLowerCase()!==(cat.codigo||'').trim().toLowerCase();
+    var diffNom=((snap.nombre||snap.descripcion||'').trim()!==(cat.nombre||cat.descripcion||'').trim());
+    var diffUn=((snap.unidad||'').trim().toLowerCase()!==(cat.unidad||'').trim().toLowerCase());
+    var diffPre=(parseFloat(snap[campoPrecio])||0)!==(parseFloat(cat[campoPrecio])||0);
+    return{codigo:diffCod?'cat':null,nombre:diffNom?'proy':null,unidad:diffUn?'proy':null,precio:diffPre?'cat':null};
+  };
+  var setSelH=function(it,campo,valor){
+    var key=it.tipo+'|'+it.id;
+    setSelHuerfano(function(prev){
+      var actual=prev[key]||selHuerfanoDefault(it);
+      return Object.assign({},prev,{[key]:Object.assign({},actual,{[campo]:valor})});
+    });
+  };
+  /* Aplica la combinacion elegida campo a campo para un huerfano con matchParcial:
+     - 'cat': el snapshot del proyecto adopta el valor del catalogo general (el catalogo NO cambia).
+     - 'proy': el snapshot conserva el valor del proyecto y, con confirmacion, se escribe ESE valor
+       en el catalogo general (afecta todos los proyectos). El codigo de proyecto no se propaga al
+       catalogo (ahí manda la nomenclatura global); si el recurso pasa al catalogo, se asocia por ID
+       reescribiendo las referencias de los APU. */
+  var aplicarSeleccionCampos=async function(it){
+    if(!it.matchParcial)return;
+    var key=it.tipo+'|'+it.id;
+    var sel=selHuerfano[key]||selHuerfanoDefault(it);
+    var campoSnap={insumo:'insumos_snap',equipo:'equipos_snap',cargo:'cargos_snap'}[it.tipo];
+    var campoGlobal={insumo:'insumos',equipo:'equipos',cargo:'cargos'}[it.tipo];
+    var campoPrecio={insumo:'costo_unitario',equipo:'costo_hora',cargo:'num_salarios_base'}[it.tipo];
+    var cat=it.matchParcial;
+    var alProyecto={};
+    var alCatalogo=null;
+    var camposAplicados=['codigo','nombre','unidad','precio'].filter(function(f){return sel[f]==='proy'||sel[f]==='cat'});
+    if(!camposAplicados.length){showToast('Seleccione al menos un campo en la comparativa.',{type:'warn'});return}
+    if(sel.codigo==='cat')alProyecto.codigo=cat.codigo;
+    if(sel.nombre==='cat'){alProyecto.nombre=cat.nombre;if(cat.descripcion!==undefined)alProyecto.descripcion=cat.descripcion;}
+    if(sel.unidad==='cat')alProyecto.unidad=cat.unidad;
+    if(sel.precio==='cat')alProyecto[campoPrecio]=cat[campoPrecio];
+    var escribeCatalogo=sel.codigo==='proy'||sel.nombre==='proy'||sel.unidad==='proy'||sel.precio==='proy';
+    if(escribeCatalogo){
+      if(!(await askConfirm('Va a modificar el catálogo general con datos del proyecto actual.\nEsto afectará a todos los proyectos que usen "'+(cat.nombre||cat.descripcion||cat.codigo||'')+'".\n¿Continuar?')))return;
+      alCatalogo={};
+      if(sel.codigo==='proy'&&it.snapReg.codigo&&!esCodigoDeProyecto(it.snapReg.codigo))alCatalogo.codigo=it.snapReg.codigo;
+      if(sel.nombre==='proy'){alCatalogo.nombre=it.snapReg.nombre;alCatalogo.descripcion=it.snapReg.descripcion;}
+      if(sel.unidad==='proy')alCatalogo.unidad=it.snapReg.unidad;
+      if(sel.precio==='proy')alCatalogo[campoPrecio]=it.snapReg[campoPrecio];
+    }
+    /* Asocia por ID el snapshot al recurso del catalogo: reescribe las referencias de los APU
+       y asegura una copia del recurso en el snapshot, de modo que deja de ser huerfano. */
+    var r=asociarRecursoManual(pres,data,it.tipo,it.id,cat.id);
+    var nPres=Object.assign({},pres,r||{});
+    var snapArr=(nPres[campoSnap]||[]).slice();
+    var idxSnap=snapArr.findIndex(function(s){return s.id===cat.id});
+    if(idxSnap===-1){snapArr.push(Object.assign({},cat));idxSnap=snapArr.length-1;}
+    snapArr[idxSnap]=Object.assign({},snapArr[idxSnap],alProyecto);
+    nPres=Object.assign({},nPres,{[campoSnap]:snapArr});
+    var n=presupuestos.slice();
+    n[selPresIdx]=nPres;
+    var nuevoData=Object.assign({},data);
+    if(alCatalogo){
+      var catArr=(data[campoGlobal]||[]).map(function(g){return g.id===cat.id?Object.assign({},g,alCatalogo):g});
+      nuevoData[campoGlobal]=catArr;
+    }
+    onChange(Object.assign({},nuevoData,{presupuestos:n}));
+    setPanelHuerfanos(function(prev){var rest=(prev||[]).filter(function(x){return!(x.tipo===it.tipo&&x.id===it.id)});return rest.length?rest:null});
+    setHuerfanoExp(null);
+    setSelHuerfano(function(prev){var next={};Object.keys(prev).forEach(function(k){if(k!==key)next[k]=prev[k]});return next});
+    showToast(alCatalogo?'Recurso sincronizado y catálogo general actualizado.':'Recurso sincronizado con el catálogo general.',{type:'ok'});
+  };
+  /* Guarda el recurso como EXCLUSIVO del proyecto: se le asigna un codigo propio
+     'EQ-XXX PPT-YYY' con consecutivo independiente y se marca _mantenido para que no
+     vuelva a aparecer como huerfano. NO toca el catalogo general. */
+  var promoverHuerfanoEnProyecto=function(it){
+    var campoSnap={insumo:'insumos_snap',equipo:'equipos_snap',cargo:'cargos_snap'}[it.tipo];
+    var prefijoTipo={insumo:'IN',equipo:'EQ',cargo:'MO'}[it.tipo];
+    var snapArr=(pres[campoSnap]||[]).slice();
+    var idx=snapArr.findIndex(function(s){return s.id===it.id});
+    if(idx===-1)return;
+    var nuevoCodigo=genCodeForProyecto(snapArr,prefijoTipo,pres.codigo);
+    snapArr[idx]=Object.assign({},snapArr[idx],{codigo:nuevoCodigo,_mantenido:true});
+    var n=presupuestos.slice();
+    n[selPresIdx]=Object.assign({},pres,{[campoSnap]:snapArr});
+    onChange(Object.assign({},data,{presupuestos:n}));
+    setPanelHuerfanos(function(prev){var rest=(prev||[]).filter(function(x){return!(x.tipo===it.tipo&&x.id===it.id)});return rest.length?rest:null});
+    setPromoverPara(null);
+    showToast('Recurso guardado como exclusivo del proyecto con código '+nuevoCodigo+'.',{type:'ok'});
+  };
   var promoverHuerfanoACatalogo=async function(it){
     var arrGlobal={insumo:'insumos',equipo:'equipos',cargo:'cargos'}[it.tipo];
     var prefijo={insumo:'IN',equipo:'EQ',cargo:'MO'}[it.tipo];
@@ -9080,6 +9353,7 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
     presupuestosNuevo[selPresIdx]=presActualizado;
     onChange(Object.assign({},data,{[arrGlobal]:catalogo,presupuestos:presupuestosNuevo}));
     setPanelHuerfanos(function(prev){var rest=(prev||[]).filter(function(h){return h!==it});return rest.length?rest:null});
+    setPromoverPara(null);
     showToast('"'+nombreRec+'" agregado al catálogo con código '+nuevoCodigo+'.',{type:'ok'});
   };
   var promoverApuACatalogo=async function(apu){
@@ -9174,14 +9448,13 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
   return(
     <React.Fragment>
     <div>
-      <BannerEstadoProyecto pres={pres} estadoLabel={estadoLabel} estadoColor={estadoColor}/>
       {/* TituloSubTab, tabs y el contenido reutilizado (InsumosTab/EquiposTab/etc) viven TODOS dentro
          de este contenedor: es el unico asi que tiene un contexto de scroll REAL propio (height fijo,
          no maxHeight condicional) al que position:sticky puede pegar el titulo/tabs/footer. Fuera de
          este div no hay overflow:hidden ni altura definida en la cadena de ancestros (PresupuestosTab
          usa alignItems:'flex-start' sin recortar), asi que sin este wrapper el scroll termina cayendo
          en la ventana completa del navegador en vez de quedar contenido aqui. */}
-      <div className="visor-catalogo-embed" style={{maxHeight:'calc(100vh - 150px)',width:'fit-content',maxWidth:'100%',overflow:'auto',display:'flex',flexDirection:'column'}}>
+      <div className="visor-catalogo-embed" style={{maxHeight:'calc(100vh - 150px)',width:'fit-content',maxWidth:'100%',overflow:'auto',display:'flex',flexDirection:'column',gap:6}}>
       <TituloSubTab pres={pres} presupuestos={presupuestos} tituloSubTab="Recursos del Proyecto" width={anchoTitulo} stacked extra={esEditable&&(
         <div style={{display:'flex',gap:6}}>
           <button onClick={sincronizar} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--ac)',borderRadius:4,background:'transparent',color:'var(--ac)',cursor:'pointer'}}>
@@ -9195,6 +9468,7 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
           </button>}
         </div>
       )}/>
+      <BannerEstadoProyecto pres={pres} estadoLabel={estadoLabel} estadoColor={estadoColor} width={anchoTitulo}/>
       {mensajeActualizacion&&(
         <div style={{display:'flex',alignItems:'flex-start',gap:10,padding:'8px 14px',marginTop:8,borderRadius:4,fontSize:11,lineHeight:1.6,flex:'0 0 auto',
           background:mensajeActualizacion.tipo==='ok'?'rgba(74,222,128,.08)':mensajeActualizacion.tipo==='warn'?'rgba(251,191,36,.08)':'rgba(248,113,113,.08)',
@@ -9214,7 +9488,7 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
           </div>
         );
       })()}
-      <div style={{display:'flex',gap:6,margin:'8px 0',flex:'0 0 auto'}}>
+      <div style={{display:'flex',gap:6,flex:'0 0 auto',padding:'0'}}>
         {TABS_PROYECTO.map(function(t){
           return(
             <button key={t.tipo} onClick={function(){cambiarTipo(t.tipo)}} style={{fontSize:11,padding:'5px 12px',border:'1px solid '+(tipo===t.tipo?'var(--ok)':'var(--bdr)'),borderRadius:4,background:tipo===t.tipo?'rgba(74,222,128,.1)':'transparent',color:tipo===t.tipo?'var(--ok)':'var(--tx2)',cursor:'pointer'}}>
@@ -9223,9 +9497,6 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
           );
         })}
       </div>
-        {(tipo==='insumos'||tipo==='equipos'||tipo==='cargos'||tipo==='cuadrillas'||tipo==='apus')&&!esEditable&&(
-          <div style={{fontSize:11,padding:'6px 10px',marginBottom:8,border:'1px solid var(--warn)',borderRadius:4,background:'rgba(251,191,36,.08)',color:'var(--warn)',fontWeight:600}}>🔒 Presupuesto cerrado — solo lectura, no se aceptan cambios.</div>
-        )}
         {tipo==='insumos'&&<InsumosTab data={adaptado.data} onChange={onChangeSnap} provMap={provMap}
           cargosCalc={cargosCalcSnap} cargoMap={personMapSnap} esHora={esHora} _unidades={_unidades}
           equipos={equiposSnapEfectivo} factorPrest={factorPrestSnap} usarFpEnApu={usarFpEnApu} apusBasico={apusBasico}
@@ -9258,10 +9529,7 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
 
         {tipo==='parametros'&&(
           <React.Fragment>
-          {!esEditable&&(
-            <div style={{fontSize:11,padding:'6px 10px',marginBottom:8,border:'1px solid var(--warn)',borderRadius:4,background:'rgba(251,191,36,.08)',color:'var(--warn)',fontWeight:600}}>🔒 Presupuesto cerrado — solo lectura, no se aceptan cambios.</div>
-          )}
-          <div style={{padding:'4px 2px',maxWidth:1600,display:'grid',gridTemplateColumns:'1fr 1.3fr 0.9fr',gap:16,alignItems:'start'}}>
+          <div style={{padding:'0',maxWidth:1600,display:'grid',gridTemplateColumns:'1fr 1.3fr 0.9fr',gap:16,alignItems:'start'}}>
             <div style={{display:'flex',flexDirection:'column',gap:16}}>
               <div style={{background:'var(--bg2)',border:'1px solid var(--bdr)',borderRadius:6,padding:'8px 12px'}}>
                 <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',borderBottom:'1px solid var(--bdr)',paddingBottom:4,marginBottom:6}}>
@@ -9734,56 +10002,190 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
     )}
 
     {panelHuerfanos&&ReactDOM.createPortal(
-      <div className="apu-modal-backdrop" onClick={function(){setPanelHuerfanos(null);setBuscarPara(null)}}>
-        <div className="apu-modal-container" style={{padding:16,display:'flex',flexDirection:'column',maxHeight:'85vh',overflow:'hidden',width:940,maxWidth:'95vw'}} onClick={function(e){e.stopPropagation()}}>
-          <div style={{fontSize:13,fontWeight:700,color:'#f87171',marginBottom:10,flex:'0 0 auto'}}>Recursos faltantes en el catálogo general</div>
-          <div style={{background:'rgba(248,113,113,.08)',border:'1px solid #f87171',borderRadius:4,padding:'10px 14px',marginBottom:12,fontSize:11,color:'#f87171',lineHeight:1.7,flex:'0 0 auto'}}>
-            <strong>Estos recursos están siendo usados en los APU de este proyecto</strong> pero no tienen equivalente en el catálogo general (ni por ID ni por código con similitud suficiente). Pueden ser recursos creados directamente en el proyecto o eliminados del catálogo general.<br/>
-            <span style={{color:'var(--tx2)',marginTop:4,display:'block'}}>
-              <strong>🔍 Buscar:</strong> asociar manualmente a un recurso del catálogo general — se reemplazarán todas las referencias en los APU afectados y se actualizará el precio.<br/>
-              <strong>✓ Mantener:</strong> conservar el recurso tal como está con su precio actual. No se modifica nada y <strong>no volverá a aparecer en este panel</strong>.<br/>
-              <strong style={{color:'#f87171'}}>🗑 Eliminar:</strong> quitar este recurso de todos los APU afectados y recalcular sus subtotales.<strong style={{color:'#f87171'}}> Esta acción no se puede deshacer.</strong><br/>
-              <strong>⬆ Promover:</strong> agregar este recurso al catálogo general con un nuevo código secuencial, disponible para futuros proyectos.
-            </span>
-          </div>
+      <div className="apu-modal-backdrop" onClick={function(){setPanelHuerfanos(null);setBuscarPara(null);setPromoverPara(null);setHuerfanosExpandidos(new Set());setBannerVisible(false)}}>
+        <div className="apu-modal-container" style={{padding:16,display:'flex',flexDirection:'column',maxHeight:'85vh',overflow:'hidden',width:1200,maxWidth:'95vw'}} onClick={function(e){e.stopPropagation()}}>
+          {(function(){
+            var totalH=panelHuerfanos.length;
+            var conMatch=panelHuerfanos.filter(function(it){return it.matchParcial}).length;
+            var sinMatch=totalH-conMatch;
+            return(
+              <div style={{flex:'0 0 auto',marginBottom:10}}>
+                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                  <div style={{fontSize:13,fontWeight:700,color:'var(--tx)'}}>Recursos faltantes en el catálogo general</div>
+                  <button onClick={function(){setBannerVisible(!bannerVisible)}} style={{fontSize:10,padding:'3px 10px',border:'1px solid var(--bdr)',borderRadius:4,background:'transparent',color:'var(--tx2)',cursor:'pointer'}}>{bannerVisible?'▲ Ocultar guía':'? Ver guía'}</button>
+                </div>
+                <div style={{fontSize:11,color:'var(--tx3)',marginTop:2}}>{totalH} recurso(s) · {conMatch} con posible match · {sinMatch} sin equivalente</div>
+                {bannerVisible&&(
+                  <div style={{background:'var(--bg2)',border:'1px solid var(--bdr)',borderRadius:4,padding:'10px 14px',marginTop:8,fontSize:11,color:'var(--tx2)',lineHeight:1.7}}>
+                    <strong>Estos recursos están siendo usados en los APU de este proyecto</strong> pero no tienen equivalente en el catálogo general ni por ID ni por similitud de descripción ({'≥'} 25%). Pueden ser recursos creados directamente en el proyecto o eliminados del catálogo general.<br/>
+                    <span style={{marginTop:4,display:'block'}}>
+                      <strong>⚖ Comparar:</strong> abre la comparativa campo a campo proyecto vs catálogo (cuando hay un posible match por <em>descripción</em>) y permite elegir qué valor usar en cada campo.<br/>
+                      <strong>🔍 Buscar:</strong> asociar manualmente a un recurso del catálogo general — se reemplazarán todas las referencias en los APU afectados.<br/>
+                      <strong>✓ Mantener:</strong> conservar el recurso tal como está con su precio actual. No se modifica nada y <strong>no volverá a aparecer en este panel</strong>.<br/>
+                      <strong>🗑 Eliminar:</strong> quitar este recurso de todos los APU afectados y recalcular sus subtotales. <strong>Esta acción no se puede deshacer.</strong><br/>
+                      <strong>⬆ Promover:</strong> guardar el recurso en el catálogo general (código secuencial global) o como <strong>exclusivo del proyecto</strong> (código EQ-XXX PPT-YYY con consecutivo propio).
+                    </span>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
           <div style={{overflow:'auto',flex:'1 1 auto'}}>
-          <table style={{width:890,borderCollapse:'separate',borderSpacing:0,fontSize:11,tableLayout:'fixed'}}>
-            <colgroup><col style={{width:110}}/><col style={{width:90}}/><col style={{width:220}}/><col style={{width:220}}/><col style={{width:250}}/></colgroup>
+          <table style={{width:922,borderCollapse:'separate',borderSpacing:0,fontSize:11,tableLayout:'fixed'}}>
+            <colgroup><col style={{width:55}}/><col style={{width:80}}/><col style={{width:200}}/><col style={{width:38}}/><col style={{width:80}}/><col style={{width:185}}/><col style={{width:42}}/><col style={{width:82}}/><col style={{width:50}}/><col style={{width:110}}/></colgroup>
             <thead><tr style={{background:'var(--bg3)'}}>
-              <th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',borderTop:'1px solid var(--bdr)',borderLeft:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Tipo</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Código</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Descripción</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Ítem(s) afectado(s)</th><th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',whiteSpace:'nowrap',textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Acción</th>
+              <th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',borderTop:'1px solid var(--bdr)',borderLeft:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Tipo</th>
+              <th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Código</th>
+              <th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Descripción (proyecto)</th>
+              <th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Un</th>
+              <th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Vr. Unitario</th>
+              <th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Desc. catálogo</th>
+              <th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Un. cat.</th>
+              <th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Vr. cat.</th>
+              <th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>APUs</th>
+              <th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',whiteSpace:'nowrap',textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Acción</th>
             </tr></thead>
             <tbody>
               {panelHuerfanos.map(function(it){
                 var campoGlobal={insumo:'insumos',equipo:'equipos',cargo:'cargos'}[it.tipo];
+                var campoPrecio={insumo:'costo_unitario',equipo:'costo_hora',cargo:'num_salarios_base'}[it.tipo];
+                var campoPrecioLabel={insumo:'Vr. Unitario',equipo:'Vr. / Hora',cargo:'N° Salarios'}[it.tipo];
                 var opciones=(data[campoGlobal]||[]);
                 var enBusqueda=buscarPara&&buscarPara.tipo===it.tipo&&buscarPara.id===it.id;
-                return(<tr key={it.tipo+'|'+it.id}>
-                  <td style={Object.assign({},MOD_TD,{whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',borderLeft:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>{etiquetaTipo[it.tipo]}</td>
-                  <td style={Object.assign({},MOD_TD,{whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>{it.snapReg.codigo||'—'}</td>
-                  <td style={Object.assign({},MOD_TD,{whiteSpace:'normal',wordBreak:'break-word',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>{nombreRecurso(it.snapReg)}</td>
-                  <td style={Object.assign({},MOD_TD,{whiteSpace:'normal',wordBreak:'break-word',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})} title={it.apus.join(', ')}>{it.apus.join(', ')}</td>
-                  <td style={Object.assign({},MOD_TD,{textAlign:'center',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>
-                    {enBusqueda?(
-                      <select className="sel" style={{fontSize:10}} onChange={function(e){asociarManual(it,e.target.value)}} defaultValue="">
-                        <option value="" disabled>-- elegir del catálogo --</option>
-                        {opciones.map(function(o){return <option key={o.id} value={o.id}>{nombreRecurso(o)}</option>})}
-                      </select>
-                    ):(
-                      <div style={{display:'flex',justifyContent:'center',flexWrap:'wrap',gap:3}}>
-                        <button onClick={function(){setBuscarPara({tipo:it.tipo,id:it.id})}} title={'Asociar "'+(it.snapReg.nombre||it.snapReg.descripcion||it.id)+'" manualmente a un recurso del catálogo general'} style={{fontSize:10,padding:'2px 6px',border:'1px solid var(--ac)',borderRadius:4,background:'transparent',color:'var(--ac)',cursor:'pointer'}}>🔍 Buscar</button>
-                        <button onClick={function(){mantenerHuerfano(it)}} title={'Conservar "'+(it.snapReg.nombre||it.snapReg.descripcion||it.id)+'" con su precio actual — no volverá a aparecer aquí'} style={{fontSize:10,padding:'2px 6px',border:'1px solid var(--ok)',borderRadius:4,background:'transparent',color:'var(--ok)',cursor:'pointer'}}>✓ Mantener</button>
-                        <button onClick={function(){eliminarHuerfano(it)}} title={'Eliminar "'+(it.snapReg.nombre||it.snapReg.descripcion||it.id)+'" de todos los APU afectados — acción irreversible'} style={{fontSize:10,padding:'2px 6px',border:'1px solid #f87171',borderRadius:4,background:'transparent',color:'#f87171',cursor:'pointer'}}>🗑 Eliminar</button>
-                        <button onClick={function(){promoverHuerfanoACatalogo(it)}} title={'Guardar "'+(it.snapReg.nombre||it.snapReg.descripcion||it.id)+'" en el catálogo general'} style={{fontSize:10,padding:'2px 6px',border:'none',borderRadius:4,background:'var(--ac)',color:'#fff',cursor:'pointer'}}>⬆ Promover</button>
-                      </div>
-                    )}
-                  </td>
-                </tr>);
+                var enPromover=promoverPara&&promoverPara.tipo===it.tipo&&promoverPara.id===it.id;
+                var keyH=it.tipo+'|'+it.id;
+                var expandido=huerfanosExpandidos.has(keyH);
+                var cat=it.matchParcial;
+                var selIt=selHuerfano[keyH]||selHuerfanoDefault(it);
+                var diffCodigo=cat&&(it.snapReg.codigo||'').trim().toLowerCase()!==(cat.codigo||'').trim().toLowerCase();
+                var diffNombre=cat&&((it.snapReg.nombre||it.snapReg.descripcion||'').trim()!==(cat.nombre||cat.descripcion||'').trim());
+                var diffUnidad=cat&&((it.snapReg.unidad||'').trim().toLowerCase()!==(cat.unidad||'').trim().toLowerCase());
+                var diffPrecio=cat&&(parseFloat(it.snapReg[campoPrecio])||0)!==(parseFloat(cat[campoPrecio])||0);
+                var causaInfo=it.causa==='sin_codigo'?'Sin código':it.causa==='sin_id'?'Sin ID':it.causa==='codigo_diferente'?'Código duplicado, distinta descripción':it.causa==='match_descripcion'?('Match descripción '+(it.score!=null?Math.round(it.score*100):'?')+'%'):('Similitud '+(it.score!=null?Math.round(it.score*100):'?')+'%');
+                var causaColor=it.causa==='sin_codigo'?'#f87171':it.causa==='sin_id'?'#fbbf24':it.causa==='codigo_diferente'?'#f87171':it.causa==='match_descripcion'?'#4ade80':'#fb923c';
+                var toggleHuerfano=function(){
+                  setHuerfanosExpandidos(function(prev){var next=new Set(prev);if(next.has(keyH))next.delete(keyH);else next.add(keyH);return next});
+                };
+                var celdaSelStyle=function(sel){return sel?{background:'rgba(74,222,128,.08)',color:'var(--ok)'}:{}};
+                var cmpRow=function(campo,label,valorSnap,valorCat,diff){
+                  var selProy=diff&&selIt[campo]==='proy';
+                  var selCat=diff&&selIt[campo]==='cat';
+                  return(
+                    <tr key={campo}>
+                      <td style={{fontSize:9,color:'var(--tx3)',background:'var(--bg3)',padding:'5px 8px',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',width:90}}>{label}</td>
+                      <td style={Object.assign({fontSize:10,padding:'5px 8px',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',cursor:diff?'pointer':'default'},celdaSelStyle(selProy))} onClick={function(){if(diff)setSelH(it,campo,'proy')}}>
+                        <label style={{display:'flex',alignItems:'center',gap:5,minWidth:0,cursor:diff?'pointer':'default'}}>
+                          {diff?<input type="radio" checked={selProy} onChange={function(){setSelH(it,campo,'proy')}} style={{flexShrink:0}}/>:null}
+                          <span style={{overflow:'hidden',textOverflow:'ellipsis'}}>{valorSnap}</span>
+                        </label>
+                      </td>
+                      <td style={Object.assign({fontSize:10,padding:'5px 8px',borderTop:'1px solid var(--bdr)',cursor:diff?'pointer':'default'},celdaSelStyle(selCat))} onClick={function(){if(diff)setSelH(it,campo,'cat')}}>
+                        <label style={{display:'flex',alignItems:'center',gap:5,minWidth:0,cursor:diff?'pointer':'default'}}>
+                          {diff?<input type="radio" checked={selCat} onChange={function(){setSelH(it,campo,'cat')}} style={{flexShrink:0}}/>:null}
+                          <span style={{overflow:'hidden',textOverflow:'ellipsis'}}>{diff?'':'✅ '}{valorCat}</span>
+                        </label>
+                      </td>
+                    </tr>
+                  );
+                };
+                return(<React.Fragment key={keyH}>
+                  <tr>
+                    <td style={Object.assign({},MOD_TD,{whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',borderLeft:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>{etiquetaTipo[it.tipo]}</td>
+                    <td style={Object.assign({},MOD_TD,{borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>
+                      <div style={{whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{mostrarCodigo(it.snapReg.codigo)}</div>
+                      <div style={{fontSize:9,color:causaColor,marginTop:2}}>{causaInfo}</div>
+                    </td>
+                    <td style={Object.assign({},MOD_TD,{whiteSpace:'normal',wordBreak:'break-word',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>{nombreRecurso(it.snapReg)}</td>
+                    <td style={Object.assign({},MOD_TD,{textAlign:'center',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>{it.snapReg.unidad||'—'}</td>
+                    <td style={Object.assign({},MOD_TD,{textAlign:'right',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>{fmt(it.snapReg[campoPrecio]||0)}</td>
+                    <td style={tdDiff(cat&&diffNombre,{borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'})} title={cat?nombreRecurso(cat):''}>
+                      {cat?(<span style={{color:diffNombre?undefined:'inherit'}}>{diffNombre?'':'✅ '}{nombreRecurso(cat)}</span>):it.causa==='codigo_diferente'?(
+                        <span style={{fontSize:9,color:'#f87171',lineHeight:1.4,whiteSpace:'normal'}}>Código coincide, descripción diferente</span>
+                      ):<span style={{color:'var(--tx3)'}}>—</span>}
+                    </td>
+                    <td style={tdDiff(cat&&diffUnidad,{borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)',textAlign:'center'})}>
+                      {cat?(diffUnidad?cat.unidad||'—':'✅ '+(cat.unidad||'—')):<span style={{color:'var(--tx3)'}}>—</span>}
+                    </td>
+                    <td style={tdDiff(cat&&diffPrecio,{borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)',textAlign:'right'})}>
+                      {cat?(diffPrecio?fmt(cat[campoPrecio]||0):'✅ '+fmt(cat[campoPrecio]||0)):<span style={{color:'var(--tx3)'}}>—</span>}
+                    </td>
+                    <td style={Object.assign({},MOD_TD,{textAlign:'center',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})} title={it.apus.join(', ')}>{it.apus.length}</td>
+                    <td style={Object.assign({},MOD_TD,{textAlign:'center',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>
+                      {enBusqueda?(
+                        <select className="sel" style={{fontSize:10,maxWidth:170}} onChange={function(e){asociarManual(it,e.target.value)}} defaultValue="">
+                          <option value="" disabled>-- elegir del catálogo --</option>
+                          {opciones.map(function(o){return <option key={o.id} value={o.id}>{o.codigo?o.codigo+' — ':''}{nombreRecurso(o)}{o.unidad?' ('+o.unidad+')':''} — {fmt(o[campoPrecio]||0)}</option>})}
+                        </select>
+                      ):enPromover?(
+                        <div style={{display:'flex',flexDirection:'column',gap:3}}>
+                          <button onClick={function(){promoverHuerfanoACatalogo(it)}} title="Agregar al catálogo general con código secuencial global" style={{fontSize:9,padding:'3px 6px',border:'1px solid var(--ac)',borderRadius:4,background:'transparent',color:'var(--ac)',cursor:'pointer',whiteSpace:'nowrap'}}>🌐 Catálogo general</button>
+                          <button onClick={function(){promoverHuerfanoEnProyecto(it)}} title="Guardar como recurso exclusivo de este proyecto" style={{fontSize:9,padding:'3px 6px',border:'1px solid var(--ok)',borderRadius:4,background:'transparent',color:'var(--ok)',cursor:'pointer',whiteSpace:'nowrap'}}>📁 Proyecto {pres.codigo}</button>
+                          <button onClick={function(){setPromoverPara(null)}} style={{fontSize:9,padding:'2px 6px',border:'1px solid var(--bdr)',borderRadius:4,background:'transparent',color:'var(--tx3)',cursor:'pointer'}}>✕ Cancelar</button>
+                        </div>
+                      ):(
+                        <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:4}}>
+                          <button onClick={toggleHuerfano} title={cat?'Comparar campo a campo con el posible match del catálogo':'No hay match — buscar o crear nuevo'} style={{fontSize:9,padding:'3px 6px',border:'1px solid '+(cat?'#fb923c':'var(--ac)'),borderRadius:4,background:'transparent',color:cat?'#fb923c':'var(--ac)',cursor:'pointer',whiteSpace:'nowrap'}}>{cat?'⚖ Comparar':'🔍 Buscar'}</button>
+                          <button onClick={toggleHuerfano} title={expandido?'Colapsar':'Expandir'} style={{fontSize:9,padding:'3px 6px',border:'1px solid var(--bdr)',borderRadius:4,background:'transparent',color:'var(--tx2)',cursor:'pointer'}}>{expandido?'▲':'▼'}</button>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                  {expandido&&(
+                    <tr>
+                      <td colSpan={10} style={{padding:10,background:'var(--bg2)',border:'1px solid var(--bdr)',borderRadius:4}}>
+                        {cat?(
+                          <React.Fragment>
+                            <div style={{fontSize:11,fontWeight:700,marginBottom:6}}>⚖ Comparativa — elija qué valor usar en cada campo</div>
+                            <table style={{width:'100%',maxWidth:520,borderCollapse:'collapse',border:'1px solid var(--bdr)',borderRadius:4}}>
+                              <thead><tr>
+                                <th style={{fontSize:9,color:'var(--tx3)',background:'var(--bg3)',padding:'5px 8px',textAlign:'left',borderRight:'1px solid var(--bdr)',width:90}}>Campo</th>
+                                <th style={{fontSize:9,fontWeight:700,color:'var(--warn)',background:'var(--bg3)',padding:'5px 8px',textAlign:'left',borderRight:'1px solid var(--bdr)'}}>📁 Proyecto</th>
+                                <th style={{fontSize:9,fontWeight:700,color:'var(--ok)',background:'var(--bg3)',padding:'5px 8px',textAlign:'left'}}>🌐 Catálogo General</th>
+                              </tr></thead>
+                              <tbody>
+                                {cmpRow('codigo','Código',mostrarCodigo(it.snapReg.codigo),mostrarCodigo(cat.codigo),diffCodigo)}
+                                {cmpRow('nombre','Descripción',nombreRecurso(it.snapReg),nombreRecurso(cat),diffNombre)}
+                                {cmpRow('unidad','Unidad',it.snapReg.unidad||'—',cat.unidad||'—',diffUnidad)}
+                                {cmpRow('precio',campoPrecioLabel,fmt(it.snapReg[campoPrecio]||0),fmt(cat[campoPrecio]||0),diffPrecio)}
+                              </tbody>
+                            </table>
+                            <div style={{fontSize:9,color:'var(--tx3)',marginTop:6}}>💡 Campo elegido <b>📁 Proyecto</b> permanece en el proyecto; campo elegido <b style={{color:'#4ade80'}}>🌐 Catálogo</b> se adopta del catálogo. Si elige algún campo del proyecto, se confirmará antes de modificar el catálogo general.</div>
+                            <div style={{display:'flex',justifyContent:'flex-end',gap:8,marginTop:10}}>
+                              <button onClick={function(){aplicarSeleccionCampos(it)}} style={{fontSize:11,padding:'5px 14px',border:'1px solid var(--ok)',borderRadius:4,background:'var(--ok)',color:'#fff',cursor:'pointer',fontWeight:700}}>✓ Aplicar selección</button>
+                              <button onClick={function(){setBuscarPara({tipo:it.tipo,id:it.id})}} title={'Asociar "'+(it.snapReg.nombre||it.snapReg.descripcion||it.id)+'" manualmente a un recurso del catálogo general'} style={{fontSize:11,padding:'5px 14px',border:'1px solid var(--ac)',borderRadius:4,background:'transparent',color:'var(--ac)',cursor:'pointer'}}>🔍 Buscar alternativa</button>
+                              <button onClick={function(){mantenerHuerfano(it)}} title={'Conservar "'+(it.snapReg.nombre||it.snapReg.descripcion||it.id)+'" con su precio actual — no volverá a aparecer aquí'} style={{fontSize:11,padding:'5px 14px',border:'1px solid var(--ok)',borderRadius:4,background:'transparent',color:'var(--ok)',cursor:'pointer'}}>✓ Mantener</button>
+                              <button onClick={function(){setPromoverPara({tipo:it.tipo,id:it.id})}} title="Guardar el recurso en el catálogo o como exclusivo del proyecto" style={{fontSize:11,padding:'5px 14px',border:'none',borderRadius:4,background:'var(--ac)',color:'#fff',cursor:'pointer'}}>⬆ Promover</button>
+                              <button onClick={function(){eliminarHuerfano(it)}} title={'Eliminar "'+(it.snapReg.nombre||it.snapReg.descripcion||it.id)+'" de todos los APU afectados — acción irreversible'} style={{fontSize:11,padding:'5px 14px',border:'1px solid var(--bdr)',borderRadius:4,background:'transparent',color:'var(--tx3)',cursor:'pointer'}}>🗑 Eliminar</button>
+                            </div>
+                          </React.Fragment>
+                        ):(
+                          <React.Fragment>
+                            <div style={{fontSize:11,color:'var(--tx2)',marginBottom:4}}>No se encontró equivalente en el catálogo general.</div>
+                            <div style={{fontSize:10,color:causaColor,marginBottom:8}}>{causaInfo}</div>
+                            {enBusqueda&&(
+                              <select className="sel" style={{fontSize:10,maxWidth:280,marginBottom:8,display:'block'}} onChange={function(e){asociarManual(it,e.target.value)}} defaultValue="">
+                                <option value="" disabled>-- elegir del catálogo --</option>
+                                {opciones.map(function(o){return <option key={o.id} value={o.id}>{o.codigo?o.codigo+' — ':''}{nombreRecurso(o)}{o.unidad?' ('+o.unidad+')':''} — {fmt(o[campoPrecio]||0)}</option>})}
+                              </select>
+                            )}
+                            <div style={{display:'flex',justifyContent:'flex-end',gap:8}}>
+                              <button onClick={function(){setBuscarPara({tipo:it.tipo,id:it.id})}} style={{fontSize:11,padding:'5px 14px',border:'1px solid var(--ac)',borderRadius:4,background:'transparent',color:'var(--ac)',cursor:'pointer'}}>🔍 Buscar en catálogo</button>
+                              <button onClick={function(){mantenerHuerfano(it)}} style={{fontSize:11,padding:'5px 14px',border:'1px solid var(--ok)',borderRadius:4,background:'transparent',color:'var(--ok)',cursor:'pointer'}}>✓ Mantener</button>
+                              <button onClick={function(){setPromoverPara({tipo:it.tipo,id:it.id})}} style={{fontSize:11,padding:'5px 14px',border:'none',borderRadius:4,background:'var(--ac)',color:'#fff',cursor:'pointer'}}>⬆ Promover</button>
+                              <button onClick={function(){eliminarHuerfano(it)}} style={{fontSize:11,padding:'5px 14px',border:'1px solid var(--bdr)',borderRadius:4,background:'transparent',color:'var(--tx3)',cursor:'pointer'}}>🗑 Eliminar</button>
+                            </div>
+                          </React.Fragment>
+                        )}
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>);
               })}
             </tbody>
           </table>
           </div>
           <div style={{display:'flex',justifyContent:'flex-end',marginTop:14,flex:'0 0 auto'}}>
-            <button onClick={function(){setPanelHuerfanos(null);setBuscarPara(null)}} style={{fontSize:11,padding:'6px 14px',border:'1px solid var(--bdr)',borderRadius:4,background:'transparent',color:'var(--tx2)',cursor:'pointer'}}>Cerrar</button>
+            <button onClick={function(){setPanelHuerfanos(null);setBuscarPara(null);setPromoverPara(null);setHuerfanosExpandidos(new Set());setBannerVisible(false)}} style={{fontSize:11,padding:'6px 14px',border:'1px solid var(--bdr)',borderRadius:4,background:'transparent',color:'var(--tx2)',cursor:'pointer'}}>Cerrar</button>
           </div>
         </div>
       </div>,
@@ -10085,13 +10487,13 @@ function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,i
   var PRES_NAV=[
     {tab:9,label:'1. CATALOGO DE PROYECTOS'},
     {tab:10,label:'2. FORMULARIO DE CANTIDADES Y PRECIOS'},
-    {tab:12,label:'3. RESUMEN FINANCIERO',conEstado:true},
-    {tab:13,label:'4. ENTREGABLES',conEstado:true},
-    {tab:14,label:'5. RECURSOS DEL PROYECTO',conEstado:true}
+    {tab:12,label:'3. RESUMEN FINANCIERO'},
+    {tab:13,label:'4. ENTREGABLES'},
+    {tab:14,label:'5. RECURSOS DEL PROYECTO'}
   ];
   var presContent=tab===10?<PresFormularioPanel pres={pres} presupuestos={presupuestos} selPresIdx={selFinal} data={data} onChange={onChange} apuModal={apuModal} setApuModal={setApuModal} apus={apus} categorias_apu={categorias_apu} calcItemVal={calcItemVal} setTab={setTab} estadoLabel={estadoLabel} estadoColor={estadoColor} cargosCalc={cargosCalc} cargosCalcSnap={cargosCalcSnap} personMap={personMap} esHora={esHora} eqMap={eqMap} insMap={insMap} factorPrest={factorPrest} factorPrestSnap={factorPrestSnap} usarFpEnApu={usarFpEnApu} equipos={equipos} insumos={insumos} apusBasico={apusBasico}/>
-    :tab===12?<PresResumenPanel pres={pres} presupuestos={presupuestos} selPresIdx={selFinal} data={data} onChange={onChange} calcResumenPres={calcResumenPres} setTab={setTab}/>
-    :tab===13?<PresEntregablesPanel pres={pres} presupuestos={presupuestos} calcResumenPres={calcResumenPres} calcItemVal={calcItemVal} calcResumenFor={calcResumenFor} calcItemValFor={calcItemValFor} buildSnapCtx={buildSnapCtx} setTab={setTab}/>
+    :tab===12?<PresResumenPanel pres={pres} presupuestos={presupuestos} selPresIdx={selFinal} data={data} onChange={onChange} calcResumenPres={calcResumenPres} setTab={setTab} estadoLabel={estadoLabel} estadoColor={estadoColor}/>
+    :tab===13?<PresEntregablesPanel pres={pres} presupuestos={presupuestos} calcResumenPres={calcResumenPres} calcItemVal={calcItemVal} calcResumenFor={calcResumenFor} calcItemValFor={calcItemValFor} buildSnapCtx={buildSnapCtx} setTab={setTab} estadoLabel={estadoLabel} estadoColor={estadoColor}/>
     :tab===14?<PresCatalogoProyectoPanel pres={pres} presupuestos={presupuestos} selPresIdx={selFinal} data={data} onChange={onChange} cargosCalcSnap={cargosCalcSnap} cuadrillasCalcSnap={cuadrillasCalcSnap} equiposSnapEfectivo={equiposSnapEfectivo} insumosSnapEfectivo={insumosSnapEfectivo} factorPrestSnap={factorPrestSnap} personMapSnap={personMapSnap} eqMapSnap={eqMapSnap} insMapSnap={insMapSnap} herrPct={herrPct} usarFpEnApu={usarFpEnApu} esHora={esHora} abCalcList={abCalcList} apusBasico={apusBasico} provMap={provMap} _unidades={_unidades} cambiarPerfilPais={cambiarPerfilPais} estadoLabel={estadoLabel} estadoColor={estadoColor}/>
     :<PresProyectosPanel presupuestos={presupuestos} selPresIdx={selPresIdx} setSelPresIdx={setSelPresIdx} data={data} onChange={onChange} estadoColor={estadoColor} estadoLabel={estadoLabel} addPresupuesto={addPresupuesto} addSubProyecto={addSubProyecto} toggleEstado={toggleEstado} cambiarPerfilPais={cambiarPerfilPais} delPresupuesto={delPresupuesto} setTab={setTab}/>;
 

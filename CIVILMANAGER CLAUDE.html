@@ -10031,20 +10031,26 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
             );
           })()}
           <div style={{overflow:'auto',flex:'1 1 auto'}}>
-          <table style={{width:922,borderCollapse:'separate',borderSpacing:0,fontSize:11,tableLayout:'fixed'}}>
-            <colgroup><col style={{width:55}}/><col style={{width:80}}/><col style={{width:200}}/><col style={{width:38}}/><col style={{width:80}}/><col style={{width:185}}/><col style={{width:42}}/><col style={{width:82}}/><col style={{width:50}}/><col style={{width:110}}/></colgroup>
-            <thead><tr style={{background:'var(--bg3)'}}>
-              <th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',borderTop:'1px solid var(--bdr)',borderLeft:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Tipo</th>
-              <th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Código</th>
-              <th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Descripción (proyecto)</th>
-              <th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Un</th>
-              <th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Vr. Unitario</th>
-              <th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Desc. catálogo</th>
-              <th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Un. cat.</th>
-              <th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Vr. cat.</th>
-              <th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>APUs</th>
-              <th style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',whiteSpace:'nowrap',textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Acción</th>
-            </tr></thead>
+          <table style={{width:998,borderCollapse:'separate',borderSpacing:0,fontSize:11,tableLayout:'fixed'}}>
+            <colgroup><col style={{width:55}}/><col style={{width:90}}/><col style={{width:300}}/><col style={{width:38}}/><col style={{width:85}}/><col style={{width:70}}/><col style={{width:75}}/><col style={{width:65}}/><col style={{width:65}}/><col style={{width:45}}/><col style={{width:110}}/></colgroup>
+            <thead>
+              <tr style={{background:'var(--bg3)'}}>
+                <th rowSpan={2} style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',verticalAlign:'middle',borderTop:'1px solid var(--bdr)',borderLeft:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Tipo</th>
+                <th rowSpan={2} style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',verticalAlign:'middle',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Código</th>
+                <th rowSpan={2} style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',verticalAlign:'middle',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Descripción (proyecto)</th>
+                <th rowSpan={2} style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',verticalAlign:'middle',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Un</th>
+                <th rowSpan={2} style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',verticalAlign:'middle',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Vr. Unitario</th>
+                <th colSpan={4} style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Match catálogo</th>
+                <th rowSpan={2} style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',verticalAlign:'middle',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>APUs</th>
+                <th rowSpan={2} style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',whiteSpace:'nowrap',textAlign:'center',verticalAlign:'middle',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Acción</th>
+              </tr>
+              <tr style={{background:'var(--bg3)'}}>
+                <th style={Object.assign({},MOD_TH,{position:'sticky',top:22,background:'var(--bg3)',textAlign:'center',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Cód.</th>
+                <th style={Object.assign({},MOD_TH,{position:'sticky',top:22,background:'var(--bg3)',textAlign:'center',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Descripción</th>
+                <th style={Object.assign({},MOD_TH,{position:'sticky',top:22,background:'var(--bg3)',textAlign:'center',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Un.</th>
+                <th style={Object.assign({},MOD_TH,{position:'sticky',top:22,background:'var(--bg3)',textAlign:'center',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Vr.</th>
+              </tr>
+            </thead>
             <tbody>
               {panelHuerfanos.map(function(it){
                 var campoGlobal={insumo:'insumos',equipo:'equipos',cargo:'cargos'}[it.tipo];
@@ -10061,6 +10067,9 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
                 var diffNombre=cat&&((it.snapReg.nombre||it.snapReg.descripcion||'').trim()!==(cat.nombre||cat.descripcion||'').trim());
                 var diffUnidad=cat&&((it.snapReg.unidad||'').trim().toLowerCase()!==(cat.unidad||'').trim().toLowerCase());
                 var diffPrecio=cat&&(parseFloat(it.snapReg[campoPrecio])||0)!==(parseFloat(cat[campoPrecio])||0);
+                var snapPrecioNum=parseFloat(it.snapReg[campoPrecio])||0;
+                var catPrecioNum=cat?(parseFloat(cat[campoPrecio])||0):0;
+                var pctPrecio=cat&&snapPrecioNum>0?Math.round(((catPrecioNum-snapPrecioNum)/snapPrecioNum)*100):null;
                 var causaInfo=it.causa==='sin_codigo'?'Sin código':it.causa==='sin_id'?'Sin ID':it.causa==='codigo_diferente'?'Código duplicado, distinta descripción':it.causa==='match_descripcion'?('Match descripción '+(it.score!=null?Math.round(it.score*100):'?')+'%'):('Similitud '+(it.score!=null?Math.round(it.score*100):'?')+'%');
                 var causaColor=it.causa==='sin_codigo'?'#f87171':it.causa==='sin_id'?'#fbbf24':it.causa==='codigo_diferente'?'#f87171':it.causa==='match_descripcion'?'#4ade80':'#fb923c';
                 var toggleHuerfano=function(){
@@ -10098,16 +10107,21 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
                     <td style={Object.assign({},MOD_TD,{whiteSpace:'normal',wordBreak:'break-word',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>{nombreRecurso(it.snapReg)}</td>
                     <td style={Object.assign({},MOD_TD,{textAlign:'center',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>{it.snapReg.unidad||'—'}</td>
                     <td style={Object.assign({},MOD_TD,{textAlign:'right',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>{fmt(it.snapReg[campoPrecio]||0)}</td>
-                    <td style={tdDiff(cat&&diffNombre,{borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'})} title={cat?nombreRecurso(cat):''}>
-                      {cat?(<span style={{color:diffNombre?undefined:'inherit'}}>{diffNombre?'':'✅ '}{nombreRecurso(cat)}</span>):it.causa==='codigo_diferente'?(
-                        <span style={{fontSize:9,color:'#f87171',lineHeight:1.4,whiteSpace:'normal'}}>Código coincide, descripción diferente</span>
-                      ):<span style={{color:'var(--tx3)'}}>—</span>}
+                    <td style={tdDiff(cat&&diffCodigo,{borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)',textAlign:'center'})}
+                      title={!cat?'Sin equivalente en el catálogo':diffCodigo?'Código en catálogo: '+mostrarCodigo(cat.codigo):'Código igual al del proyecto'}>
+                      {!cat?<span style={{color:'var(--tx3)',fontSize:11}}>—</span>:diffCodigo?<span style={{color:'var(--warn)',fontSize:11}}>⚠ {mostrarCodigo(cat.codigo)}</span>:<span style={{color:'var(--ok)',fontSize:11}}>✅</span>}
                     </td>
-                    <td style={tdDiff(cat&&diffUnidad,{borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)',textAlign:'center'})}>
-                      {cat?(diffUnidad?cat.unidad||'—':'✅ '+(cat.unidad||'—')):<span style={{color:'var(--tx3)'}}>—</span>}
+                    <td style={tdDiff(cat&&diffNombre,{borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)',textAlign:'center'})}
+                      title={!cat?(it.causa==='codigo_diferente'?'Código coincide, descripción diferente':'Sin equivalente — buscar o promover'):diffNombre?'Nombre difiere de "'+nombreRecurso(cat)+'" — abrir para comparar':'Nombre coincide'}>
+                      {!cat?(it.causa==='codigo_diferente'?<span style={{fontSize:9,color:'#f87171'}}>⚠ Cód. igual</span>:<span style={{color:'var(--tx3)',fontSize:11}}>Sin match</span>):diffNombre?<span style={{color:'var(--warn)',fontSize:11}}>⚠ Difiere</span>:<span style={{color:'var(--ok)',fontSize:11}}>✅</span>}
                     </td>
-                    <td style={tdDiff(cat&&diffPrecio,{borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)',textAlign:'right'})}>
-                      {cat?(diffPrecio?fmt(cat[campoPrecio]||0):'✅ '+fmt(cat[campoPrecio]||0)):<span style={{color:'var(--tx3)'}}>—</span>}
+                    <td style={tdDiff(cat&&diffUnidad,{borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)',textAlign:'center'})}
+                      title={!cat?'—':diffUnidad?'Unidad catálogo "'+(cat.unidad||'—')+'" difiere de "'+(it.snapReg.unidad||'—')+'"':'Unidad coincide'}>
+                      {!cat?<span style={{color:'var(--tx3)'}}>—</span>:diffUnidad?<span style={{color:'var(--warn)',fontSize:11}}>⚠ {cat.unidad||'—'}</span>:<span style={{color:'var(--ok)',fontSize:11}}>✅</span>}
+                    </td>
+                    <td style={tdDiff(cat&&diffPrecio,{borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)',textAlign:'center'})}
+                      title={!cat?'—':(diffPrecio&&pctPrecio!=null)?'Precio catálogo '+fmt(cat[campoPrecio]||0)+' ('+(pctPrecio>0?'+':'')+pctPrecio+'%) — abrir para revisar':'Precio coincide'}>
+                      {!cat?<span style={{color:'var(--tx3)'}}>—</span>:(diffPrecio&&pctPrecio!=null)?<span style={{color:'var(--warn)',fontSize:11}}>⚠ {pctPrecio>0?'+':''}{pctPrecio}%</span>:<span style={{color:'var(--ok)',fontSize:11}}>✅</span>}
                     </td>
                     <td style={Object.assign({},MOD_TD,{textAlign:'center',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})} title={it.apus.join(', ')}>{it.apus.length}</td>
                     <td style={Object.assign({},MOD_TD,{textAlign:'center',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>
@@ -10132,7 +10146,7 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
                   </tr>
                   {expandido&&(
                     <tr>
-                      <td colSpan={10} style={{padding:10,background:'var(--bg2)',border:'1px solid var(--bdr)',borderRadius:4}}>
+                      <td colSpan={11} style={{padding:10,background:'var(--bg2)',border:'1px solid var(--bdr)',borderRadius:4}}>
                         {cat?(
                           <React.Fragment>
                             <div style={{fontSize:11,fontWeight:700,marginBottom:6}}>⚖ Comparativa — elija qué valor usar en cada campo</div>

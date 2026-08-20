@@ -9002,6 +9002,11 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
 
   var analisis=useMemo(function(){return analizarActualizacionCatalogo(pres,data)},[pres,data]);
   var pendientesReparar=useMemo(function(){return repararRecursosFaltantesDeApus(pres,data).resumen.completados},[pres,data]);
+  /* Los cargos (Personal/Mano de Obra) no tienen campo 'unidad' propio -- se facturan
+     por Dia u Hora segun el perfil de pais (esHora), que puede ser distinto entre el
+     proyecto (perfil_pais_snap propio) y el catalogo general (esHora recibido por props). */
+  var esHoraProy=esHoraDesdePres(pres,data.config_listas&&data.config_listas.perfiles_pais,esHora);
+  var esHoraCat=esHora;
   var[revisionCodigo,setRevisionCodigo]=useState(null); // [{tipo,id,snapReg,globalReg,campoPrecio,precioNuevo,apus}]
   var[revisionMsg,setRevisionMsg]=useState(null); // banner fijo bajo el titulo del panel de revision por codigo
   var[mensajeActualizacion,setMensajeActualizacion]=useState(null); // {tipo,texto} — mensaje inline bajo los botones (reemplaza toast de sincronizar)
@@ -10089,7 +10094,10 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
                 var selIt=selHuerfano[keyH]||selHuerfanoDefault(it);
                 var diffCodigo=cat&&(it.snapReg.codigo||'').trim().toLowerCase()!==(cat.codigo||'').trim().toLowerCase();
                 var diffNombre=cat&&((it.snapReg.nombre||it.snapReg.descripcion||'').trim()!==(cat.nombre||cat.descripcion||'').trim());
-                var diffUnidad=cat&&((it.snapReg.unidad||'').trim().toLowerCase()!==(cat.unidad||'').trim().toLowerCase());
+                var esCargo=it.tipo==='cargo';
+                var unidadSnapLabel=esCargo?(esHoraProy?'Costo/Hora':'Costo/Día'):(it.snapReg.unidad||'—');
+                var unidadCatLabel=esCargo?(esHoraCat?'Costo/Hora':'Costo/Día'):(cat?(cat.unidad||'—'):null);
+                var diffUnidad=cat&&(esCargo?esHoraProy!==esHoraCat:(it.snapReg.unidad||'').trim().toLowerCase()!==(cat.unidad||'').trim().toLowerCase());
                 var diffPrecio=cat&&(parseFloat(it.snapReg[campoPrecio])||0)!==(parseFloat(cat[campoPrecio])||0);
                 var snapPrecioNum=parseFloat(it.snapReg[campoPrecio])||0;
                 var catPrecioNum=cat?(parseFloat(cat[campoPrecio])||0):0;
@@ -10126,7 +10134,7 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
                     <td style={Object.assign({},MOD_TD,{whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',borderLeft:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>{etiquetaTipo[it.tipo]}</td>
                     <td style={Object.assign({},MOD_TD,{borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'})}>{mostrarCodigo(it.snapReg.codigo)}</td>
                     <td style={Object.assign({},MOD_TD,{whiteSpace:'normal',wordBreak:'break-word',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>{nombreRecurso(it.snapReg)}</td>
-                    <td style={Object.assign({},MOD_TD,{textAlign:'center',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>{it.snapReg.unidad||'—'}</td>
+                    <td style={Object.assign({},MOD_TD,{textAlign:'center',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>{unidadSnapLabel}</td>
                     <td style={Object.assign({},MOD_TD,{textAlign:'right',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>{fmt(it.snapReg[campoPrecio]||0)}</td>
                     <td style={tdDiff(cat&&diffCodigo,{borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)',textAlign:'center'})}
                       title={!cat?(it.causa==='codigo_diferente'?causaInfo+' — código "'+mostrarCodigoTexto(it.snapReg.codigo)+'" coincide con "'+mostrarCodigoTexto((it.codigoCoincidente&&it.codigoCoincidente.codigo)||'')+'" ('+nombreRecurso(it.codigoCoincidente||{})+') — no es el mismo recurso':causaInfo):diffCodigo?'Código en catálogo: '+mostrarCodigoTexto(cat.codigo):'Código igual al del proyecto'}>
@@ -10137,8 +10145,8 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
                       {!cat?<span style={{color:'var(--tx3)',fontSize:11}}>Sin match</span>:diffNombre?<span style={{color:'var(--warn)',fontSize:11}}>⚠ Difiere</span>:<span style={{color:'var(--ok)',fontSize:11}}>✅</span>}
                     </td>
                     <td style={tdDiff(cat&&diffUnidad,{borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)',textAlign:'center'})}
-                      title={!cat?causaInfo+' — buscar manualmente o promover':diffUnidad?'Unidad catálogo "'+(cat.unidad||'—')+'" difiere de "'+(it.snapReg.unidad||'—')+'"':'Unidad coincide'}>
-                      {!cat?<span style={{color:'var(--tx3)'}}>—</span>:diffUnidad?<span style={{color:'var(--warn)',fontSize:11}}>⚠ {cat.unidad||'—'}</span>:<span style={{color:'var(--ok)',fontSize:11}}>✅</span>}
+                      title={!cat?causaInfo+' — buscar manualmente o promover':diffUnidad?'Catálogo usa "'+unidadCatLabel+'", proyecto usa "'+unidadSnapLabel+'"':'Unidad coincide'}>
+                      {!cat?<span style={{color:'var(--tx3)'}}>—</span>:diffUnidad?<span style={{color:'var(--warn)',fontSize:11}}>⚠ {unidadCatLabel}</span>:<span style={{color:'var(--ok)',fontSize:11}}>✅</span>}
                     </td>
                     <td style={tdDiff(cat&&diffPrecio,{borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)',textAlign:'center'})}
                       title={!cat?causaInfo+' — buscar manualmente o promover':(diffPrecio&&pctPrecio!=null)?'Precio catálogo '+fmt(cat[campoPrecio]||0)+' ('+(pctPrecio>0?'+':'')+pctPrecio+'%) — abrir para revisar':'Precio coincide'}>
@@ -10171,20 +10179,22 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
                         {cat?(
                           <React.Fragment>
                             <div style={{fontSize:11,fontWeight:700,marginBottom:6}}>⚖ Comparativa — elija qué valor usar en cada campo</div>
-                            <table style={{width:'100%',maxWidth:520,borderCollapse:'collapse',border:'1px solid var(--bdr)',borderRadius:4}}>
-                              <thead><tr>
-                                <th style={{fontSize:9,color:'var(--tx3)',background:'var(--bg3)',padding:'5px 8px',textAlign:'left',borderRight:'1px solid var(--bdr)',width:90}}>Campo</th>
-                                <th style={{fontSize:9,fontWeight:700,color:'var(--warn)',background:'var(--bg3)',padding:'5px 8px',textAlign:'left',borderRight:'1px solid var(--bdr)'}}>📁 Proyecto</th>
-                                <th style={{fontSize:9,fontWeight:700,color:'var(--ok)',background:'var(--bg3)',padding:'5px 8px',textAlign:'left'}}>🌐 Catálogo General</th>
-                              </tr></thead>
-                              <tbody>
-                                {cmpRow('codigo','Código',mostrarCodigo(it.snapReg.codigo),mostrarCodigo(cat.codigo),diffCodigo)}
-                                {cmpRow('nombre','Descripción',nombreRecurso(it.snapReg),nombreRecurso(cat),diffNombre)}
-                                {cmpRow('unidad','Unidad',it.snapReg.unidad||'—',cat.unidad||'—',diffUnidad)}
-                                {cmpRow('precio',campoPrecioLabel,fmt(it.snapReg[campoPrecio]||0),fmt(cat[campoPrecio]||0),diffPrecio)}
-                              </tbody>
-                            </table>
-                            <div style={{fontSize:9,color:'var(--tx3)',marginTop:6}}>💡 Campo elegido <b>📁 Proyecto</b> permanece en el proyecto; campo elegido <b style={{color:'#4ade80'}}>🌐 Catálogo</b> se adopta del catálogo. Si elige algún campo del proyecto, se confirmará antes de modificar el catálogo general.</div>
+                            <div style={{display:'flex',gap:14,alignItems:'flex-start',flexWrap:'wrap'}}>
+                              <table style={{width:'100%',maxWidth:520,borderCollapse:'collapse',border:'1px solid var(--bdr)',borderRadius:4,flex:'1 1 420px'}}>
+                                <thead><tr>
+                                  <th style={{fontSize:9,color:'var(--tx3)',background:'var(--bg3)',padding:'5px 8px',textAlign:'left',borderRight:'1px solid var(--bdr)',width:90}}>Campo</th>
+                                  <th style={{fontSize:9,fontWeight:700,color:'var(--warn)',background:'var(--bg3)',padding:'5px 8px',textAlign:'left',borderRight:'1px solid var(--bdr)'}}>📁 Proyecto</th>
+                                  <th style={{fontSize:9,fontWeight:700,color:'var(--ok)',background:'var(--bg3)',padding:'5px 8px',textAlign:'left'}}>🌐 Catálogo General</th>
+                                </tr></thead>
+                                <tbody>
+                                  {cmpRow('codigo','Código',mostrarCodigo(it.snapReg.codigo),mostrarCodigo(cat.codigo),diffCodigo)}
+                                  {cmpRow('nombre','Descripción',nombreRecurso(it.snapReg),nombreRecurso(cat),diffNombre)}
+                                  {cmpRow('unidad','Unidad',unidadSnapLabel,unidadCatLabel,diffUnidad)}
+                                  {cmpRow('precio',campoPrecioLabel,fmt(it.snapReg[campoPrecio]||0),fmt(cat[campoPrecio]||0),diffPrecio)}
+                                </tbody>
+                              </table>
+                              <div style={{fontSize:9,color:'var(--tx3)',flex:'1 1 200px',minWidth:160,lineHeight:1.5}}>💡 Campo elegido <b>📁 Proyecto</b> permanece en el proyecto; campo elegido <b style={{color:'#4ade80'}}>🌐 Catálogo</b> se adopta del catálogo. Si elige algún campo del proyecto, se confirmará antes de modificar el catálogo general.</div>
+                            </div>
                             <div style={{display:'flex',justifyContent:'flex-end',gap:8,marginTop:10}}>
                               <button onClick={function(){aplicarSeleccionCampos(it)}} style={{fontSize:11,padding:'5px 14px',border:'1px solid var(--ok)',borderRadius:4,background:'var(--ok)',color:'#fff',cursor:'pointer',fontWeight:700}}>✓ Aplicar selección</button>
                               <button onClick={function(){setBuscarPara({tipo:it.tipo,id:it.id})}} title={'Asociar "'+(it.snapReg.nombre||it.snapReg.descripcion||it.id)+'" manualmente a un recurso del catálogo general'} style={{fontSize:11,padding:'5px 14px',border:'1px solid var(--ac)',borderRadius:4,background:'transparent',color:'var(--ac)',cursor:'pointer'}}>🔍 Buscar alternativa</button>

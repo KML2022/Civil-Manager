@@ -9018,6 +9018,7 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
   var[promoverPara,setPromoverPara]=useState(null); // {tipo,id} — huerfano en modo elegir destino (global vs proyecto)
   var[huerfanosExpandidos,setHuerfanosExpandidos]=useState(function(){return new Set()}); // Set de 'tipo|id' de filas expandidas en el panel de huerfanos
   var[bannerVisible,setBannerVisible]=useState(false); // mostrar/ocultar el banner de instrucciones del panel de huerfanos
+  var[selCandidatoManual,setSelCandidatoManual]=useState(function(){return new Map()}); // 'tipo|id' -> registro de catalogo elegido a mano en huerfanos sin match automatico, para reusar la comparativa con radios en vez de asociar directo
   var prevPanelHuerfanosAbierto=useRef(false);
   React.useEffect(function(){
     var yaEstabaAbierto=prevPanelHuerfanosAbierto.current;
@@ -9025,6 +9026,7 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
     if(panelHuerfanos&&!yaEstabaAbierto){
       setHuerfanosExpandidos(new Set()); // todas las filas arrancan cerradas
       setBannerVisible(false);
+      setSelCandidatoManual(new Map());
     }
   },[panelHuerfanos]);
 
@@ -9279,14 +9281,14 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
        en el catalogo general (afecta todos los proyectos). El codigo de proyecto no se propaga al
        catalogo (ahí manda la nomenclatura global); si el recurso pasa al catalogo, se asocia por ID
        reescribiendo las referencias de los APU. */
-  var aplicarSeleccionCampos=async function(it){
-    if(!it.matchParcial)return;
+  var aplicarSeleccionCampos=async function(it,catOverride){
+    var cat=catOverride||it.matchParcial;
+    if(!cat)return;
     var key=it.tipo+'|'+it.id;
-    var sel=selHuerfano[key]||selHuerfanoDefault(it);
+    var sel=selHuerfano[key]||selHuerfanoDefault(Object.assign({},it,{matchParcial:cat}));
     var campoSnap={insumo:'insumos_snap',equipo:'equipos_snap',cargo:'cargos_snap'}[it.tipo];
     var campoGlobal={insumo:'insumos',equipo:'equipos',cargo:'cargos'}[it.tipo];
     var campoPrecio={insumo:'costo_unitario',equipo:'costo_hora',cargo:'num_salarios_base'}[it.tipo];
-    var cat=it.matchParcial;
     var alProyecto={};
     var alCatalogo=null;
     var camposAplicados=['codigo','nombre','unidad','precio'].filter(function(f){return sel[f]==='proy'||sel[f]==='cat'});
@@ -9298,15 +9300,19 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
     /* Si el usuario elige mantener el precio del proyecto (region/proyecto con costo distinto,
        situacion valida en la practica), se marca _editado_local para que futuras sincronizaciones
        por ID (sincronizar/sincronizarSnapshotAditivo) no lo pisen con el precio del catalogo. */
+    /* El precio NUNCA se propaga al catalogo general aunque se elija 'proy': a diferencia de
+       codigo/nombre/unidad (que si difieren normalmente es un error de datos a corregir en el
+       catalogo compartido), el precio puede ser legitimamente distinto por region/proyecto.
+       Elegir 'proy' en precio solo mantiene el valor propio del snapshot (_editado_local arriba),
+       sin disparar el dialogo de modificar el catalogo general ni escribirle nada. */
     if(sel.precio==='proy')alProyecto._editado_local=true;
-    var escribeCatalogo=sel.codigo==='proy'||sel.nombre==='proy'||sel.unidad==='proy'||sel.precio==='proy';
+    var escribeCatalogo=sel.codigo==='proy'||sel.nombre==='proy'||sel.unidad==='proy';
     if(escribeCatalogo){
       if(!(await askConfirm('Va a modificar el catálogo general con datos del proyecto actual.\nEsto afectará a todos los proyectos que usen "'+(cat.nombre||cat.descripcion||cat.codigo||'')+'".\n¿Continuar?')))return;
       alCatalogo={};
       if(sel.codigo==='proy'&&it.snapReg.codigo&&!esCodigoDeProyecto(it.snapReg.codigo))alCatalogo.codigo=it.snapReg.codigo;
       if(sel.nombre==='proy'){alCatalogo.nombre=it.snapReg.nombre;alCatalogo.descripcion=it.snapReg.descripcion;}
       if(sel.unidad==='proy')alCatalogo.unidad=it.snapReg.unidad;
-      if(sel.precio==='proy')alCatalogo[campoPrecio]=it.snapReg[campoPrecio];
     }
     /* Asocia por ID el snapshot al recurso del catalogo: reescribe las referencias de los APU
        y asegura una copia del recurso en el snapshot, de modo que deja de ser huerfano. */
@@ -9326,8 +9332,8 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
     }
     onChange(Object.assign({},nuevoData,{presupuestos:n}));
     setPanelHuerfanos(function(prev){var rest=(prev||[]).filter(function(x){return!(x.tipo===it.tipo&&x.id===it.id)});return rest.length?rest:null});
-    setHuerfanoExp(null);
     setSelHuerfano(function(prev){var next={};Object.keys(prev).forEach(function(k){if(k!==key)next[k]=prev[k]});return next});
+    setSelCandidatoManual(function(prev){if(!prev.has(key))return prev;var next=new Map(prev);next.delete(key);return next});
     showToast(alCatalogo?'Recurso sincronizado y catálogo general actualizado.':'Recurso sincronizado con el catálogo general.',{type:'ok'});
   };
   /* Guarda el recurso como EXCLUSIVO del proyecto: se le asigna un codigo propio
@@ -10031,7 +10037,7 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
     )}
 
     {panelHuerfanos&&ReactDOM.createPortal(
-      <div className="apu-modal-backdrop" onClick={function(){setPanelHuerfanos(null);setBuscarPara(null);setPromoverPara(null);setHuerfanosExpandidos(new Set());setBannerVisible(false)}}>
+      <div className="apu-modal-backdrop" onClick={function(){setPanelHuerfanos(null);setBuscarPara(null);setPromoverPara(null);setHuerfanosExpandidos(new Set());setBannerVisible(false);setSelCandidatoManual(new Map())}}>
         <div className="apu-modal-container" style={{padding:16,display:'flex',flexDirection:'column',maxHeight:'85vh',overflow:'hidden',width:1148,maxWidth:'95vw'}} onClick={function(e){e.stopPropagation()}}>
           {(function(){
             var totalH=panelHuerfanos.length;
@@ -10090,8 +10096,16 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
                 var enPromover=promoverPara&&promoverPara.tipo===it.tipo&&promoverPara.id===it.id;
                 var keyH=it.tipo+'|'+it.id;
                 var expandido=huerfanosExpandidos.has(keyH);
-                var cat=it.matchParcial;
-                var selIt=selHuerfano[keyH]||selHuerfanoDefault(it);
+                var candidatoManual=selCandidatoManual.get(keyH)||null;
+                var cat=it.matchParcial||candidatoManual;
+                var selIt=selHuerfano[keyH]||selHuerfanoDefault(cat?Object.assign({},it,{matchParcial:cat}):it);
+                var elegirCandidatoManual=function(idElegido){
+                  var elegido=opciones.find(function(o){return o.id===idElegido});
+                  if(!elegido)return;
+                  setSelCandidatoManual(function(prev){var next=new Map(prev);next.set(keyH,elegido);return next});
+                  setBuscarPara(null);
+                  setHuerfanosExpandidos(function(prev){var next=new Set(prev);next.add(keyH);return next});
+                };
                 var diffCodigo=cat&&(it.snapReg.codigo||'').trim().toLowerCase()!==(cat.codigo||'').trim().toLowerCase();
                 var diffNombre=cat&&((it.snapReg.nombre||it.snapReg.descripcion||'').trim()!==(cat.nombre||cat.descripcion||'').trim());
                 var esCargo=it.tipo==='cargo';
@@ -10155,7 +10169,7 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
                     <td style={Object.assign({},MOD_TD,{textAlign:'center',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})} title={it.apus.join(', ')}>{it.apus.length}</td>
                     <td style={Object.assign({},MOD_TD,{textAlign:'center',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>
                       {enBusqueda?(
-                        <select className="sel" style={{fontSize:10,maxWidth:170}} onChange={function(e){asociarManual(it,e.target.value)}} defaultValue="">
+                        <select className="sel" style={{fontSize:10,maxWidth:170}} onChange={function(e){elegirCandidatoManual(e.target.value)}} defaultValue="">
                           <option value="" disabled>-- elegir del catálogo --</option>
                           {opciones.map(function(o){return <option key={o.id} value={o.id}>{o.codigo?o.codigo+' — ':''}{nombreRecurso(o)}{o.unidad?' ('+o.unidad+')':''} — {fmt(o[campoPrecio]||0)}</option>})}
                         </select>
@@ -10196,7 +10210,7 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
                               <div style={{fontSize:9,color:'var(--tx3)',flex:'1 1 200px',minWidth:160,lineHeight:1.5}}>💡 Campo elegido <b>📁 Proyecto</b> permanece en el proyecto; campo elegido <b style={{color:'#4ade80'}}>🌐 Catálogo</b> se adopta del catálogo. Si elige algún campo del proyecto, se confirmará antes de modificar el catálogo general.</div>
                             </div>
                             <div style={{display:'flex',justifyContent:'flex-end',gap:8,marginTop:10}}>
-                              <button onClick={function(){aplicarSeleccionCampos(it)}} style={{fontSize:11,padding:'5px 14px',border:'1px solid var(--ok)',borderRadius:4,background:'var(--ok)',color:'#fff',cursor:'pointer',fontWeight:700}}>✓ Aplicar selección</button>
+                              <button onClick={function(){aplicarSeleccionCampos(it,cat)}} style={{fontSize:11,padding:'5px 14px',border:'1px solid var(--ok)',borderRadius:4,background:'var(--ok)',color:'#fff',cursor:'pointer',fontWeight:700}}>✓ Aplicar selección</button>
                               <button onClick={function(){setBuscarPara({tipo:it.tipo,id:it.id})}} title={'Asociar "'+(it.snapReg.nombre||it.snapReg.descripcion||it.id)+'" manualmente a un recurso del catálogo general'} style={{fontSize:11,padding:'5px 14px',border:'1px solid var(--ac)',borderRadius:4,background:'transparent',color:'var(--ac)',cursor:'pointer'}}>🔍 Buscar alternativa</button>
                               <button onClick={function(){mantenerHuerfano(it)}} title={'Conservar "'+(it.snapReg.nombre||it.snapReg.descripcion||it.id)+'" con su precio actual — no volverá a aparecer aquí'} style={{fontSize:11,padding:'5px 14px',border:'1px solid var(--ok)',borderRadius:4,background:'transparent',color:'var(--ok)',cursor:'pointer'}}>✓ Mantener</button>
                               <button onClick={function(){setPromoverPara({tipo:it.tipo,id:it.id})}} title="Guardar el recurso en el catálogo o como exclusivo del proyecto" style={{fontSize:11,padding:'5px 14px',border:'none',borderRadius:4,background:'var(--ac)',color:'#fff',cursor:'pointer'}}>⬆ Promover</button>
@@ -10207,8 +10221,13 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
                           <React.Fragment>
                             <div style={{fontSize:11,color:'var(--tx2)',marginBottom:4}}>No se encontró equivalente en el catálogo general.</div>
                             <div style={{fontSize:10,color:causaColor,marginBottom:8}}>{causaInfo}</div>
+                            <div style={{display:'inline-block',border:'1px solid var(--bdr)',borderRadius:4,padding:'6px 10px',marginBottom:8,background:'var(--bg3)'}}>
+                              <div style={{fontSize:9,fontWeight:700,color:'var(--warn)',marginBottom:3}}>📁 Datos del proyecto</div>
+                              <div style={{fontSize:10,color:'var(--tx2)'}}>{nombreRecurso(it.snapReg)}</div>
+                              <div style={{fontSize:9,color:'var(--tx3)',marginTop:2}}>{unidadSnapLabel} · {fmt(it.snapReg[campoPrecio]||0)}</div>
+                            </div>
                             {enBusqueda&&(
-                              <select className="sel" style={{fontSize:10,maxWidth:280,marginBottom:8,display:'block'}} onChange={function(e){asociarManual(it,e.target.value)}} defaultValue="">
+                              <select className="sel" style={{fontSize:10,maxWidth:280,marginBottom:8,display:'block'}} onChange={function(e){elegirCandidatoManual(e.target.value)}} defaultValue="">
                                 <option value="" disabled>-- elegir del catálogo --</option>
                                 {opciones.map(function(o){return <option key={o.id} value={o.id}>{o.codigo?o.codigo+' — ':''}{nombreRecurso(o)}{o.unidad?' ('+o.unidad+')':''} — {fmt(o[campoPrecio]||0)}</option>})}
                               </select>
@@ -10230,7 +10249,7 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
           </table>
           </div>
           <div style={{display:'flex',justifyContent:'flex-end',marginTop:14,flex:'0 0 auto'}}>
-            <button onClick={function(){setPanelHuerfanos(null);setBuscarPara(null);setPromoverPara(null);setHuerfanosExpandidos(new Set());setBannerVisible(false)}} style={{fontSize:11,padding:'6px 14px',border:'1px solid var(--bdr)',borderRadius:4,background:'transparent',color:'var(--tx2)',cursor:'pointer'}}>Cerrar</button>
+            <button onClick={function(){setPanelHuerfanos(null);setBuscarPara(null);setPromoverPara(null);setHuerfanosExpandidos(new Set());setBannerVisible(false);setSelCandidatoManual(new Map())}} style={{fontSize:11,padding:'6px 14px',border:'1px solid var(--bdr)',borderRadius:4,background:'transparent',color:'var(--tx2)',cursor:'pointer'}}>Cerrar</button>
           </div>
         </div>
       </div>,

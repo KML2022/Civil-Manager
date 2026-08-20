@@ -1063,6 +1063,12 @@ function mostrarCodigo(cod){
   if(m)return <span>{m[1]} <span style={{fontSize:'0.75em',opacity:.75,color:'var(--tx3)'}}>{m[2]}</span></span>;
   return <span>{s}</span>;
 }
+/* Version texto plano de mostrarCodigo, para usar en atributos string (title/tooltip) donde
+   no se puede concatenar el <span> JSX que devuelve mostrarCodigo (daria "[object Object]"). */
+function mostrarCodigoTexto(cod){
+  if(!cod)return '—';
+  return String(cod);
+}
 
 const handleTabKeyDown=function(setEditIdx){return function(i,e){if(e.key==='Enter'){e.preventDefault();var tr=e.target.closest('tr');var inputs=[].slice.call(tr.querySelectorAll('input.ni,select.sel'));var idx=inputs.indexOf(e.target);if(idx<inputs.length-1)inputs[idx+1].focus();else setEditIdx(null)}else if(e.key==='Escape')setEditIdx(null)}};
 
@@ -3373,7 +3379,7 @@ function analizarActualizacionCatalogo(pres,data){
     var cod=(snapReg.codigo||'').trim().toLowerCase();
     var enGlobalPorCodigo=cod?globalPorCod.get(cod):null;
     if(enGlobalPorCodigo){
-      huerfanos.push({tipo:tipo,id:id,snapReg:snapReg,apus:apus,causa:'codigo_diferente',matchParcial:null,score:null});
+      huerfanos.push({tipo:tipo,id:id,snapReg:snapReg,apus:apus,causa:'codigo_diferente',matchParcial:null,score:null,codigoCoincidente:enGlobalPorCodigo});
       return;
     }
 
@@ -8995,6 +9001,7 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
   var cambiarTipo=function(t){setTipo(t);setCuadrillaLocalIdx(null);setPrevTipo(undefined)};
 
   var analisis=useMemo(function(){return analizarActualizacionCatalogo(pres,data)},[pres,data]);
+  var pendientesReparar=useMemo(function(){return repararRecursosFaltantesDeApus(pres,data).resumen.completados},[pres,data]);
   var[revisionCodigo,setRevisionCodigo]=useState(null); // [{tipo,id,snapReg,globalReg,campoPrecio,precioNuevo,apus}]
   var[revisionMsg,setRevisionMsg]=useState(null); // banner fijo bajo el titulo del panel de revision por codigo
   var[mensajeActualizacion,setMensajeActualizacion]=useState(null); // {tipo,texto} — mensaje inline bajo los botones (reemplaza toast de sincronizar)
@@ -9011,9 +9018,7 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
     var yaEstabaAbierto=prevPanelHuerfanosAbierto.current;
     prevPanelHuerfanosAbierto.current=!!panelHuerfanos;
     if(panelHuerfanos&&!yaEstabaAbierto){
-      var iniciales=new Set();
-      panelHuerfanos.forEach(function(it){if(it.matchParcial)iniciales.add(it.tipo+'|'+it.id)});
-      setHuerfanosExpandidos(iniciales);
+      setHuerfanosExpandidos(new Set()); // todas las filas arrancan cerradas
       setBannerVisible(false);
     }
   },[panelHuerfanos]);
@@ -9285,6 +9290,10 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
     if(sel.nombre==='cat'){alProyecto.nombre=cat.nombre;if(cat.descripcion!==undefined)alProyecto.descripcion=cat.descripcion;}
     if(sel.unidad==='cat')alProyecto.unidad=cat.unidad;
     if(sel.precio==='cat')alProyecto[campoPrecio]=cat[campoPrecio];
+    /* Si el usuario elige mantener el precio del proyecto (region/proyecto con costo distinto,
+       situacion valida en la practica), se marca _editado_local para que futuras sincronizaciones
+       por ID (sincronizar/sincronizarSnapshotAditivo) no lo pisen con el precio del catalogo. */
+    if(sel.precio==='proy')alProyecto._editado_local=true;
     var escribeCatalogo=sel.codigo==='proy'||sel.nombre==='proy'||sel.unidad==='proy'||sel.precio==='proy';
     if(escribeCatalogo){
       if(!(await askConfirm('Va a modificar el catálogo general con datos del proyecto actual.\nEsto afectará a todos los proyectos que usen "'+(cat.nombre||cat.descripcion||cat.codigo||'')+'".\n¿Continuar?')))return;
@@ -9455,19 +9464,34 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
          usa alignItems:'flex-start' sin recortar), asi que sin este wrapper el scroll termina cayendo
          en la ventana completa del navegador en vez de quedar contenido aqui. */}
       <div className="visor-catalogo-embed" style={{maxHeight:'calc(100vh - 150px)',width:'fit-content',maxWidth:'100%',overflow:'auto',display:'flex',flexDirection:'column',gap:6}}>
-      <TituloSubTab pres={pres} presupuestos={presupuestos} tituloSubTab="Recursos del Proyecto" width={anchoTitulo} stacked extra={esEditable&&(
-        <div style={{display:'flex',gap:6}}>
-          <button onClick={sincronizar} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--ac)',borderRadius:4,background:'transparent',color:'var(--ac)',cursor:'pointer'}}>
-            🔄 Actualizar desde catálogo general
-          </button>
-          <button onClick={reparar} style={{fontSize:10,padding:'4px 10px',border:'1px solid #fbbf24',borderRadius:4,background:'transparent',color:'#fbbf24',cursor:'pointer'}}>
-            🔧 Reparar recursos faltantes de APU
-          </button>
-          {analisis.huerfanos.length>0&&<button onClick={function(){setPanelHuerfanos(analisis.huerfanos)}} style={{fontSize:10,padding:'4px 10px',border:'1px solid #f87171',borderRadius:4,background:'transparent',color:'#f87171',cursor:'pointer'}}>
-            ⚠ {analisis.huerfanos.length} huérfano(s)
-          </button>}
-        </div>
-      )}/>
+      <TituloSubTab pres={pres} presupuestos={presupuestos} tituloSubTab="Recursos del Proyecto" width={anchoTitulo} stacked extra={esEditable&&(function(){
+        var nActualizar=analisis.porId.length+analisis.porCodigo.length;
+        var nReparar=pendientesReparar;
+        var nHuerfanos=analisis.huerfanos.length;
+        var todoResuelto=nActualizar===0&&nReparar===0&&nHuerfanos===0;
+        return(
+          <div style={{display:'flex',alignItems:'center',gap:8}}>
+            <span style={{fontSize:10,fontWeight:700,padding:'5px 10px',borderRadius:4,background:'#000',color:'#fff',whiteSpace:'nowrap'}}>Estados por Resolver:</span>
+            <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+              {todoResuelto?(
+                <span style={{fontSize:10,fontWeight:700,padding:'5px 12px',borderRadius:20,border:'1px solid var(--ok)',background:'rgba(74,222,128,.12)',color:'var(--ok)'}}>✓ Todo resuelto</span>
+              ):(
+                <React.Fragment>
+                  {nActualizar>0&&<button onClick={sincronizar} style={{fontSize:10,fontWeight:600,padding:'5px 12px',border:'1px solid var(--ac)',borderRadius:20,background:'rgba(77,143,247,.12)',color:'var(--ac)',cursor:'pointer'}}>
+                    🔄 Actualizar desde catálogo general ({nActualizar})
+                  </button>}
+                  {nReparar>0&&<button onClick={reparar} style={{fontSize:10,fontWeight:600,padding:'5px 12px',border:'1px solid #fbbf24',borderRadius:20,background:'rgba(251,191,36,.12)',color:'#fbbf24',cursor:'pointer'}}>
+                    🔧 Reparar recursos faltantes de APU ({nReparar})
+                  </button>}
+                  {nHuerfanos>0&&<button onClick={function(){setPanelHuerfanos(analisis.huerfanos)}} style={{fontSize:10,fontWeight:600,padding:'5px 12px',border:'1px solid #f87171',borderRadius:20,background:'rgba(248,113,113,.12)',color:'#f87171',cursor:'pointer'}}>
+                    ⚠ {nHuerfanos} huérfano(s)
+                  </button>}
+                </React.Fragment>
+              )}
+            </div>
+          </div>
+        );
+      })()}/>
       <BannerEstadoProyecto pres={pres} estadoLabel={estadoLabel} estadoColor={estadoColor} width={anchoTitulo}/>
       {mensajeActualizacion&&(
         <div style={{display:'flex',alignItems:'flex-start',gap:10,padding:'8px 14px',marginTop:8,borderRadius:4,fontSize:11,lineHeight:1.6,flex:'0 0 auto',
@@ -10003,7 +10027,7 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
 
     {panelHuerfanos&&ReactDOM.createPortal(
       <div className="apu-modal-backdrop" onClick={function(){setPanelHuerfanos(null);setBuscarPara(null);setPromoverPara(null);setHuerfanosExpandidos(new Set());setBannerVisible(false)}}>
-        <div className="apu-modal-container" style={{padding:16,display:'flex',flexDirection:'column',maxHeight:'85vh',overflow:'hidden',width:1200,maxWidth:'95vw'}} onClick={function(e){e.stopPropagation()}}>
+        <div className="apu-modal-container" style={{padding:16,display:'flex',flexDirection:'column',maxHeight:'85vh',overflow:'hidden',width:1148,maxWidth:'95vw'}} onClick={function(e){e.stopPropagation()}}>
           {(function(){
             var totalH=panelHuerfanos.length;
             var conMatch=panelHuerfanos.filter(function(it){return it.matchParcial}).length;
@@ -10012,18 +10036,18 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
               <div style={{flex:'0 0 auto',marginBottom:10}}>
                 <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
                   <div style={{fontSize:13,fontWeight:700,color:'var(--tx)'}}>Recursos faltantes en el catálogo general</div>
-                  <button onClick={function(){setBannerVisible(!bannerVisible)}} style={{fontSize:10,padding:'3px 10px',border:'1px solid var(--bdr)',borderRadius:4,background:'transparent',color:'var(--tx2)',cursor:'pointer'}}>{bannerVisible?'▲ Ocultar guía':'? Ver guía'}</button>
+                  <button onClick={function(){setBannerVisible(!bannerVisible)}} style={{fontSize:13,fontWeight:700,padding:'8px 18px',border:'1px solid var(--ac)',borderRadius:6,background:bannerVisible?'var(--ac)':'rgba(77,143,247,.12)',color:bannerVisible?'#fff':'var(--ac)',cursor:'pointer'}}>{bannerVisible?'▲ Ocultar guía':'? Ver guía'}</button>
                 </div>
                 <div style={{fontSize:11,color:'var(--tx3)',marginTop:2}}>{totalH} recurso(s) · {conMatch} con posible match · {sinMatch} sin equivalente</div>
                 {bannerVisible&&(
                   <div style={{background:'var(--bg2)',border:'1px solid var(--bdr)',borderRadius:4,padding:'10px 14px',marginTop:8,fontSize:11,color:'var(--tx2)',lineHeight:1.7}}>
                     <strong>Estos recursos están siendo usados en los APU de este proyecto</strong> pero no tienen equivalente en el catálogo general ni por ID ni por similitud de descripción ({'≥'} 25%). Pueden ser recursos creados directamente en el proyecto o eliminados del catálogo general.<br/>
                     <span style={{marginTop:4,display:'block'}}>
-                      <strong>⚖ Comparar:</strong> abre la comparativa campo a campo proyecto vs catálogo (cuando hay un posible match por <em>descripción</em>) y permite elegir qué valor usar en cada campo.<br/>
-                      <strong>🔍 Buscar:</strong> asociar manualmente a un recurso del catálogo general — se reemplazarán todas las referencias en los APU afectados.<br/>
-                      <strong>✓ Mantener:</strong> conservar el recurso tal como está con su precio actual. No se modifica nada y <strong>no volverá a aparecer en este panel</strong>.<br/>
-                      <strong>🗑 Eliminar:</strong> quitar este recurso de todos los APU afectados y recalcular sus subtotales. <strong>Esta acción no se puede deshacer.</strong><br/>
-                      <strong>⬆ Promover:</strong> guardar el recurso en el catálogo general (código secuencial global) o como <strong>exclusivo del proyecto</strong> (código EQ-XXX PPT-YYY con consecutivo propio).
+                      <strong style={{color:'#fb923c'}}>⚖ Comparar:</strong> abre la comparativa campo a campo proyecto vs catálogo (cuando hay un posible match por <em>descripción</em>) y permite elegir qué valor usar en cada campo.<br/>
+                      <strong style={{color:'var(--ac)'}}>🔍 Buscar:</strong> asociar manualmente a un recurso del catálogo general — se reemplazarán todas las referencias en los APU afectados.<br/>
+                      <strong style={{color:'var(--ok)'}}>✓ Mantener:</strong> conservar el recurso tal como está con su precio actual. No se modifica nada y <strong>no volverá a aparecer en este panel</strong>.<br/>
+                      <strong style={{color:'#f87171'}}>🗑 Eliminar:</strong> quitar este recurso de todos los APU afectados y recalcular sus subtotales. <strong>Esta acción no se puede deshacer.</strong><br/>
+                      <strong style={{color:'#c084fc'}}>⬆ Promover:</strong> guardar el recurso en el catálogo general (código secuencial global) o como <strong>exclusivo del proyecto</strong> (código EQ-XXX PPT-YYY con consecutivo propio).
                     </span>
                   </div>
                 )}
@@ -10031,8 +10055,8 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
             );
           })()}
           <div style={{overflow:'auto',flex:'1 1 auto'}}>
-          <table style={{width:998,borderCollapse:'separate',borderSpacing:0,fontSize:11,tableLayout:'fixed'}}>
-            <colgroup><col style={{width:55}}/><col style={{width:90}}/><col style={{width:300}}/><col style={{width:38}}/><col style={{width:85}}/><col style={{width:70}}/><col style={{width:75}}/><col style={{width:65}}/><col style={{width:65}}/><col style={{width:45}}/><col style={{width:110}}/></colgroup>
+          <table style={{width:1098,borderCollapse:'separate',borderSpacing:0,fontSize:11,tableLayout:'fixed'}}>
+            <colgroup><col style={{width:65}}/><col style={{width:90}}/><col style={{width:300}}/><col style={{width:38}}/><col style={{width:85}}/><col style={{width:90}}/><col style={{width:95}}/><col style={{width:65}}/><col style={{width:85}}/><col style={{width:75}}/><col style={{width:110}}/></colgroup>
             <thead>
               <tr style={{background:'var(--bg3)'}}>
                 <th rowSpan={2} style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',verticalAlign:'middle',borderTop:'1px solid var(--bdr)',borderLeft:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Tipo</th>
@@ -10040,8 +10064,8 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
                 <th rowSpan={2} style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',verticalAlign:'middle',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Descripción (proyecto)</th>
                 <th rowSpan={2} style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',verticalAlign:'middle',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Un</th>
                 <th rowSpan={2} style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',verticalAlign:'middle',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Vr. Unitario</th>
-                <th colSpan={4} style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Match catálogo</th>
-                <th rowSpan={2} style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',verticalAlign:'middle',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>APUs</th>
+                <th colSpan={4} style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Match Catálogo General</th>
+                <th rowSpan={2} style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',textAlign:'center',verticalAlign:'middle',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>APUs<br/>Afectados</th>
                 <th rowSpan={2} style={Object.assign({},MOD_TH,{position:'sticky',top:0,background:'var(--bg3)',whiteSpace:'nowrap',textAlign:'center',verticalAlign:'middle',borderTop:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>Acción</th>
               </tr>
               <tr style={{background:'var(--bg3)'}}>
@@ -10100,27 +10124,24 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
                 return(<React.Fragment key={keyH}>
                   <tr>
                     <td style={Object.assign({},MOD_TD,{whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',borderLeft:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>{etiquetaTipo[it.tipo]}</td>
-                    <td style={Object.assign({},MOD_TD,{borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>
-                      <div style={{whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{mostrarCodigo(it.snapReg.codigo)}</div>
-                      <div style={{fontSize:9,color:causaColor,marginTop:2}}>{causaInfo}</div>
-                    </td>
+                    <td style={Object.assign({},MOD_TD,{borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'})}>{mostrarCodigo(it.snapReg.codigo)}</td>
                     <td style={Object.assign({},MOD_TD,{whiteSpace:'normal',wordBreak:'break-word',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>{nombreRecurso(it.snapReg)}</td>
                     <td style={Object.assign({},MOD_TD,{textAlign:'center',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>{it.snapReg.unidad||'—'}</td>
                     <td style={Object.assign({},MOD_TD,{textAlign:'right',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})}>{fmt(it.snapReg[campoPrecio]||0)}</td>
                     <td style={tdDiff(cat&&diffCodigo,{borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)',textAlign:'center'})}
-                      title={!cat?'Sin equivalente en el catálogo':diffCodigo?'Código en catálogo: '+mostrarCodigo(cat.codigo):'Código igual al del proyecto'}>
-                      {!cat?<span style={{color:'var(--tx3)',fontSize:11}}>—</span>:diffCodigo?<span style={{color:'var(--warn)',fontSize:11}}>⚠ {mostrarCodigo(cat.codigo)}</span>:<span style={{color:'var(--ok)',fontSize:11}}>✅</span>}
+                      title={!cat?(it.causa==='codigo_diferente'?causaInfo+' — código "'+mostrarCodigoTexto(it.snapReg.codigo)+'" coincide con "'+mostrarCodigoTexto((it.codigoCoincidente&&it.codigoCoincidente.codigo)||'')+'" ('+nombreRecurso(it.codigoCoincidente||{})+') — no es el mismo recurso':causaInfo):diffCodigo?'Código en catálogo: '+mostrarCodigoTexto(cat.codigo):'Código igual al del proyecto'}>
+                      {!cat?(it.causa==='codigo_diferente'?<span style={{fontSize:9,color:'#f87171'}}>⚠ {mostrarCodigo((it.codigoCoincidente&&it.codigoCoincidente.codigo)||'')}</span>:<span style={{color:'var(--tx3)',fontSize:11}}>—</span>):diffCodigo?<span style={{color:'var(--warn)',fontSize:11}}>⚠ {mostrarCodigo(cat.codigo)}</span>:<span style={{color:'var(--ok)',fontSize:11}}>✅</span>}
                     </td>
                     <td style={tdDiff(cat&&diffNombre,{borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)',textAlign:'center'})}
-                      title={!cat?(it.causa==='codigo_diferente'?'Código coincide, descripción diferente':'Sin equivalente — buscar o promover'):diffNombre?'Nombre difiere de "'+nombreRecurso(cat)+'" — abrir para comparar':'Nombre coincide'}>
-                      {!cat?(it.causa==='codigo_diferente'?<span style={{fontSize:9,color:'#f87171'}}>⚠ Cód. igual</span>:<span style={{color:'var(--tx3)',fontSize:11}}>Sin match</span>):diffNombre?<span style={{color:'var(--warn)',fontSize:11}}>⚠ Difiere</span>:<span style={{color:'var(--ok)',fontSize:11}}>✅</span>}
+                      title={!cat?causaInfo+' — buscar manualmente o promover':diffNombre?'Nombre difiere de "'+nombreRecurso(cat)+'" ('+causaInfo+') — abrir para comparar':'Nombre coincide ('+causaInfo+')'}>
+                      {!cat?<span style={{color:'var(--tx3)',fontSize:11}}>Sin match</span>:diffNombre?<span style={{color:'var(--warn)',fontSize:11}}>⚠ Difiere</span>:<span style={{color:'var(--ok)',fontSize:11}}>✅</span>}
                     </td>
                     <td style={tdDiff(cat&&diffUnidad,{borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)',textAlign:'center'})}
-                      title={!cat?'—':diffUnidad?'Unidad catálogo "'+(cat.unidad||'—')+'" difiere de "'+(it.snapReg.unidad||'—')+'"':'Unidad coincide'}>
+                      title={!cat?causaInfo+' — buscar manualmente o promover':diffUnidad?'Unidad catálogo "'+(cat.unidad||'—')+'" difiere de "'+(it.snapReg.unidad||'—')+'"':'Unidad coincide'}>
                       {!cat?<span style={{color:'var(--tx3)'}}>—</span>:diffUnidad?<span style={{color:'var(--warn)',fontSize:11}}>⚠ {cat.unidad||'—'}</span>:<span style={{color:'var(--ok)',fontSize:11}}>✅</span>}
                     </td>
                     <td style={tdDiff(cat&&diffPrecio,{borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)',textAlign:'center'})}
-                      title={!cat?'—':(diffPrecio&&pctPrecio!=null)?'Precio catálogo '+fmt(cat[campoPrecio]||0)+' ('+(pctPrecio>0?'+':'')+pctPrecio+'%) — abrir para revisar':'Precio coincide'}>
+                      title={!cat?causaInfo+' — buscar manualmente o promover':(diffPrecio&&pctPrecio!=null)?'Precio catálogo '+fmt(cat[campoPrecio]||0)+' ('+(pctPrecio>0?'+':'')+pctPrecio+'%) — abrir para revisar':'Precio coincide'}>
                       {!cat?<span style={{color:'var(--tx3)'}}>—</span>:(diffPrecio&&pctPrecio!=null)?<span style={{color:'var(--warn)',fontSize:11}}>⚠ {pctPrecio>0?'+':''}{pctPrecio}%</span>:<span style={{color:'var(--ok)',fontSize:11}}>✅</span>}
                     </td>
                     <td style={Object.assign({},MOD_TD,{textAlign:'center',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'})} title={it.apus.join(', ')}>{it.apus.length}</td>

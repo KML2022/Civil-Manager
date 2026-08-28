@@ -9533,11 +9533,14 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
         var nReparar=pendientesReparar;
         var nHuerfanos=analisis.huerfanos.length;
         var todoResuelto=nActualizar===0&&nReparar===0&&nHuerfanos===0;
+        var sinRecursosAun=(pres.apus_snap||[]).length===0; // proyecto nuevo, sin ningun APU asignado todavia: "Todo resuelto" no aplica, no hay nada que resolver
         return(
           <div style={{display:'flex',alignItems:'center',gap:8}}>
             <span style={{fontSize:10,fontWeight:700,padding:'5px 10px',borderRadius:4,background:'#000',color:'#fff',whiteSpace:'nowrap'}}>Estados por Resolver:</span>
             <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
-              {todoResuelto?(
+              {todoResuelto&&sinRecursosAun?(
+                <span style={{fontSize:10,fontWeight:600,padding:'5px 12px',borderRadius:20,border:'1px solid var(--bdr)',color:'var(--tx3)'}}>— Sin recursos aún (asigna un APU en el Formulario)</span>
+              ):todoResuelto?(
                 <span style={{fontSize:10,fontWeight:700,padding:'5px 12px',borderRadius:20,border:'1px solid var(--ok)',background:'rgba(74,222,128,.12)',color:'var(--ok)'}}>✓ Todo resuelto</span>
               ):(
                 <React.Fragment>

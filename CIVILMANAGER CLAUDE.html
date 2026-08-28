@@ -863,6 +863,8 @@ const defaultState=()=>({
 
   presupuestos:[],
 
+  proyectos_eliminados:[],
+
   proveedores:[],
 
   categorias_apu:CATEGORIAS_APU.map(c=>({...c})),
@@ -7545,7 +7547,7 @@ function BannerEstadoProyecto({pres,estadoLabel,estadoColor,width}){
   );
 }
 /* ══════════════════ 1. PROYECTOS (sub-componente de PresupuestosTab) ══════════════════ */
-function PresProyectosPanel({presupuestos,selPresIdx,setSelPresIdx,data,onChange,estadoColor,estadoLabel,addPresupuesto,addSubProyecto,toggleEstado,cambiarPerfilPais,delPresupuesto,setTab}){
+function PresProyectosPanel({presupuestos,selPresIdx,setSelPresIdx,data,onChange,estadoColor,estadoLabel,addPresupuesto,addSubProyecto,toggleEstado,cambiarPerfilPais,delPresupuesto,clonarPresupuesto,setTab}){
   var editIdxState=useState(null);
   var editIdx=editIdxState[0];
   var setEditIdx=editIdxState[1];
@@ -7556,6 +7558,7 @@ function PresProyectosPanel({presupuestos,selPresIdx,setSelPresIdx,data,onChange
   var searchTipo=searchTipoState[0];
   var setSearchTipo=searchTipoState[1];
   var[proyMsg,setProyMsg]=useState(null);
+  var[mostrarEliminados,setMostrarEliminados]=useState(false);
   React.useEffect(function(){if(!proyMsg)return;var t=setTimeout(function(){setProyMsg(null)},5000);return function(){clearTimeout(t)}},[proyMsg]);
 
   var updField=function(idx,key,val){
@@ -7688,6 +7691,7 @@ function PresProyectosPanel({presupuestos,selPresIdx,setSelPresIdx,data,onChange
                     <td className="col-act" style={{textAlign:'center'}}>
                       <span style={{display:'inline-flex',alignItems:'center',gap:4}}>
                         <button className="btn-edit" title={isEdit?'Listo':'Editar'} onClick={function(){setEditIdx(isEdit?null:i)}} style={{background:'none',border:'none',cursor:'pointer',padding:0}}>{isEdit?<span style={{fontSize:9,color:'var(--ok)',fontWeight:700}}>Listo</span>:<IconEdit/>}</button>
+                        <button title="Clonar proyecto" onClick={function(){clonarPresupuesto(i)}} style={{background:'none',border:'none',cursor:'pointer',padding:2,opacity:.8,lineHeight:1,display:'inline-flex',alignItems:'center',justifyContent:'center'}}><svg viewBox="0 0 16 16" width="17" height="17"><rect x="5" y="5" width="9" height="9" rx="1" fill="none" stroke="var(--ac)" strokeWidth="1.3"/><path d="M3 11V3a1 1 0 0 1 1-1h8" fill="none" stroke="var(--ac)" strokeWidth="1.3" strokeLinecap="round"/></svg></button>
                         <button className="btn-del" title="Eliminar" onClick={function(){delPresupuesto(i)}} style={{background:'none',border:'none',cursor:'pointer',padding:0}}><IconDel/></button>
                       </span>
                     </td>
@@ -7702,6 +7706,52 @@ function PresProyectosPanel({presupuestos,selPresIdx,setSelPresIdx,data,onChange
           <input className="ni" style={{width:130,height:22,fontSize:11,border:'1px solid var(--ac)',borderRadius:4}} placeholder="Buscar por Tipo de Proyecto..." value={searchTipo} onChange={function(e){setSearchTipo(e.target.value)}}/>
         </CrudFooter>
         <ExcelPreviewModal excel={presupuestosExcel}/>
+        {(data.proyectos_eliminados||[]).length>0&&(
+          <div style={{marginTop:8,width:1425}}>
+            <button onClick={function(){setMostrarEliminados(!mostrarEliminados)}} style={{background:'var(--bg3)',border:'1px solid var(--bdr)',borderRadius:4,color:'var(--tx3)',fontSize:10,padding:'3px 10px',cursor:'pointer',marginBottom:4}}>
+              {mostrarEliminados?'▲':'▼'} Proyectos eliminados ({(data.proyectos_eliminados||[]).length})
+            </button>
+            {mostrarEliminados&&(
+              <div className="xl-wrap" style={{width:1425,opacity:.7}}>
+                <div className="xl-scroll" style={{maxHeight:160}}>
+                  <table style={{tableLayout:'fixed',width:'1425px'}}>
+                    <colgroup>
+                      <col className="col-rn" style={{width:'30px'}}/>
+                      <col style={{width:'80px'}}/>
+                      <col style={{width:'280px'}}/>
+                      <col style={{width:'180px'}}/>
+                      <col style={{width:'100px'}}/>
+                      <col style={{width:'110px'}}/>
+                      <col style={{width:'110px'}}/>
+                    </colgroup>
+                    <thead><tr>
+                      <th className="col-rn">#</th>
+                      <th>Código</th>
+                      <th>Nombre</th>
+                      <th>Cliente</th>
+                      <th>Estado</th>
+                      <th>Fecha Creación</th>
+                      <th>Fecha Eliminación</th>
+                    </tr></thead>
+                    <tbody>
+                      {(data.proyectos_eliminados||[]).map(function(pe,ei){return(
+                        <tr key={ei} style={{opacity:.6}}>
+                          <td className="col-rn">{ei+1}</td>
+                          <td style={{padding:'0 6px',textAlign:'center',color:'var(--err)',fontWeight:700,textDecoration:'line-through'}}>{pe.codigo}</td>
+                          <td style={{padding:'0 6px',textDecoration:'line-through',color:'var(--tx3)'}}>{pe.nombre}</td>
+                          <td style={{padding:'0 6px',color:'var(--tx3)'}}>{pe.entidad||'—'}</td>
+                          <td style={{padding:'0 6px',textAlign:'center',color:'var(--tx3)'}}>{pe.estado||'—'}</td>
+                          <td style={{padding:'0 6px',textAlign:'center',color:'var(--tx3)'}}>{pe.fecha_creacion||'—'}</td>
+                          <td style={{padding:'0 6px',textAlign:'center',color:'var(--err)'}}>{pe.fecha_eliminacion||'—'}</td>
+                        </tr>
+                      )})}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -10324,6 +10374,7 @@ function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,i
   function genCodigoPpto(){
     var maxN=0;
     presupuestos.forEach(function(p){var m=(p.codigo||'').match(/PPT-(\d+)/);if(m)maxN=Math.max(maxN,parseInt(m[1]))});
+    (data.proyectos_eliminados||[]).forEach(function(p){var m=(p.codigo||'').match(/PPT-(\d+)/);if(m)maxN=Math.max(maxN,parseInt(m[1]))});
     return 'PPT-'+String(maxN+1).padStart(3,'0');
   }
 
@@ -10386,9 +10437,58 @@ function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,i
     }
     var idsEliminar={};idsEliminar[pres0.id]=true;hijos.forEach(function(h){idsEliminar[h.id]=true});
     var arr=presupuestos.filter(function(p){return !idsEliminar[p.id]});
-    onChange(Object.assign({},data,{presupuestos:arr}));
+    var fechaHoy=new Date().toISOString().slice(0,10);
+    var nuevosEliminados=(data.proyectos_eliminados||[]).concat(
+      [{codigo:pres0.codigo,nombre:pres0.nombre||'Sin nombre',entidad:pres0.entidad||'',estado:pres0.estado||'borrador',fecha_creacion:pres0.fecha_creacion||'',fecha_eliminacion:fechaHoy}],
+      hijos.map(function(h){return{codigo:h.codigo,nombre:h.nombre||'Sin nombre',entidad:h.entidad||'',estado:h.estado||'borrador',fecha_creacion:h.fecha_creacion||'',fecha_eliminacion:fechaHoy}})
+    );
+    onChange(Object.assign({},data,{presupuestos:arr,proyectos_eliminados:nuevosEliminados}));
     setSelPresIdx(null);
     showToast(hijos.length>0?'Presupuesto y '+hijos.length+' sub-proyecto(s) eliminados':'Presupuesto eliminado',{type:'ok',dur:2000});
+  }
+
+  async function clonarPresupuesto(idx){
+    if(idx===null||idx===undefined||!presupuestos[idx])return;
+    var origen=presupuestos[idx];
+    if(!(await askConfirm('¿Desea clonar el proyecto "'+(origen.nombre||origen.codigo)+'"?\n\nSe creará una copia completa con nuevo código, en estado Borrador.')))return;
+    var nuevoCodigo=genCodigoPpto();
+    // Clonar items con nuevos IDs
+    var nuevosItems=(origen.items||[]).map(function(it){return Object.assign({},it,{id:uid()})});
+    // Clonar apus_snap con nuevos IDs y actualizar referencias en items
+    var apuIdMap={};
+    var nuevosApusSnap=(origen.apus_snap||[]).map(function(a){
+      var nuevoId=uid();
+      apuIdMap[a.id]=nuevoId;
+      return Object.assign({},a,{id:nuevoId});
+    });
+    // Actualizar apu_id en items clonados
+    nuevosItems=nuevosItems.map(function(it){
+      if(it.apu_id&&apuIdMap[it.apu_id])return Object.assign({},it,{apu_id:apuIdMap[it.apu_id]});
+      return it;
+    });
+    var clon=Object.assign({},origen,{
+      id:uid(),
+      codigo:nuevoCodigo,
+      nombre:'Copia de — '+(origen.nombre||origen.codigo),
+      fecha_creacion:new Date().toISOString().slice(0,10),
+      estado:'borrador',
+      fecha_cierre:null,
+      activo:false,
+      parent_id:null,
+      items:nuevosItems,
+      apus_snap:nuevosApusSnap,
+      insumos_snap:(origen.insumos_snap||[]).map(function(x){return Object.assign({},x)}),
+      equipos_snap:(origen.equipos_snap||[]).map(function(x){return Object.assign({},x)}),
+      cargos_snap:(origen.cargos_snap||[]).map(function(x){return Object.assign({},x)}),
+      cuadrillas_snap:(origen.cuadrillas_snap||[]).map(function(x){return Object.assign({},x)}),
+      factores_snap:(origen.factores_snap||[]).map(function(x){return Object.assign({},x)}),
+      perfil_pais_snap:origen.perfil_pais_snap?Object.assign({},origen.perfil_pais_snap):null,
+      aiu_override:Object.assign({},origen.aiu_override)
+    });
+    var n=presupuestos.concat([clon]);
+    onChange(Object.assign({},data,{presupuestos:n}));
+    setSelPresIdx(n.length-1);
+    showToast('Proyecto clonado como '+nuevoCodigo,{type:'ok',dur:3000});
   }
 
   async function toggleEstado(idx){
@@ -10568,7 +10668,7 @@ function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,i
     :tab===12?<PresResumenPanel pres={pres} presupuestos={presupuestos} selPresIdx={selFinal} data={data} onChange={onChange} calcResumenPres={calcResumenPres} setTab={setTab} estadoLabel={estadoLabel} estadoColor={estadoColor}/>
     :tab===13?<PresEntregablesPanel pres={pres} presupuestos={presupuestos} calcResumenPres={calcResumenPres} calcItemVal={calcItemVal} calcResumenFor={calcResumenFor} calcItemValFor={calcItemValFor} buildSnapCtx={buildSnapCtx} setTab={setTab} estadoLabel={estadoLabel} estadoColor={estadoColor}/>
     :tab===14?<PresCatalogoProyectoPanel pres={pres} presupuestos={presupuestos} selPresIdx={selFinal} data={data} onChange={onChange} cargosCalcSnap={cargosCalcSnap} cuadrillasCalcSnap={cuadrillasCalcSnap} equiposSnapEfectivo={equiposSnapEfectivo} insumosSnapEfectivo={insumosSnapEfectivo} factorPrestSnap={factorPrestSnap} personMapSnap={personMapSnap} eqMapSnap={eqMapSnap} insMapSnap={insMapSnap} herrPct={herrPct} usarFpEnApu={usarFpEnApu} esHora={esHora} abCalcList={abCalcList} apusBasico={apusBasico} provMap={provMap} _unidades={_unidades} cambiarPerfilPais={cambiarPerfilPais} estadoLabel={estadoLabel} estadoColor={estadoColor}/>
-    :<PresProyectosPanel presupuestos={presupuestos} selPresIdx={selPresIdx} setSelPresIdx={setSelPresIdx} data={data} onChange={onChange} estadoColor={estadoColor} estadoLabel={estadoLabel} addPresupuesto={addPresupuesto} addSubProyecto={addSubProyecto} toggleEstado={toggleEstado} cambiarPerfilPais={cambiarPerfilPais} delPresupuesto={delPresupuesto} setTab={setTab}/>;
+    :<PresProyectosPanel presupuestos={presupuestos} selPresIdx={selPresIdx} setSelPresIdx={setSelPresIdx} data={data} onChange={onChange} estadoColor={estadoColor} estadoLabel={estadoLabel} addPresupuesto={addPresupuesto} addSubProyecto={addSubProyecto} toggleEstado={toggleEstado} cambiarPerfilPais={cambiarPerfilPais} delPresupuesto={delPresupuesto} clonarPresupuesto={clonarPresupuesto} setTab={setTab}/>;
 
   return(
     <div style={{display:'flex',gap:16,alignItems:'flex-start'}}>

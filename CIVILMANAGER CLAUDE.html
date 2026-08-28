@@ -7578,7 +7578,7 @@ function PresProyectosPanel({presupuestos,selPresIdx,setSelPresIdx,data,onChange
     var padre=p.parent_id?presupuestos.find(function(x){return x.id===p.parent_id}):null;
     return[p.codigo||'',p.nombre||'',p.fecha_creacion||'',p.estado||'borrador',p.elaborado_por||'',p.entidad||'',p.con_sub_proyectos?'Si':'No',p.tipo_proyecto||'',p.observaciones||'',padre?padre.codigo:''];
   },parseRow:function(r){return[String(r[0]||'').trim(),String(r[1]||'').trim(),String(r[2]||'').trim(),String(r[3]||'borrador').trim(),String(r[4]||'').trim(),String(r[5]||'').trim(),String(r[6]||'No').trim(),String(r[7]||'').trim(),String(r[8]||'').trim(),String(r[9]||'').trim()]},buildItem:function(r,idx,existing,genCode){
-    var base=idx>=0?existing[idx]:{id:uid(),fecha_cierre:null,items:[],aiu_override:{activo:false,pct_a:0,pct_i:0,pct_u:0,iva_pct:19,vr_resumido:false,usar_en_cada_apu:true},factores_snap:(data.factoresPrestaciones||[]).map(function(f){return Object.assign({},f)}),cargos_snap:(data.cargos||[]).map(function(c){return Object.assign({},c)}),insumos_snap:(data.insumos||[]).map(function(i){return Object.assign({},i)}),equipos_snap:(data.equipos||[]).map(function(e){return Object.assign({},e)}),apus_snap:[],activo:false,contrato:'',objeto:'',plazo:0,ciudad:'',departamento:'',parent_id:null};
+    var base=idx>=0?existing[idx]:{id:uid(),fecha_cierre:null,items:[],aiu_override:{activo:false,pct_a:0,pct_i:0,pct_u:0,iva_pct:19,vr_resumido:false,usar_en_cada_apu:true},factores_snap:(data.factoresPrestaciones||[]).map(function(f){return Object.assign({},f)}),cargos_snap:[],insumos_snap:[],equipos_snap:[],cuadrillas_snap:[],apus_snap:[],activo:false,contrato:'',objeto:'',plazo:0,ciudad:'',departamento:'',parent_id:null,perfil_pais_snap:Object.assign({},getPaisData(config.pais,data.config_listas&&data.config_listas.perfiles_pais))};
     var codigoPadre=String(r[9]||'').trim();
     var padreObj=codigoPadre?existing.find(function(e){return(e.codigo||'').toLowerCase()===codigoPadre.toLowerCase()}):null;
     return Object.assign({},base,{codigo:idx>=0?existing[idx].codigo:(r[0]||genCode()),nombre:r[1]||'',fecha_creacion:r[2]||base.fecha_creacion||new Date().toISOString().slice(0,10),estado:r[3]||'borrador',elaborado_por:r[4]||'',entidad:r[5]||'',con_sub_proyectos:(r[6]||'').toLowerCase()==='si',tipo_proyecto:r[7]||'',observaciones:r[8]||'',parent_id:codigoPadre?(padreObj?padreObj.id:base.parent_id||null):null});
@@ -10335,10 +10335,10 @@ function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,i
       estado:'borrador',fecha_cierre:null,items:[],
       aiu_override:{activo:false,pct_a:0,pct_i:0,pct_u:0,iva_pct:19,vr_resumido:false,usar_en_cada_apu:true},
       factores_snap:(data.factoresPrestaciones||[]).map(function(f){return Object.assign({},f)}),
-      cargos_snap:(data.cargos||[]).map(function(c){return Object.assign({},c)}),
-      insumos_snap:(data.insumos||[]).map(function(i){return Object.assign({},i)}),
-      equipos_snap:(data.equipos||[]).map(function(e){return Object.assign({},e)}),
-      cuadrillas_snap:(data.cuadrillas||[]).map(function(c){return Object.assign({},c)}),
+      cargos_snap:[],
+      insumos_snap:[],
+      equipos_snap:[],
+      cuadrillas_snap:[],
       apus_snap:[],
       perfil_pais_snap:Object.assign({},getPaisData(config.pais,data.config_listas&&data.config_listas.perfiles_pais))
     };
@@ -10359,10 +10359,10 @@ function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,i
       estado:'borrador',fecha_cierre:null,items:[],
       aiu_override:{activo:false,pct_a:0,pct_i:0,pct_u:0,iva_pct:19,vr_resumido:false,usar_en_cada_apu:true},
       factores_snap:(data.factoresPrestaciones||[]).map(function(f){return Object.assign({},f)}),
-      cargos_snap:(data.cargos||[]).map(function(c){return Object.assign({},c)}),
-      insumos_snap:(data.insumos||[]).map(function(i){return Object.assign({},i)}),
-      equipos_snap:(data.equipos||[]).map(function(e){return Object.assign({},e)}),
-      cuadrillas_snap:(data.cuadrillas||[]).map(function(c){return Object.assign({},c)}),
+      cargos_snap:[],
+      insumos_snap:[],
+      equipos_snap:[],
+      cuadrillas_snap:[],
       apus_snap:[],
       perfil_pais_snap:parent.perfil_pais_snap?Object.assign({},parent.perfil_pais_snap):Object.assign({},getPaisData(config.pais,data.config_listas&&data.config_listas.perfiles_pais))
     };

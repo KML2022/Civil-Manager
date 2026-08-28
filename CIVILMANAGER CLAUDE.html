@@ -7568,6 +7568,8 @@ function PresProyectosPanel({presupuestos,selPresIdx,setSelPresIdx,data,onChange
   var setProyectoActivo=function(idx){
     var n=presupuestos.map(function(p,i){return Object.assign({},p,{activo:i===idx})});
     onChange(Object.assign({},data,{presupuestos:n}));
+    setSelPresIdx(idx); // sin esto, si selPresIdx ya quedo fijo por una creacion/clonacion previa,
+    // marcar activo un proyecto distinto no actualizaba Formulario/Recursos hasta remontar PresupuestosTab
   };
   var flatPresupuestos=flattenPresupuestos(presupuestos).filter(function(row){
     var p=row.pres;
@@ -9019,7 +9021,7 @@ function etiquetaFirma(firma){return FIRMA_LABEL[firma]||'⚠ Múltiples diferen
 
 function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
   cargosCalcSnap,cuadrillasCalcSnap,equiposSnapEfectivo,insumosSnapEfectivo,factorPrestSnap,personMapSnap,
-  eqMapSnap,insMapSnap,herrPct,usarFpEnApu,esHora,abCalcList,apusBasico,provMap,_unidades,cambiarPerfilPais,estadoLabel,estadoColor}){
+  eqMapSnap,insMapSnap,herrPct,usarFpEnApu,esHora,abCalcList,apusBasico,provMap,_unidades,cambiarPerfilPais,estadoLabel,estadoColor,setTab}){
 
   var[tipo,setTipo]=useState('parametros');
   var[fpRowEditIdx,setFpRowEditIdx]=useState(null);
@@ -9036,10 +9038,6 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
   presupuestosRef.current=presupuestos;
   dataGlobalRef.current=data;
   selPresIdxRef.current=selPresIdx;
-  var esEditable=pres.estado!=='cerrado'; // pestaña Parametros: editable en borrador Y en_revision, solo cerrado bloquea
-  var adaptado=crearDataAdapterProyecto(pres,data,presupuestos,selPresIdx,onChange);
-  var onChangeSnap=esEditable?adaptado.onChange:function(){showToast('Presupuesto cerrado: solo lectura, no se pueden guardar cambios.',{type:'warn'})};
-
   /* Cuadrillas — decision de la seccion 4 (Adaptador_Catalogos_Reales_Proyecto.md): CuadrillasTab
      se analizo y es autocontenido (opera 100% via data/onChange como los demas); su unico
      acoplamiento externo es el salto cruzado "clic en cuadrilla desde Colaboradores -> abre su
@@ -9050,8 +9048,8 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
 
   var cambiarTipo=function(t){setTipo(t);setCuadrillaLocalIdx(null);setPrevTipo(undefined)};
 
-  var analisis=useMemo(function(){return analizarActualizacionCatalogo(pres,data)},[pres,data]);
-  var pendientesReparar=useMemo(function(){return repararRecursosFaltantesDeApus(pres,data).resumen.completados},[pres,data]);
+  var analisis=useMemo(function(){return pres?analizarActualizacionCatalogo(pres,data):{porId:[],porCodigo:[],huerfanos:[]}},[pres,data]);
+  var pendientesReparar=useMemo(function(){return pres?repararRecursosFaltantesDeApus(pres,data).resumen.completados:0},[pres,data]);
   /* Los cargos (Personal/Mano de Obra) no tienen campo 'unidad' propio -- se facturan
      por Dia u Hora segun el perfil de pais (esHora), que puede ser distinto entre el
      proyecto (perfil_pais_snap propio) y el catalogo general (esHora recibido por props). */
@@ -9079,6 +9077,11 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
       setSelCandidatoManual(new Map());
     }
   },[panelHuerfanos]);
+
+  if(!pres)return <PresBannerProyecto pres={pres} presupuestos={presupuestos} setTab={setTab}/>;
+  var esEditable=pres.estado!=='cerrado'; // pestaña Parametros: editable en borrador Y en_revision, solo cerrado bloquea
+  var adaptado=crearDataAdapterProyecto(pres,data,presupuestos,selPresIdx,onChange);
+  var onChangeSnap=esEditable?adaptado.onChange:function(){showToast('Presupuesto cerrado: solo lectura, no se pueden guardar cambios.',{type:'warn'})};
 
   var nombreRecurso=function(reg){return reg&&(reg.nombre||reg.descripcion)||'—'};
   var etiquetaTipo={insumo:'Insumo',equipo:'Equipo',cargo:'Personal'};
@@ -10667,7 +10670,7 @@ function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,i
   var presContent=tab===10?<PresFormularioPanel pres={pres} presupuestos={presupuestos} selPresIdx={selFinal} data={data} onChange={onChange} apuModal={apuModal} setApuModal={setApuModal} apus={apus} categorias_apu={categorias_apu} calcItemVal={calcItemVal} setTab={setTab} estadoLabel={estadoLabel} estadoColor={estadoColor} cargosCalc={cargosCalc} cargosCalcSnap={cargosCalcSnap} personMap={personMap} esHora={esHora} eqMap={eqMap} insMap={insMap} factorPrest={factorPrest} factorPrestSnap={factorPrestSnap} usarFpEnApu={usarFpEnApu} equipos={equipos} insumos={insumos} apusBasico={apusBasico}/>
     :tab===12?<PresResumenPanel pres={pres} presupuestos={presupuestos} selPresIdx={selFinal} data={data} onChange={onChange} calcResumenPres={calcResumenPres} setTab={setTab} estadoLabel={estadoLabel} estadoColor={estadoColor}/>
     :tab===13?<PresEntregablesPanel pres={pres} presupuestos={presupuestos} calcResumenPres={calcResumenPres} calcItemVal={calcItemVal} calcResumenFor={calcResumenFor} calcItemValFor={calcItemValFor} buildSnapCtx={buildSnapCtx} setTab={setTab} estadoLabel={estadoLabel} estadoColor={estadoColor}/>
-    :tab===14?<PresCatalogoProyectoPanel pres={pres} presupuestos={presupuestos} selPresIdx={selFinal} data={data} onChange={onChange} cargosCalcSnap={cargosCalcSnap} cuadrillasCalcSnap={cuadrillasCalcSnap} equiposSnapEfectivo={equiposSnapEfectivo} insumosSnapEfectivo={insumosSnapEfectivo} factorPrestSnap={factorPrestSnap} personMapSnap={personMapSnap} eqMapSnap={eqMapSnap} insMapSnap={insMapSnap} herrPct={herrPct} usarFpEnApu={usarFpEnApu} esHora={esHora} abCalcList={abCalcList} apusBasico={apusBasico} provMap={provMap} _unidades={_unidades} cambiarPerfilPais={cambiarPerfilPais} estadoLabel={estadoLabel} estadoColor={estadoColor}/>
+    :tab===14?<PresCatalogoProyectoPanel pres={pres} presupuestos={presupuestos} selPresIdx={selFinal} data={data} onChange={onChange} cargosCalcSnap={cargosCalcSnap} cuadrillasCalcSnap={cuadrillasCalcSnap} equiposSnapEfectivo={equiposSnapEfectivo} insumosSnapEfectivo={insumosSnapEfectivo} factorPrestSnap={factorPrestSnap} personMapSnap={personMapSnap} eqMapSnap={eqMapSnap} insMapSnap={insMapSnap} herrPct={herrPct} usarFpEnApu={usarFpEnApu} esHora={esHora} abCalcList={abCalcList} apusBasico={apusBasico} provMap={provMap} _unidades={_unidades} cambiarPerfilPais={cambiarPerfilPais} estadoLabel={estadoLabel} estadoColor={estadoColor} setTab={setTab}/>
     :<PresProyectosPanel presupuestos={presupuestos} selPresIdx={selPresIdx} setSelPresIdx={setSelPresIdx} data={data} onChange={onChange} estadoColor={estadoColor} estadoLabel={estadoLabel} addPresupuesto={addPresupuesto} addSubProyecto={addSubProyecto} toggleEstado={toggleEstado} cambiarPerfilPais={cambiarPerfilPais} delPresupuesto={delPresupuesto} clonarPresupuesto={clonarPresupuesto} setTab={setTab}/>;
 
   return(

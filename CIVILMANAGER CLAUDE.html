@@ -10221,10 +10221,19 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
                           <React.Fragment>
                             <div style={{fontSize:11,color:'var(--tx2)',marginBottom:4}}>No se encontró equivalente en el catálogo general.</div>
                             <div style={{fontSize:10,color:causaColor,marginBottom:8}}>{causaInfo}</div>
-                            <div style={{display:'inline-block',border:'1px solid var(--bdr)',borderRadius:4,padding:'6px 10px',marginBottom:8,background:'var(--bg3)'}}>
-                              <div style={{fontSize:9,fontWeight:700,color:'var(--warn)',marginBottom:3}}>📁 Datos del proyecto</div>
-                              <div style={{fontSize:10,color:'var(--tx2)'}}>{nombreRecurso(it.snapReg)}</div>
-                              <div style={{fontSize:9,color:'var(--tx3)',marginTop:2}}>{unidadSnapLabel} · {fmt(it.snapReg[campoPrecio]||0)}</div>
+                            <div style={{display:'flex',gap:10,flexWrap:'wrap',marginBottom:8}}>
+                              <div style={{display:'inline-block',border:'1px solid var(--bdr)',borderRadius:4,padding:'6px 10px',background:'var(--bg3)'}}>
+                                <div style={{fontSize:9,fontWeight:700,color:'var(--warn)',marginBottom:3}}>📁 Datos del proyecto</div>
+                                <div style={{fontSize:10,color:'var(--tx2)'}}>{nombreRecurso(it.snapReg)}</div>
+                                <div style={{fontSize:9,color:'var(--tx3)',marginTop:2}}>{unidadSnapLabel} · {fmt(it.snapReg[campoPrecio]||0)}</div>
+                              </div>
+                              {it.causa==='codigo_diferente'&&it.codigoCoincidente&&(
+                                <div style={{display:'inline-block',border:'1px solid rgba(248,113,113,.4)',borderRadius:4,padding:'6px 10px',background:'rgba(248,113,113,.06)'}}>
+                                  <div style={{fontSize:9,fontWeight:700,color:'#f87171',marginBottom:3}}>🌐 Catálogo — mismo código ({mostrarCodigo(it.codigoCoincidente.codigo)})</div>
+                                  <div style={{fontSize:10,color:'var(--tx2)'}}>{nombreRecurso(it.codigoCoincidente)}</div>
+                                  <div style={{fontSize:9,color:'var(--tx3)',marginTop:2}}>{it.codigoCoincidente.unidad||'—'} · {fmt(it.codigoCoincidente[campoPrecio]||0)}</div>
+                                </div>
+                              )}
                             </div>
                             {enBusqueda&&(
                               <select className="sel" style={{fontSize:10,maxWidth:280,marginBottom:8,display:'block'}} onChange={function(e){elegirCandidatoManual(e.target.value)}} defaultValue="">

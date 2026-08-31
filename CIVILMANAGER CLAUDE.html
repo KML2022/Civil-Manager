@@ -631,10 +631,13 @@ function getMergeSpan(r,c,merges){
 
 function validarExportacionFormulario(pres){
   var itemsReales=(pres.items||[]).filter(function(it){return !esCapituloFinal(it)});
-  var sinAPU=itemsReales.filter(function(it){return !it.tiene_apu||!it.apu_id});
+  var sinRecurso=itemsReales.filter(function(it){
+    if(it.tipoPrecio==='entidad')return!it.precioEntidad||it.precioEntidad<=0;
+    return !it.tiene_apu||!it.apu_id;
+  });
   return{
-    valido:sinAPU.length===0,
-    pendientes:sinAPU.map(function(it){return(it.num_item||'')+' — '+(it.descripcion||'Sin descripcion')})
+    valido:sinRecurso.length===0,
+    pendientes:sinRecurso.map(function(it){return(it.num_item||'')+' — '+(it.descripcion||'Sin descripcion')})
   };
 }
 
@@ -8202,7 +8205,7 @@ var MAPEO_CAMPOS=[
   {key:'col_vr_total',label:'Vr. Total (a llenar)',requerido:true}
 ];
 function colLetter(i){return i<26?String.fromCharCode(65+i):'A'+String.fromCharCode(65+i-26)}
-function mapeoVacio(){return{fila_inicio:0,col_item:null,col_codigo_1:null,col_codigo_2:null,col_codigo_apu:null,col_descripcion:null,col_unidad:null,col_cantidad:null,col_vr_unitario:null,col_vr_total:null,col_precio_entidad:null,nombre_mapeo:''}}
+function mapeoVacio(){return{fila_inicio:0,col_item:null,col_codigo_1:null,col_codigo_2:null,col_codigo_apu:null,col_descripcion:null,col_unidad:null,col_cantidad:null,col_vr_unitario:null,col_vr_total:null,nombre_mapeo:''}}
 
 /* Banner unificado: reemplaza PresBannerProyecto + sec-hdr por elemento (usado en los 4 sub-tabs de Presupuestos
    cuando ya hay un proyecto seleccionado). Reusa el mismo svg de carpeta y la linea de subproyecto de PresBannerProyecto. */
@@ -8306,7 +8309,8 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
 
   if(!pres)return <PresBannerProyecto pres={pres} presupuestos={presupuestos} setTab={setTab}/>;
 
-  var readOnly=pres.estado!=='borrador';
+  var readOnly=pres.estado==='cerrado';
+  var preciosFijos=pres.estado!=='borrador';
   var idxPres=presupuestos.indexOf(pres);
 
   var saveItems=function(arr,extra){
@@ -8355,33 +8359,57 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
     if(!apuModal.open)return[];
     var sn=apuModal.search?norm(apuModal.search):'';
     var cf=apuModal.catFilter;
+    var snap=(pres.apus_snap||[]);
+    var catalogo=apus||[];
+    var snapIds={};
     var result=[];
-    for(var i=0;i<apus.length;i++){
-      var a=apus[i];
+    // Primero: APU del proyecto
+    for(var i=0;i<snap.length;i++){
+      var a=snap[i];
       if(cf&&((a.categoria||'')!==cf))continue;
       if(sn){
         var aCod=norm(a.codigo||''),aNom=norm(a.nombre||''),aCat=norm(a.categoria||'');
         if(aCod.indexOf(sn)<0&&aNom.indexOf(sn)<0&&aCat.indexOf(sn)<0)continue;
       }
-      result.push(a);
+      result.push(Object.assign({},a,{_origen:'proyecto'}));
+      snapIds[a.id]=true;
+      if(a.apu_origen_id)snapIds[a.apu_origen_id]=true;
+    }
+    // Segundo: Catálogo general (excluir los que ya están en proyecto)
+    for(var j=0;j<catalogo.length;j++){
+      var b=catalogo[j];
+      if(snapIds[b.id])continue;
+      if(cf&&((b.categoria||'')!==cf))continue;
+      if(sn){
+        var bCod=norm(b.codigo||''),bNom=norm(b.nombre||''),bCat=norm(b.categoria||'');
+        if(bCod.indexOf(sn)<0&&bNom.indexOf(sn)<0&&bCat.indexOf(sn)<0)continue;
+      }
+      result.push(Object.assign({},b,{_origen:'catalogo'}));
     }
     return result;
   };
   var assignApu=function(aid){
     if(apuModal.itemIdx===null||aid===undefined)return;
     var i=apuModal.itemIdx;
+    // Buscar en snapshot del proyecto primero
+    var apuSnap=(pres.apus_snap||[]).find(function(a){return a.id===aid});
+    if(apuSnap){
+      var arr=pres.items.slice();
+      arr[i]=Object.assign({},arr[i],{apu_id:apuSnap.id,tiene_apu:true,alerta_sin_apu:false});
+      saveItems(arr,pres);
+      setApuModal(Object.assign({},apuModal,{open:false}));
+      return;
+    }
+    // Si no, buscar en catálogo general y clonar al snapshot
     var apuOrig=null;
     for(var k=0;k<apus.length;k++){if(apus[k].id===aid){apuOrig=apus[k];break}}
     if(!apuOrig)return;
-    // Clonar el APU al snapshot del presupuesto para no romper la trazabilidad si el catalogo cambia despues
     var snap=(pres.apus_snap||[]).slice();
     var clon=snap.find(function(a){return a.apu_origen_id===apuOrig.id});
     if(!clon){
       clon=Object.assign({},apuOrig,{id:uid(),apu_origen_id:apuOrig.id});
       snap.push(clon);
     }
-    // Asegurar que todo recurso referenciado por el APU exista en el snapshot del proyecto — si no
-    // se copia aqui, calcAPU no lo encuentra dentro del proyecto (bug: assignApu solo clonaba el APU).
     var insumosSnap=(pres.insumos_snap||[]).slice();
     var equiposSnap=(pres.equipos_snap||[]).slice();
     var cargosSnap=(pres.cargos_snap||[]).slice();
@@ -8419,16 +8447,39 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
     showToast('APU removido',{type:'ok',dur:2000});
   };
 
-  var adjudicarProyecto=async function(){
-    var itemsSinPrecio=(pres.items||[]).filter(function(it){return!esCapituloFinal(it)&&it.tipoPrecio==='entidad'&&(!it.precioEntidad||parseFloat(it.precioEntidad)<=0)});
-    if(itemsSinPrecio.length>0){
-      if(!(await askConfirm('⚠ '+itemsSinPrecio.length+' ítem(s) con precio de entidad sin definir.\nAl adjudicar quedarán con precio $0. ¿Continuar de todas formas?')))return;
+  var siguienteEstado=async function(){
+    var next=pres.estado==='borrador'?'en_revision':pres.estado==='en_revision'?'cerrado':null;
+    if(!next)return;
+    if(pres.estado==='borrador'){
+      var itemsSinPrecio=(pres.items||[]).filter(function(it){return!esCapituloFinal(it)&&it.tipoPrecio==='entidad'&&(!it.precioEntidad||parseFloat(it.precioEntidad)<=0)});
+      if(itemsSinPrecio.length>0){
+        if(!(await askConfirm('⚠ '+itemsSinPrecio.length+' ítem(s) con precio de entidad sin definir.\nAl cambiar a Revisión quedarán con precio $0. ¿Continuar?')))return;
+      }
+      if(!(await askConfirm('¿Cambiar "'+pres.nombre+'" a Revisión?\n\nLos precios de entidad se bloquearán y podrá asignar APU a los ítems.')))return;
     }
-    if(!(await askConfirm('¿Marcar "'+pres.nombre+'" como Adjudicado?\n\nEsto habilitará la asignación de APU por ítem y bloqueará los precios de entidad para que no puedan modificarse.')))return;
+    if(pres.estado==='en_revision'){
+      if(!(await askConfirm('¿Cerrar "'+pres.nombre+'"?\n\nEsto bloqueará TODO el proyecto. No se podrán hacer más cambios.')))return;
+    }
     var n=presupuestos.slice();
-    n[idxPres]=Object.assign({},n[idxPres],{adjudicado:true,fechaAdjudicacion:new Date().toISOString()});
+    n[idxPres]=Object.assign({},n[idxPres],{estado:next,fecha_cierre:next==='cerrado'?new Date().toISOString().slice(0,10):null});
     onChange(Object.assign({},data,{presupuestos:n}));
-    showToast('Proyecto adjudicado. Ya puede asignar APU a los ítems.',{type:'ok'});
+    showToast('Estado cambiado a: '+estadoLabel(next),{type:'ok'});
+  };
+
+  var eliminarFormulario=async function(){
+    if(readOnly)return;
+    if(!(await askConfirm('⚠ ¿Eliminar el formulario de este presupuesto?\n\nSe borrarán TODOS los items, capítulos y el mapeo de columnas. Esta acción no se puede deshacer.')))return;
+    if(!(await askConfirm('¿Está SEGURO? Se eliminarán '+(pres.items||[]).length+' items permanentemente.')))return;
+    var n=presupuestos.slice();
+    n[idxPres]=Object.assign({},n[idxPres],{items:[],formulario_original:null,tipoPrecioFormulario:'apu',apus_snap:[],insumos_snap:[],equipos_snap:[],cargos_snap:[]});
+    onChange(Object.assign({},data,{presupuestos:n}));
+    setFase('inicio');
+    showToast('Formulario eliminado.',{type:'ok'});
+  };
+
+  var exportarFormularioRapido=function(){
+    if(!fo||!fo.archivo_b64){showToast('No hay formulario para exportar',{type:'warn'});return}
+    exportarFormularioLleno();
   };
 
   var mapeosGuardados=(data.config_listas&&data.config_listas.mapeos_formulario)||[];
@@ -8456,7 +8507,15 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
     e.target.value='';
   };
 
-  var setCol=function(key,val){setMapeo(function(m){return Object.assign({},m,{[key]:val===''?null:parseInt(val,10)})})};
+  var COL_MAP_KEYS=['col_item','col_descripcion','col_unidad','col_cantidad','col_vr_unitario','col_vr_total','col_codigo_1','col_codigo_2'];
+
+  var setCol=function(key,val){
+    if(val===''){setMapeo(function(m){return Object.assign({},m,{[key]:null})});return}
+    var ci=parseInt(val,10);
+    var yaUsado=COL_MAP_KEYS.some(function(k){return k!==key&&mapeo[k]===ci});
+    if(yaUsado)return;
+    setMapeo(function(m){return Object.assign({},m,{[key]:ci})});
+  };
 
   var aplicarMapeoGuardado=function(id){
     if(!id)return;
@@ -8467,7 +8526,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
     setFuenteApu(mg.col_codigo_apu==null||mg.col_codigo_apu===mg.col_item?'item':(mg.col_codigo_apu===mg.col_codigo_1?'codigo_1':'codigo_2'));
   };
 
-  var mapeoValido=MAPEO_CAMPOS.every(function(c){return mapeo[c.key]!=null})&&(tipoPrecioFormulario!=='entidad'||mapeo.col_precio_entidad!=null);
+  var mapeoValido=MAPEO_CAMPOS.every(function(c){return mapeo[c.key]!=null});
 
   var cancelarMapeo=function(){
     setArchivoRaw(null);setPreviewFilas([]);setPreviewMerges([]);setNombreArchivo('');setMapeo(mapeoVacio());
@@ -8500,8 +8559,8 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
       }else{
         var cantRaw=String(fila[mapeoFinal.col_cantidad]||'').trim();
         var cant=parseCantidad(cantRaw);
-        var precioEntidadImport=tipoPrecioFormulario==='entidad'&&mapeoFinal.col_precio_entidad!=null
-          ?(parseFloat(String(fila[mapeoFinal.col_precio_entidad]||'').replace(/[^0-9.,-]/g,'').replace(',',''))||null)
+        var precioEntidadImport=tipoPrecioFormulario==='entidad'&&mapeoFinal.col_vr_unitario!=null
+          ?(parseFloat(String(fila[mapeoFinal.col_vr_unitario]||'').replace(/[^0-9.,-]/g,'').replace(',',''))||null)
           :null;
         items.push({
           id:uid(),fila_original:i,es_capitulo:false,es_capitulo_manual:null,
@@ -8551,7 +8610,12 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
     }
     if(tipoPrecioFormulario==='entidad'){
       var sinPrecio=itemsReales.filter(function(it){return!it.precioEntidad||it.precioEntidad<=0});
-      setAlarmasPrecioFaltante(sinPrecio.length>0?sinPrecio.map(function(it){return it.num_item||it.codigo_1||it.descripcion}):null);
+      if(sinPrecio.length>0){
+        setAlarmasPrecioFaltante(sinPrecio.map(function(it){return it.num_item||it.descripcion}));
+        showToast('⚠ '+sinPrecio.length+' item(s) sin precio unitario. Verifique la columna "Vr. Unitario" en el Excel.',{type:'warn',dur:8000});
+      }else{
+        setAlarmasPrecioFaltante(null);
+      }
     }else{
       setAlarmasPrecioFaltante(null);
     }
@@ -8563,6 +8627,27 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
     if(readOnly)return;
     if(!(await askConfirm('Subir un nuevo formulario reemplazará los items actuales de este presupuesto. ¿Desea continuar?')))return;
     setFase('inicio');
+  };
+
+  var editarMapeo=async function(){
+    if(readOnly)return;
+    if(!(await askConfirm('Podrás ajustar el mapeo de columnas. Los items actuales se conservarán hasta que confirmes una nueva importación. ¿Continuar?')))return;
+    if(fo&&fo.archivo_b64){
+      try{
+        var wb=XLSX.read(fo.archivo_b64,{type:'base64'});
+        var ws=wb.Sheets[wb.SheetNames[0]];
+        var rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:null,blankrows:true});
+        setArchivoRaw(wb);
+        setPreviewFilas(rows);
+        setPreviewMerges(ws['!merges']||[]);
+        setNombreArchivo(fo.nombre_archivo||'');
+        setMapeo(fo.mapeo||mapeoVacio());
+        setConCodigo2(fo.mapeo&&fo.mapeo.col_codigo_2!=null);
+        setFase('mapeo');
+      }catch(err){
+        toast('Error al cargar el archivo: '+err.message,'err');
+      }
+    }
   };
 
   var sel=function(props){return <select className="ni sel" style={{fontSize:10,padding:'2px 4px'}} {...props}/>};
@@ -8585,7 +8670,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
                 Sí, Precios fijos establecidos por el Cliente (Costo Directo)
               </label>
             </div>
-            {tipoPrecioFormulario==='entidad'&&<div style={{marginTop:6,fontSize:10,color:'#fbbf24'}}>⚠ Los precios de la entidad corresponden al costo directo (sin AIU). Una vez adjudicado el proyecto, no podrán modificarse.</div>}
+            {tipoPrecioFormulario==='entidad'&&<div style={{marginTop:6,fontSize:10,color:'#fbbf24'}}>⚠ Los precios de la entidad corresponden al costo directo (sin AIU). Al cambiar a Revisión, se bloquearán y no podrán modificarse.</div>}
           </div>
           <div style={{display:'flex',gap:10}}>
             <button className="btn" onClick={function(){fileRef.current&&fileRef.current.click()}} style={{fontSize:12,padding:'8px 16px',border:'1px solid var(--ok)',borderRadius:4,background:'rgba(74,222,128,.08)',color:'var(--ok)',cursor:'pointer'}}>📥 Subir formulario Excel</button>
@@ -8599,43 +8684,147 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
 
   if(fase==='mapeo'){
     var maxCols=Math.min(20,previewFilas.reduce(function(m,r){return Math.max(m,r.length)},1));
+
+    /* ── Colores por campo para identificación visual ── */
+    var _campoColores={col_item:'#60a5fa',col_descripcion:'#4ade80',col_unidad:'#a78bfa',col_cantidad:'#fb923c',col_vr_unitario:'#fbbf24',col_vr_total:'#f472b6',col_codigo_1:'#22d3ee',col_codigo_2:'#22d3ee'};
+
+    /* ── Helper compacto: label con color + select fijo + ejemplo ── */
     var campoMapeo=function(c,label,requerido){
       var activo=campoActivo===c.key;
       var mapeado=mapeo[c.key]!=null;
       var filaEj=previewFilas[mapeo.fila_inicio];
       var valorEjemplo=mapeado&&filaEj?String(filaEj[mapeo[c.key]]||''):'';
+      var clr=_campoColores[c.key]||'var(--tx2)';
       return(
-        <div key={c.key} style={{border:activo?'2px solid var(--ok)':'1px solid var(--bdr)',background:activo?'rgba(74,222,128,.08)':'transparent',borderRadius:4,padding:8}}>
-          <label onClick={function(){setCampoActivo(activo?null:c.key)}} style={{fontSize:10,color:activo?'var(--ok)':'var(--tx2)',display:'block',marginBottom:3,cursor:'pointer',fontWeight:activo?700:400}}>{label}{requerido&&<span style={{color:'var(--err)'}}> *</span>}{activo&&<span style={{color:'var(--ok)',marginLeft:4}}>{'← clic en columna'}</span>}</label>
-          {sel({value:mapeo[c.key]==null?'':mapeo[c.key],onChange:function(e){setCol(c.key,e.target.value)},children:[
-            <option key="_" value="">— Elegir —</option>
-          ].concat(Array.from({length:maxCols}).map(function(_,ci){return <option key={ci} value={ci}>{colLetter(ci)}</option>}))})}
-          {mapeado&&valorEjemplo&&
-            <div style={{fontSize:9,color:'var(--tx3)',marginTop:2}}>Columna {colLetter(mapeo[c.key])} — ej: "{valorEjemplo}"</div>
-          }
+        <div key={c.key} style={{display:'flex',alignItems:'center',gap:4,padding:'3px 1px',borderLeft:mapeado?'3px solid '+clr:activo?'2px solid var(--ok)':'3px solid transparent',borderTop:activo?'1px solid var(--ok)':'1px solid transparent',borderRight:activo?'1px solid var(--ok)':'1px solid transparent',borderBottom:activo?'1px solid var(--ok)':'1px solid transparent',borderRadius:4,background:activo?'rgba(74,222,128,.08)':mapeado?clr+'10':'transparent'}}>
+          <span onClick={function(){setCampoActivo(activo?null:c.key)}} style={{fontSize:9,color:activo?'#fff':mapeado?clr:'var(--tx2)',whiteSpace:'nowrap',cursor:'pointer',fontWeight:mapeado?700:400,minWidth:42,padding:'1px 5px',borderRadius:3,background:activo?'var(--ok)':mapeado?clr+'30':'rgba(255,255,255,.05)',border:'1px solid '+(mapeado?clr+'60':'transparent')}}>{label}{requerido&&<span style={{color:'var(--err)'}}>*</span>}</span>
+          <select className="ni sel" value={mapeo[c.key]==null?'':mapeo[c.key]} onChange={function(e){setCol(c.key,e.target.value)}} onClick={function(e){e.stopPropagation();setCampoActivo(c.key)}} style={{width:50,fontSize:10,padding:'1px 2px',height:20,borderColor:mapeado?clr:undefined}}>
+            <option value="">—</option>
+            {Array.from({length:maxCols}).map(function(_,ci){
+              var usadoEn=COL_MAP_KEYS.filter(function(k){return mapeo[k]===ci&&k!==c.key})[0];
+              var disable=usadoEn!=null;
+              return <option key={ci} value={ci} disabled={disable}>{colLetter(ci)}{disable?' (usada)':''}</option>
+            })}
+          </select>
+          {mapeado&&valorEjemplo&&<span style={{fontSize:8,color:'var(--tx3)',maxWidth:100,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}} title={valorEjemplo}>&quot;{valorEjemplo}&quot;</span>}
+          {activo&&!mapeado&&<span style={{fontSize:8,color:'var(--ok)'}}>← clic columna</span>}
         </div>
       );
     };
+
+    /* ── Helpers de indicadores de mapeo para la preview ── */
+    var _colMap={};
+    MAPEO_CAMPOS.forEach(function(c){
+      if(mapeo[c.key]!=null){
+        if(!_colMap[mapeo[c.key]])_colMap[mapeo[c.key]]={labels:[],color:'var(--ok)'};
+        _colMap[mapeo[c.key]].labels.push(c.label.replace(/ \(.*\)/,''));
+      }
+    });
+    if(mapeo.col_codigo_1!=null){if(!_colMap[mapeo.col_codigo_1])_colMap[mapeo.col_codigo_1]={labels:[],color:'var(--ac)'};_colMap[mapeo.col_codigo_1].labels.push('Cód.1');}
+    if(mapeo.col_codigo_2!=null){if(!_colMap[mapeo.col_codigo_2])_colMap[mapeo.col_codigo_2]={labels:[],color:'var(--ac)'};_colMap[mapeo.col_codigo_2].labels.push('Cód.2');}
+    var _totalReq=MAPEO_CAMPOS.length;
+    var _mapeados=MAPEO_CAMPOS.filter(function(c){return mapeo[c.key]!=null}).length;
+    var _pct=Math.round((_mapeados/_totalReq)*100);
+
+    /* ── Anchos por campo (cuando está mapeado) ── */
+    var _campoAnchos={col_item:70,col_codigo_1:80,col_codigo_2:80,col_descripcion:500,col_unidad:70,col_cantidad:80,col_vr_unitario:85,col_vr_total:85};
+    /* ── Detectar anchos desde encabezados del Excel ── */
+    /* Busca en TODAS las filas la que tenga más keywords de header */
+    var _headerRow=[];
+    var _headerKeywords=['item','codigo','cod','descripcion','desc','unidad','cantidad','cant','unitario','total','precio'];
+    var _bestRow=[],_bestScore=0;
+    for(var _hi=0;_hi<previewFilas.length;_hi++){
+      var _fila=previewFilas[_hi]||[];
+      var _score=0;
+      Array.from({length:maxCols}).forEach(function(_,ci){var t=_norm(_fila[ci]);if(_headerKeywords.some(function(k){return t.indexOf(k)>=0}))_score++});
+      if(_score>_bestScore){_bestScore=_score;_bestRow=_fila}
+    }
+    if(_bestScore>=2)_headerRow=_bestRow;
+    var _headerRowIdx=-1;
+    for(var _hi2=0;_hi2<previewFilas.length;_hi2++){if(previewFilas[_hi2]===_headerRow){_headerRowIdx=_hi2;break}}
+    var _headerAnchos={};
+    function _norm(s){return String(s==null?'':s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim()}
+    var _detecta=[{keys:['item','num','numero','#'],ancho:70},{keys:['codigo','cod'],ancho:80},{keys:['descripcion','desc'],ancho:500},{keys:['unidad','un','um'],ancho:70},{keys:['cantidad','cant','qty'],ancho:80},{keys:['vr unitario','vr. unitario','precio unitario','unitario'],ancho:85},{keys:['vr total','vr. total','total','valor total'],ancho:85},{keys:['precio entidad','entidad'],ancho:85}];
+    Array.from({length:maxCols}).forEach(function(_,ci){var txt=_norm(_headerRow[ci]);_detecta.forEach(function(d){if(d.keys.some(function(k){return txt.indexOf(k)>=0}))_headerAnchos[ci]=d.ancho})});
+    /* ── Tipo de columna para formato: 'desc'=izq, 'num'=centro+formato, otro=centro ── */
+    var _colTipo={};
+    var _numKeys=['cantidad','cant','qty','vr unitario','vr. unitario','precio unitario','unitario','vr total','vr. total','total','valor total','precio entidad','entidad'];
+    Array.from({length:maxCols}).forEach(function(_,ci){var txt=_norm(_headerRow[ci]);if(txt.indexOf('desc')>=0)_colTipo[ci]='desc';else if(_numKeys.some(function(k){return txt.indexOf(k)>=0}))_colTipo[ci]='num'});
+    function _fmtNum(v){var n=parseFloat(v);if(isNaN(n))return String(v==null?'':v);return n.toLocaleString('es-CO',{minimumFractionDigits:2,maximumFractionDigits:2})}
+    function _anchoCol(ci){
+      var ancho=null;
+      MAPEO_CAMPOS.forEach(function(c){if(mapeo[c.key]===ci)ancho=Math.max(ancho||0,_campoAnchos[c.key]||100)});
+      if(ancho)return ancho;
+      if(_headerAnchos[ci])return _headerAnchos[ci];
+      return 100;
+    }
+    var _previewW=30;
+    for(var _ci=0;_ci<maxCols;_ci++)_previewW+=_anchoCol(_ci);
+
+    /* ── Ancho para bloques de mapeo (mismo que tabla) ── */
+    var _formW=Math.max(_previewW,_previewW);
+
     return(
-      <div style={{display:'flex',flexDirection:'column',gap:8}}>
-        <TituloSubTab pres={pres} presupuestos={presupuestos} tituloSubTab={'Mapeo de columnas — '+nombreArchivo}/>
-        <div className="xl-wrap" style={{maxHeight:220,overflow:'auto'}}>
-          <table style={{fontSize:9,borderCollapse:'collapse'}}>
-            <thead style={{position:'sticky',top:0,zIndex:2}}><tr>
-              <th style={{padding:'2px 6px',background:'var(--bg2)',position:'sticky',top:0}}>#</th>
-              {Array.from({length:maxCols}).map(function(_,ci){return(
-                <th key={ci} onClick={function(){if(campoActivo){setCol(campoActivo,ci);setCampoActivo(null)}}} title={campoActivo?'Clic para asignar columna '+colLetter(ci)+' a '+campoActivo:''} style={{padding:'2px 6px',background:campoActivo?'var(--ok)':'var(--bg2)',color:campoActivo?'#fff':'inherit',cursor:campoActivo?'crosshair':'default',fontWeight:700,userSelect:'none',position:'sticky',top:0}}>{colLetter(ci)}</th>
-              )})}
+      <div style={{display:'flex',flexDirection:'column',gap:6}}>
+
+        {/* ── Header con titulo, progreso ── */}
+        <div style={{display:'flex',alignItems:'center',gap:8}}>
+          <TituloSubTab pres={pres} presupuestos={presupuestos} tituloSubTab={'Mapeo — '+nombreArchivo}/>
+          <div style={{flex:1,height:5,background:'var(--bg3)',borderRadius:3,overflow:'hidden',maxWidth:120}}>
+            <div style={{height:'100%',width:_pct+'%',background:_pct===100?'var(--ok)':'var(--ac)',borderRadius:3,transition:'width .3s'}}/>
+          </div>
+          <span style={{fontSize:10,color:_pct===100?'var(--ok)':'var(--tx2)',fontWeight:600,whiteSpace:'nowrap'}}>{_mapeados}/{_totalReq}</span>
+          <div style={{flex:1}}/>
+          {mapeosGuardados.length>0&&
+            <select className="ni sel" style={{fontSize:9,width:110}} defaultValue="" title="Aplicar mapeo guardado" onChange={function(e){aplicarMapeoGuardado(e.target.value)}}>
+              <option value="">Mapeo guardado…</option>
+              {mapeosGuardados.map(function(m){return <option key={m.id} value={m.id}>{m.nombre_mapeo||m.id}</option>})}
+            </select>
+          }
+        </div>
+
+        {/* ── Preview Excel ── */}
+        <div className="xl-wrap" style={{width:'fit-content',maxHeight:300,overflowY:'auto',overflowX:'auto',flexShrink:0}}>
+          <table style={{fontSize:9,borderCollapse:'collapse',tableLayout:'fixed',width:_previewW+'px'}}>
+            <colgroup>
+              <col style={{width:30}}/>
+              {Array.from({length:maxCols}).map(function(_,ci){return <col key={ci} style={{width:_anchoCol(ci)}}/>})}
+            </colgroup>
+            <thead style={{position:'sticky',top:0,zIndex:3}}><tr>
+              <th style={{padding:'3px 4px',background:'var(--bg)',position:'sticky',top:0,width:30,textAlign:'center',zIndex:3,borderBottom:'2px solid var(--ac)'}}>fil</th>
+              {Array.from({length:maxCols}).map(function(_,ci){
+                var ind=_colMap[ci];
+                var esActivo=campoActivo!=null;
+                var aw=_anchoCol(ci);
+                var _yaAsignada=COL_MAP_KEYS.some(function(k){return mapeo[k]===ci});
+                return(
+                  <th key={ci} onClick={function(){if(campoActivo&&!_yaAsignada){setCol(campoActivo,ci);setCampoActivo(null)}}} title={ind?ind.labels.join(', '):(esActivo?(_yaAsignada?'Ya asignada':'Clic para asignar '+colLetter(ci)):colLetter(ci))} style={{padding:'3px 4px',width:aw,background:ind?ind.color:(esActivo?'var(--ok)':'var(--bg)'),color:(ind||esActivo)?'#fff':'var(--tx)',cursor:esActivo?(_yaAsignada?'not-allowed':'crosshair'):'default',fontWeight:700,userSelect:'none',position:'sticky',top:0,zIndex:3,textAlign:'center',borderBottom:ind?'2px solid '+ind.color:'2px solid var(--bdr)'}}>
+                    <div style={{fontSize:10}}>{colLetter(ci)}</div>
+                    {ind&&<div style={{fontSize:7,fontWeight:400,opacity:.9,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{ind.labels[0]}</div>}
+                    {!ind&&esActivo&&<div style={{fontSize:7,opacity:.7}}>+</div>}
+                  </th>
+                );
+              })}
             </tr></thead>
             <tbody>
               {previewFilas.map(function(fila,fi){
+                var esInicio=fi===mapeo.fila_inicio;
+                var esEncabezado=fi<mapeo.fila_inicio;
+                var esFilaHeader=fi===_headerRowIdx;
                 return(
-                  <tr key={fi} style={fi===mapeo.fila_inicio?{background:'rgba(74,222,128,.1)'}:undefined}>
-                    <td style={{padding:'2px 6px',color:'var(--tx3)'}}>{fi}</td>
+                  <tr key={fi} style={esInicio?{background:'rgba(74,222,128,.15)'}:esFilaHeader?{background:'rgba(255,200,0,.10)'}:esEncabezado?{background:'rgba(255,255,255,.02)'}:fi%2===0?{background:'var(--bg2)'}:undefined}>
+                    <td style={{padding:esFilaHeader?'3px 6px':'2px 4px',color:esInicio?'var(--ok)':esFilaHeader?'#fbbf24':esEncabezado?'var(--tx3)':'var(--tx)',fontWeight:esInicio||esFilaHeader?900:400,textAlign:'center',borderLeft:esInicio?'4px solid var(--ok)':esFilaHeader?'3px solid #fbbf24':'4px solid transparent',borderBottom:esInicio?'2px solid rgba(74,222,128,.4)':'1px solid var(--bdr)',fontSize:esFilaHeader?11:undefined}}>
+                      {esInicio?<span style={{color:'var(--ok)',fontWeight:700}}>▶{fi}</span>:esFilaHeader?<span style={{fontWeight:900}}>☰{fi}</span>:fi}
+                    </td>
                     {Array.from({length:maxCols}).map(function(_,ci){
                       var span=getMergeSpan(fi,ci,previewMerges);
                       if(span===0)return null;
-                      return <td key={ci} colSpan={span>1?span:undefined} style={{padding:'2px 6px',whiteSpace:'nowrap',textAlign:span>1?'center':'left'}}>{String(fila[ci]!=null?fila[ci]:'')}</td>;
+                      var esMapeada=_colMap[ci]!=null;
+                      var esDesc=_colTipo[ci]==='desc';
+                      var esNum=_colTipo[ci]==='num';
+                      var cellVal=fila[ci]!=null?fila[ci]:'';
+                      var cellTxt=esNum?_fmtNum(cellVal):String(cellVal);
+                      return <td key={ci} colSpan={span>1?span:undefined} style={{padding:esFilaHeader?'3px 6px':'2px 4px',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',textAlign:span>1?'center':(esFilaHeader?'center':(esDesc?'left':'center')),fontWeight:esFilaHeader?900:400,fontSize:esFilaHeader?11:9,color:esFilaHeader?'#fbbf24':undefined,borderBottom:esInicio?'2px solid rgba(74,222,128,.4)':'1px solid var(--bdr)',borderLeft:esInicio&&esMapeada?'2px solid rgba(74,222,128,.3)':'none',background:esInicio?(esMapeada?'rgba(74,222,128,.1)':'rgba(74,222,128,.04)'):esFilaHeader?'rgba(255,200,0,.15)':esEncabezado?'rgba(255,255,255,.01)':'inherit'}} title={cellTxt}>{cellTxt}</td>;
                     })}
                   </tr>
                 );
@@ -8644,69 +8833,86 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
           </table>
         </div>
 
-        {mapeosGuardados.length>0&&
-          <div style={{display:'flex',alignItems:'center',gap:8}}>
-            <span style={{fontSize:11,color:'var(--tx2)'}}>Aplicar mapeo guardado:</span>
-            <select className="ni sel" style={{fontSize:11}} defaultValue="" onChange={function(e){aplicarMapeoGuardado(e.target.value)}}>
-              <option value="">— Seleccionar —</option>
-              {mapeosGuardados.map(function(m){return <option key={m.id} value={m.id}>{m.nombre_mapeo||m.id}</option>})}
+        {/* ── Leyenda debajo de la tabla + Fila inicio ── */}
+        <div style={{fontSize:10,color:'var(--tx)',display:'flex',flexWrap:'wrap',alignItems:'center',gap:12,padding:'6px 12px',background:'var(--bg2)',border:'1px solid var(--bdr)',borderRadius:4,width:_previewW+'px',boxSizing:'border-box'}}>
+          <span style={{display:'flex',alignItems:'center',gap:4,fontWeight:600}}><span style={{display:'inline-block',width:9,height:9,borderRadius:'50%',background:'var(--ok)'}}/>Mapeado</span>
+          <span style={{display:'flex',alignItems:'center',gap:4,fontWeight:600}}><span style={{display:'inline-block',width:0,height:0,borderLeft:'6px solid var(--ok)',borderTop:'5px solid transparent',borderBottom:'5px solid transparent'}}/>Inicio datos</span>
+          <span style={{display:'flex',alignItems:'center',gap:4,fontWeight:600}}><span style={{display:'inline-block',width:14,height:2,background:'var(--tx2)'}}/>Encabezado</span>
+          <span style={{display:'flex',alignItems:'center',gap:4,fontWeight:700}}><span style={{display:'inline-block',width:11,height:11,borderRadius:2,background:'rgba(255,200,0,.15)',border:'1px solid rgba(255,200,0,.4)'}}/><span style={{color:'#fbbf24'}}>Encabezados Excel</span></span>
+          <span style={{width:1,height:14,background:'var(--bdr)'}}/>
+          <span style={{display:'flex',alignItems:'center',gap:4,marginLeft:2}}>
+            <span style={{fontSize:10,fontWeight:700,color:'var(--ok)',whiteSpace:'nowrap',padding:'2px 8px',borderRadius:3,background:'rgba(74,222,128,.12)',border:'1px solid rgba(74,222,128,.25)'}}>Seleccione Fila Donde inician Datos:</span>
+            <select className="ni sel" style={{width:55,fontSize:10,fontWeight:700,height:22,textAlign:'center',padding:'0 4px'}} value={mapeo.fila_inicio} onChange={function(e){setMapeo(Object.assign({},mapeo,{fila_inicio:parseInt(e.target.value,10)||0}))}}>
+              {Array.from({length:previewFilas.length}).map(function(_,ri){return <option key={ri} value={ri}>{ri}</option>})}
             </select>
-          </div>
-        }
-
-        <div className="sec-hdr" style={{border:'1px solid var(--bdr)',borderRadius:4,padding:'6px 10px'}}>
-          <span className="title" style={{fontSize:13}}>2. Asignar columnas</span>
+            <span style={{fontSize:9,color:'var(--tx2)'}}>(encabezados en filas 0–{Math.max(0,(mapeo.fila_inicio||1)-1)})</span>
+          </span>
+          <span style={{width:1,height:14,background:'var(--bdr)'}}/>
+          <span style={{color:'var(--ok)',fontWeight:700,fontSize:10}}>Cómo mapear:</span>
+          <span style={{fontWeight:600}}>1. Escriba la <b>fila</b> donde empiezan los datos</span>
+          <span style={{fontWeight:600}}>2. Haga clic en un <b>encabezado</b> de columna de la tabla, o use el selector</span>
         </div>
-        <div style={{border:'1px solid var(--bdr)',borderRadius:4,padding:12,display:'flex',flexDirection:'column',gap:10}}>
-          <div style={{fontSize:10,fontWeight:700,color:'var(--tx2)',textTransform:'uppercase'}}>Campos obligatorios</div>
-          <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10}}>
-            <div>
-              <label style={{fontSize:10,color:'var(--tx2)',display:'block',marginBottom:3}}>¿Desde qué fila empiezan los datos?</label>
-              <input type="number" className="ni" style={{width:70,fontSize:11}} value={mapeo.fila_inicio} onChange={function(e){setMapeo(Object.assign({},mapeo,{fila_inicio:parseInt(e.target.value,10)||0}))}}/>
+
+        {/* ── Bloques de mapeo con ancho igual a la tabla ── */}
+        <div style={{width:_formW+'px',maxWidth:'100%'}}>
+
+          {/* Texto orientativo + Botones juntos */}
+          <div style={{fontSize:10,color:'var(--tx2)',marginBottom:6,padding:'8px 12px',background:'rgba(74,222,128,.06)',border:'1px solid rgba(74,222,128,.2)',borderRadius:6,display:'flex',alignItems:'center',justifyContent:'space-between',gap:10}}>
+            <span>Seleccione la columna correspondiente a cada campo. La fila de inicio indica dónde comienzan los datos (las filas anteriores son encabezados del Excel).</span>
+            <div style={{display:'flex',gap:8,flexShrink:0}}>
+              <button className="btn" onClick={cancelarMapeo} style={{fontSize:11,padding:'6px 20px',border:'1px solid var(--bdr)',borderRadius:6,background:'var(--bg2)',color:'var(--tx)',cursor:'pointer',fontWeight:600}}>Cancelar</button>
+              <button className="btn" disabled={!mapeoValido} onClick={importarFormulario} style={{fontSize:11,padding:'6px 22px',border:mapeoValido?'1px solid var(--ok)':'1px solid var(--bdr)',borderRadius:6,background:mapeoValido?'var(--ok)':'var(--bg2)',color:mapeoValido?'#fff':'var(--tx3)',cursor:mapeoValido?'pointer':'not-allowed',fontWeight:700}}>{mapeoValido?'✅ Confirmar mapeo':'Faltan campos'}</button>
             </div>
+          </div>
+
+          {/* Fila 1: Mapeo de columnas obligatorias */}
+          <div style={{border:'1px solid var(--bdr)',borderRadius:4,padding:'6px 8px',display:'flex',alignItems:'center',flexWrap:'wrap',gap:2}}>
             {MAPEO_CAMPOS.map(function(c){
-              return campoMapeo(c,c.label,c.requerido);
+              return campoMapeo(c,c.label.replace(/ \(.*\)/,''),c.requerido);
             })}
-            {tipoPrecioFormulario==='entidad'&&campoMapeo({key:'col_precio_entidad'},'Precio Unitario (Entidad)',true)}
           </div>
-          <div style={{fontSize:10,fontWeight:700,color:'var(--tx2)',textTransform:'uppercase',marginTop:6}}>Campos opcionales</div>
-          <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10}}>
-            <div style={{border:campoActivo==='col_codigo_1'?'2px solid var(--ok)':'1px solid var(--bdr)',background:campoActivo==='col_codigo_1'?'rgba(74,222,128,.08)':'transparent',borderRadius:4,padding:8}}>
-              <label style={{fontSize:10,color:'var(--tx2)',display:'block',marginBottom:3}}><input type="checkbox" checked={conCodigo2} onChange={function(e){setConCodigo2(e.target.checked);if(!e.target.checked)setCol('col_codigo_2','')}}/> ¿Hay segunda columna de código?</label>
-              <label onClick={function(){setCampoActivo(campoActivo==='col_codigo_1'?null:'col_codigo_1')}} style={{fontSize:10,color:campoActivo==='col_codigo_1'?'var(--ok)':'var(--tx2)',display:'block',marginBottom:3,marginTop:6,cursor:'pointer',fontWeight:campoActivo==='col_codigo_1'?700:400}}>Columna — Código 1{campoActivo==='col_codigo_1'&&<span style={{color:'var(--ok)',marginLeft:4}}>{'← clic en columna'}</span>}</label>
-              {sel({value:mapeo.col_codigo_1==null?'':mapeo.col_codigo_1,onChange:function(e){setCol('col_codigo_1',e.target.value)},children:[<option key="_" value="">— Ninguna —</option>].concat(Array.from({length:maxCols}).map(function(_,ci){return <option key={ci} value={ci}>{colLetter(ci)}</option>}))})}
-              {mapeo.col_codigo_1!=null&&previewFilas[mapeo.fila_inicio]&&
-                <div style={{fontSize:9,color:'var(--tx3)',marginTop:2}}>Columna {colLetter(mapeo.col_codigo_1)} — ej: "{String(previewFilas[mapeo.fila_inicio][mapeo.col_codigo_1]||'')}"</div>
-              }
-            </div>
-            {conCodigo2&&
-              <div style={{border:campoActivo==='col_codigo_2'?'2px solid var(--ok)':'1px solid var(--bdr)',background:campoActivo==='col_codigo_2'?'rgba(74,222,128,.08)':'transparent',borderRadius:4,padding:8}}>
-                <label onClick={function(){setCampoActivo(campoActivo==='col_codigo_2'?null:'col_codigo_2')}} style={{fontSize:10,color:campoActivo==='col_codigo_2'?'var(--ok)':'var(--tx2)',display:'block',marginBottom:3,cursor:'pointer',fontWeight:campoActivo==='col_codigo_2'?700:400}}>Columna — Código 2{campoActivo==='col_codigo_2'&&<span style={{color:'var(--ok)',marginLeft:4}}>{'← clic en columna'}</span>}</label>
-                {sel({value:mapeo.col_codigo_2==null?'':mapeo.col_codigo_2,onChange:function(e){setCol('col_codigo_2',e.target.value)},children:[<option key="_" value="">— Ninguna —</option>].concat(Array.from({length:maxCols}).map(function(_,ci){return <option key={ci} value={ci}>{colLetter(ci)}</option>}))})}
-                {mapeo.col_codigo_2!=null&&previewFilas[mapeo.fila_inicio]&&
-                  <div style={{fontSize:9,color:'var(--tx3)',marginTop:2}}>Columna {colLetter(mapeo.col_codigo_2)} — ej: "{String(previewFilas[mapeo.fila_inicio][mapeo.col_codigo_2]||'')}"</div>
-                }
+
+          {/* Fila 2: Opcionales + configuración */}
+          <div style={{border:'1px solid var(--bdr)',borderRadius:4,padding:'6px 8px',marginTop:4,display:'flex',flexWrap:'wrap',gap:6,alignItems:'stretch'}}>
+            <span style={{fontSize:8,color:'var(--tx3)',fontWeight:600,letterSpacing:'.5px',textTransform:'uppercase',width:'100%',marginBottom:2}}>Opcional</span>
+
+            {/* Segundo código */}
+            <div style={{flex:'1 1 200px',minWidth:180,padding:'6px 10px',background:'var(--bg)',border:'1px solid var(--bdr)',borderRadius:4}}>
+              <div style={{fontSize:10,fontWeight:700,color:'var(--tx)',marginBottom:4}}>Segundo código:</div>
+              <div style={{display:'flex',alignItems:'center',flexWrap:'wrap',gap:4}}>
+                <label style={{fontSize:9,color:'var(--tx2)',display:'flex',alignItems:'center',gap:3,cursor:'pointer',whiteSpace:'nowrap'}}>
+                  <input type="checkbox" checked={conCodigo2} onChange={function(e){setConCodigo2(e.target.checked);if(!e.target.checked)setCol('col_codigo_2','')}} style={{margin:0,width:12,height:12}}/>
+                  <span>2da código</span>
+                </label>
+                {campoMapeo({key:'col_codigo_1',label:'Cód.1',requerido:false})}
+                {conCodigo2&&campoMapeo({key:'col_codigo_2',label:'Cód.2',requerido:false})}
               </div>
-            }
-            <div style={{border:'1px solid var(--bdr)',borderRadius:4,padding:8}}>
-              <label style={{fontSize:10,color:'var(--tx2)',display:'block',marginBottom:3}}>¿Cuál código usar para los APU?</label>
-              <select className="ni sel" style={{fontSize:11}} value={fuenteApu} onChange={function(e){setFuenteApu(e.target.value)}}>
-                <option value="item">Número de ítem</option>
-                <option value="codigo_1">Código 1</option>
-                {conCodigo2&&<option value="codigo_2">Código 2</option>}
-              </select>
+              <div style={{fontSize:9,fontWeight:500,color:'var(--tx2)',marginTop:4}}>Si tu Excel solo tiene 1 código, deja desmarcado.</div>
             </div>
-            <div style={{border:'1px solid var(--bdr)',borderRadius:4,padding:8}}>
-              <label style={{fontSize:10,color:'var(--tx2)',display:'block',marginBottom:3}}>Guardar este mapeo como...</label>
-              <input className="ni" style={{fontSize:11,width:'100%'}} placeholder="(opcional)" value={mapeo.nombre_mapeo} onChange={function(e){setMapeo(Object.assign({},mapeo,{nombre_mapeo:e.target.value}))}}/>
+
+            {/* Origen del APU */}
+            <div style={{flex:'1 1 200px',minWidth:180,padding:'6px 10px',background:'var(--bg)',border:'1px solid var(--bdr)',borderRadius:4}}>
+              <div style={{fontSize:10,fontWeight:700,color:'var(--tx)',marginBottom:4}}>Origen del APU (para buscar en catálogo):</div>
+              <div style={{display:'flex',alignItems:'center',gap:4}}>
+                <select className="ni sel" style={{fontSize:9,width:80,height:22,padding:'0 4px'}} value={fuenteApu} onChange={function(e){setFuenteApu(e.target.value)}}>
+                  <option value="item">Ítem</option>
+                  <option value="codigo_1">Cód.1</option>
+                  {conCodigo2&&<option value="codigo_2">Cód.2</option>}
+                </select>
+              </div>
+              <div style={{fontSize:9,fontWeight:500,color:'var(--tx2)',marginTop:4}}>Qué campo usar como identificador único del APU al importar.</div>
+            </div>
+
+            {/* Guardar mapeo */}
+            <div style={{flex:'1 1 200px',minWidth:180,padding:'6px 10px',background:'var(--bg)',border:'1px solid var(--bdr)',borderRadius:4}}>
+              <div style={{fontSize:10,fontWeight:700,color:'var(--tx)',marginBottom:4}}>Guardar este mapeo para reusar:</div>
+              <input className="ni" style={{fontSize:9,width:'100%',height:22,padding:'0 6px',boxSizing:'border-box'}} placeholder="Nombre del mapeo..." value={mapeo.nombre_mapeo} onChange={function(e){setMapeo(Object.assign({},mapeo,{nombre_mapeo:e.target.value}))}}/>
+              <div style={{fontSize:9,fontWeight:500,color:'var(--tx2)',marginTop:4}}>Opcional. Si lo nombras, aparece arriba para aplicarlo en otros archivos.</div>
             </div>
           </div>
+
         </div>
 
-        <div style={{display:'flex',gap:8}}>
-          <button className="btn" disabled={!mapeoValido} onClick={importarFormulario} style={{fontSize:11,padding:'6px 14px',border:'1px solid var(--ok)',borderRadius:4,background:mapeoValido?'rgba(74,222,128,.08)':'transparent',color:mapeoValido?'var(--ok)':'var(--tx3)',cursor:mapeoValido?'pointer':'not-allowed'}}>Confirmar mapeo</button>
-          <button className="btn" onClick={cancelarMapeo} style={{fontSize:11,padding:'6px 14px',border:'1px solid var(--bdr)',borderRadius:4,background:'none',color:'var(--tx2)',cursor:'pointer'}}>Cancelar</button>
-        </div>
       </div>
     );
   }
@@ -8736,12 +8942,35 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
         <div style={{display:'flex',gap:6,alignItems:'center'}}>
           {!readOnly&&<button className="btn" onClick={addCapitulo} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--ok)',borderRadius:4,background:'rgba(74,222,128,.06)',color:'var(--ok)',cursor:'pointer'}}>+ Capitulo</button>}
           {!readOnly&&<button className="btn" onClick={reimportar} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--bdr)',borderRadius:4,background:'none',color:'var(--tx2)',cursor:'pointer'}}>{'↩ '+(fo?'Reimportar':'Subir Excel')}</button>}
+          {!readOnly&&fo&&<button className="btn" onClick={editarMapeo} style={{fontSize:10,padding:'4px 10px',border:'1px solid #fbbf24',borderRadius:4,background:'rgba(251,191,36,.08)',color:'#fbbf24',cursor:'pointer',fontWeight:600}}>✏️ Editar Mapeo</button>}
           {!readOnly&&<button className="btn" onClick={function(){setShowImportApuPres(true)}} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--ac)',borderRadius:4,background:'rgba(77,143,247,.08)',color:'var(--ac)',cursor:'pointer'}}>📥 Importar APU (Excel)</button>}
-          {!readOnly&&!pres.adjudicado&&<button className="btn" onClick={adjudicarProyecto} style={{fontSize:10,padding:'4px 10px',border:'none',borderRadius:4,background:'var(--ok)',color:'#08120b',fontWeight:700,cursor:'pointer'}}>✓ Marcar como Adjudicado</button>}
-          {pres.adjudicado===true&&<span style={{fontSize:10,color:'var(--ok)'}}>✓ Proyecto adjudicado</span>}
+          {pres.estado!=='cerrado'&&<button className="btn" onClick={siguienteEstado} style={{fontSize:10,padding:'4px 10px',border:'1px solid '+(pres.estado==='borrador'?'var(--ac)':'var(--ok)'),borderRadius:4,background:pres.estado==='borrador'?'rgba(77,143,247,.08)':'rgba(74,222,128,.08)',color:pres.estado==='borrador'?'var(--ac)':'var(--ok)',cursor:'pointer',fontWeight:600}}>{pres.estado==='borrador'?'→ Revisión':'→ Cerrado'}</button>}
+          {pres.estado==='cerrado'&&<span style={{fontSize:10,color:'var(--ok)',fontWeight:700}}>🔒 Cerrado</span>}
+          {fo&&<button className="btn" onClick={exportarFormularioRapido} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--ok)',borderRadius:4,background:'rgba(74,222,128,.06)',color:'var(--ok)',cursor:'pointer'}}>📤 Exportar Excel</button>}
+          {!readOnly&&fo&&<button className="btn" onClick={eliminarFormulario} style={{fontSize:10,padding:'4px 10px',border:'1px solid #f87171',borderRadius:4,background:'rgba(248,113,113,.08)',color:'#f87171',cursor:'pointer'}}>🗑 Eliminar</button>}
           <button onClick={function(){setTab(14)}} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--bdr)',borderRadius:4,background:'transparent',color:'var(--tx2)',cursor:'pointer'}}>📦 Ver recursos del proyecto</button>
           <input className="ni" placeholder="Buscar item..." value={busq} onChange={function(e){setBusq(e.target.value);setPage(0)}} style={{width:160,height:22,fontSize:10,border:'1px solid var(--ac)',borderRadius:4,marginLeft:8}}/>
         </div>
+        {pres.estado!=='borrador'&&<div style={{fontSize:9,color:pres.estado==='cerrado'?'var(--ok)':'var(--ac)',display:'flex',alignItems:'center',gap:8,padding:'4px 10px',background:pres.estado==='cerrado'?'rgba(74,222,128,.06)':'rgba(77,143,247,.06)',border:'1px solid '+(pres.estado==='cerrado'?'rgba(74,222,128,.2)':'rgba(77,143,247,.2)'),borderRadius:4,fontWeight:600}}>
+          <span>●</span>
+          <span>{pres.estado==='en_revision'?'Precios firmes — Asigne APU a los items':'🔒 Proyecto cerrado — Todo bloqueado'}</span>
+        </div>}
+        {fo&&fo.mapeo&&<div style={{fontSize:9,color:'var(--tx2)',display:'flex',flexWrap:'wrap',alignItems:'center',gap:8,padding:'5px 10px',background:'var(--bg2)',border:'1px solid var(--bdr)',borderRadius:4}}>
+          <span style={{fontWeight:700,color:'var(--tx)'}}>Mapeo:</span>
+          {MAPEO_CAMPOS.map(function(c){
+            var colIdx=fo.mapeo[c.key];
+            if(colIdx==null)return null;
+            var _cc={col_item:'#60a5fa',col_descripcion:'#4ade80',col_unidad:'#a78bfa',col_cantidad:'#fb923c',col_vr_unitario:'#fbbf24',col_vr_total:'#f472b6'};
+            var clr=_cc[c.key]||'var(--tx2)';
+            return <span key={c.key} style={{color:clr,fontWeight:600}}>{colLetter(colIdx)}→{c.label.replace(/ \(.*\)/,'')}</span>;
+          })}
+          <span style={{width:1,height:10,background:'var(--bdr)'}}/>
+          <span>Fila inicio: <b>{fo.mapeo.fila_inicio}</b></span>
+          <span style={{color:'var(--tx3)'}}>|</span>
+          <span title={fo.nombre_archivo||''} style={{color:'var(--tx3)'}}>{fo.nombre_archivo?(fo.nombre_archivo.length>25?fo.nombre_archivo.slice(0,25)+'…':fo.nombre_archivo):'—'}</span>
+          <span style={{color:'var(--tx3)'}}>|</span>
+          <span style={{color:'var(--tx3)'}}>{fo.fecha_importacion||'—'}</span>
+        </div>}
         {alarmasPrecioFaltante&&alarmasPrecioFaltante.length>0&&(
           <div style={{display:'flex',alignItems:'flex-start',gap:10,padding:'8px 14px',borderRadius:4,fontSize:11,lineHeight:1.6,background:'rgba(248,113,113,.08)',border:'1px solid #f87171',color:'#f87171'}}>
             <span style={{flex:1}}>⚠ {alarmasPrecioFaltante.length} ítem(s) sin precio de entidad definido: {alarmasPrecioFaltante.slice(0,15).join(', ')}{alarmasPrecioFaltante.length>15?'…':''}. Complételos en la columna "Tipo Precio".</span>
@@ -8785,8 +9014,8 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
                   <tr key={it.id} onBlur={function(e){if(!e.currentTarget.contains(e.relatedTarget))setEditIdx(null)}}>
                     <td style={{textAlign:'center',color:'var(--tx3)'}}>{i+1}</td>
                     <td style={{textAlign:'center'}}>
-                      {it.tipoPrecio==='entidad'&&!pres.adjudicado?
-                        <span style={{fontSize:9,color:'var(--tx3)'}}>— al adjudicar</span>
+                      {it.tipoPrecio==='entidad'&&preciosFijos?
+                        <span style={{fontSize:9,color:'var(--tx3)'}}>— precios firmes</span>
                       :apu?<span style={{fontSize:9,color:'var(--ok)',fontWeight:600}}>{apu.codigo}</span>:<span style={{fontSize:9,color:'var(--err)'}}>Sin asignar</span>}
                     </td>
                     <td style={{textAlign:'center'}}>{isEdit?<input className="ni" value={it.num_item} onChange={function(e){updItem(i,'num_item',e.target.value)}} style={{width:'100%',fontSize:10,textAlign:'center'}} autoFocus/>:it.num_item}</td>
@@ -8796,19 +9025,19 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
                     <td style={{textAlign:'right'}}>{(apu||it.tipoPrecio==='entidad')?fmt(c.vr_unit):'-'}</td>
                     <td style={{textAlign:'right',fontWeight:600}}>{(apu||it.tipoPrecio==='entidad')?fmt(c.vr_total):'-'}</td>
                     <td style={{textAlign:'center'}}>
-                      <select value={it.tipoPrecio||'apu'} onChange={function(e){updItem(i,'tipoPrecio',e.target.value)}} disabled={readOnly||pres.adjudicado===true} style={{fontSize:9,background:'var(--bg2)',color:'var(--tx)',border:'1px solid var(--bdr)',borderRadius:3,padding:'1px 3px',width:'100%'}}>
+                      <select value={it.tipoPrecio||'apu'} onChange={function(e){updItem(i,'tipoPrecio',e.target.value)}} disabled={readOnly||preciosFijos} style={{fontSize:9,background:'var(--bg2)',color:'var(--tx)',border:'1px solid var(--bdr)',borderRadius:3,padding:'1px 3px',width:'100%'}}>
                         <option value="apu">APU</option>
                         <option value="entidad">Entidad</option>
                       </select>
                       {it.tipoPrecio==='entidad'&&(
-                        <input type="number" value={it.precioEntidad==null?'':it.precioEntidad} onChange={function(e){updItem(i,'precioEntidad',e.target.value===''?null:parseFloat(e.target.value)||0)}} disabled={readOnly||pres.adjudicado===true} placeholder="$ precio entidad" style={{marginTop:3,width:'100%',fontSize:9,background:'var(--bg2)',color:'#fbbf24',border:'1px solid #fbbf24',borderRadius:3,padding:'1px 4px'}}/>
+                        <input type="number" value={it.precioEntidad==null?'':it.precioEntidad} onChange={function(e){updItem(i,'precioEntidad',e.target.value===''?null:parseFloat(e.target.value)||0)}} disabled={readOnly||preciosFijos} placeholder="$ precio entidad" style={{marginTop:3,width:'100%',fontSize:9,background:'var(--bg2)',color:'#fbbf24',border:'1px solid #fbbf24',borderRadius:3,padding:'1px 4px'}}/>
                       )}
                       {it.tipoPrecio==='entidad'&&!it.precioEntidad&&<div style={{fontSize:8,color:'#f87171',marginTop:2}}>⚠ Sin definir</div>}
                     </td>
                     <td className="col-act" style={{textAlign:'center',whiteSpace:'nowrap',boxSizing:'border-box',height:'inherit'}}>
                       <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100%'}}>
                         <span style={{width:24,display:'inline-flex',justifyContent:'center'}}>{!readOnly&&<button onClick={function(){setEditIdx(isEdit?null:i)}} title="Editar" style={{background:'none',border:'none',cursor:'pointer',padding:0}}><IconEdit/></button>}</span>
-                        <span style={{width:24,display:'inline-flex',justifyContent:'center'}}>{!readOnly&&!(it.tipoPrecio==='entidad'&&!pres.adjudicado)&&(apu?
+                        <span style={{width:24,display:'inline-flex',justifyContent:'center'}}>{!readOnly&&!(it.tipoPrecio==='entidad'&&preciosFijos&&!apu)&&(apu?
                           <button onClick={function(){unassignApu(i)}} title="Quitar APU" style={{background:'none',border:'none',color:'#f87171',cursor:'pointer',padding:0,fontSize:15,fontWeight:700,verticalAlign:'middle'}}>⊘</button>
                           :<button onClick={function(){openApuModal(i)}} title="Asignar APU" style={{background:'none',border:'none',color:'var(--ac)',cursor:'pointer',padding:0,fontSize:11,fontWeight:700,verticalAlign:'middle'}}>APU</button>
                         )}</span>
@@ -8924,12 +9153,23 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
                       {filteredApus().map(function(a,ai){
                         var activo=apuSel===apuKey(a);
                         var bgActivo=activo?'rgba(77,143,247,.32)':'transparent';
+                        var esProyecto=a._origen==='proyecto';
+                        var numProy=filteredApus().filter(function(x){return x._origen==='proyecto'}).length;
+                        var numCat=filteredApus().filter(function(x){return x._origen==='catalogo'}).length;
+                        var mostrarSeparador=ai===0||(filteredApus()[ai-1]._origen!==a._origen);
                         return(
-                          <tr key={(a.id||a.codigo||'')+'_'+ai} onClick={function(){setApuSel(apuKey(a))}} style={{cursor:'pointer'}}>
-                            <td style={{padding:'4px 8px',fontWeight:600,color:'var(--ac)',background:bgActivo}}>{a.codigo||'-'}</td>
-                            <td style={{padding:'4px 8px',whiteSpace:'normal',wordBreak:'break-word',background:bgActivo}}>{a.nombre||'-'}</td>
-                            <td style={{padding:'4px 8px',textAlign:'center',background:bgActivo}}>{a.unidad||'-'}</td>
-                          </tr>
+                          <React.Fragment key={(a.id||a.codigo||'')+'_'+ai}>
+                            {mostrarSeparador&&(
+                              <tr><td colSpan={3} style={{padding:'4px 8px',fontSize:9,fontWeight:700,color:esProyecto?'var(--ok)':'var(--ac)',background:esProyecto?'rgba(74,222,128,.06)':'rgba(77,143,247,.06)',borderTop:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'}}>
+                                {esProyecto?'▸ Del proyecto ('+numProy+')':'▸ Catálogo general ('+numCat+')'}
+                              </td></tr>
+                            )}
+                            <tr onClick={function(){setApuSel(apuKey(a))}} style={{cursor:'pointer'}}>
+                              <td style={{padding:'4px 8px',fontWeight:600,color:esProyecto?'var(--ok)':'var(--ac)',background:bgActivo}}>{a.codigo||'-'}</td>
+                              <td style={{padding:'4px 8px',whiteSpace:'normal',wordBreak:'break-word',background:bgActivo}}>{a.nombre||'-'}</td>
+                              <td style={{padding:'4px 8px',textAlign:'center',background:bgActivo}}>{a.unidad||'-'}</td>
+                            </tr>
+                          </React.Fragment>
                         );
                       })}
                     </tbody>
@@ -9571,7 +9811,7 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
         </div>
       )}
       {(function(){
-        if(!pres.adjudicado)return null;
+        if(pres.estado==='borrador')return null;
         var pendientes=(pres.items||[]).filter(function(it){return!esCapituloFinal(it)&&it.tipoPrecio==='entidad'&&!it.apu_id});
         if(!pendientes.length)return null;
         return(

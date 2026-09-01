@@ -9062,7 +9062,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
                           value={precioTemp&&precioTemp.idx===i?precioTemp.valor:(it.precioEntidad==null?'':it.precioEntidad)}
                           onChange={function(e){var val=e.target.value===''?null:parseFloat(e.target.value)||0;setPrecioTemp({idx:i,valor:val,item:it,anterior:it.precioEntidad})}}
                           onBlur={function(){if(precioTemp&&precioTemp.idx===i&&precioTemp.valor!==precioTemp.anterior)setPrecioTemp(Object.assign({},precioTemp,{show:true}));else setPrecioTemp(null)}}
-                          disabled={readOnly||preciosFijos} placeholder="$ precio entidad" style={{marginTop:3,width:'100%',fontSize:9,background:'var(--bg2)',color:'#fbbf24',border:'1px solid #fbbf24',borderRadius:3,padding:'1px 4px'}}/>
+                          disabled={readOnly} placeholder="$ precio entidad" style={{marginTop:3,width:'100%',fontSize:9,background:'var(--bg2)',color:'#fbbf24',border:'1px solid #fbbf24',borderRadius:3,padding:'1px 4px'}}/>
                       )}
                       {it.tipoPrecio==='entidad'&&!it.precioEntidad&&<div style={{fontSize:8,color:'#f87171',marginTop:2}}>⚠ Sin definir</div>}
                     </td>

@@ -610,12 +610,19 @@ function recalcCapitulos(arr){
 }
 
 function autoDetectarFilaInicio(filas){
-  for(var i=0;i<Math.min(15,filas.length-1);i++){
+  /* Busca la transicion de encabezados a datos: fila con >=3 celdas seguida de fila con >=2 celdas.
+     Esto maneja formularios donde capitulos (2 celdas) alternan con actividades (4+ celdas). */
+  for(var i=0;i<Math.min(25,filas.length-1);i++){
     var fila=filas[i];
     var siguiente=filas[i+1];
     var noVacias=fila.filter(function(c){return String(c||'').trim()!==''}).length;
     var sigNoVacias=siguiente.filter(function(c){return String(c||'').trim()!==''}).length;
-    if(noVacias>=3&&sigNoVacias>=3)return i+1;
+    if(noVacias>=3&&sigNoVacias>=2)return i+1;
+  }
+  /* Fallback: buscar primera fila con >=3 celdas y devolver esa fila (no la siguiente) */
+  for(var i=0;i<Math.min(25,filas.length);i++){
+    var noVacias=filas[i].filter(function(c){return String(c||'').trim()!==''}).length;
+    if(noVacias>=3)return i;
   }
   return 3;
 }
@@ -8092,45 +8099,6 @@ function PresEntregablesPanel({pres,presupuestos,calcResumenPres,calcItemVal,cal
     showToast('Presupuesto exportado a PDF',{type:'ok'});
   };
 
-  var exportarFormularioLleno=function(){
-    var v=validarExportacionFormulario(pres);
-    if(!v.valido){setPendientes(v.pendientes);return}
-    var fo=pres.formulario_original;
-    if(!fo||!fo.archivo_b64){showToast('Sube el formulario original para completar la exportacion',{type:'warn',dur:5000});return}
-    var wbF=XLSX.read(fo.archivo_b64,{type:'base64'});
-    var wsF=wbF.Sheets[wbF.SheetNames[0]];
-    var mapeoF=fo.mapeo;
-    var colU=colLetter(mapeoF.col_vr_unitario);
-    var colT=colLetter(mapeoF.col_vr_total);
-    var colC=mapeoF.col_cantidad!=null?colLetter(mapeoF.col_cantidad):null;
-    var setCelda=function(addr,v,f){
-      var prev=wsF[addr];
-      var celda={t:'n',v:v};
-      if(f)celda.f=f;
-      if(prev&&prev.s)celda.s=prev.s;
-      celda.z=(prev&&prev.z)?prev.z:'#,##0.00';
-      wsF[addr]=celda;
-    };
-    (pres.items||[]).filter(function(it){return !esCapituloFinal(it)}).forEach(function(it){
-      var cv=calcItemVal(it);
-      var fila=it.fila_original;
-      var addrU=colU+(fila+1),addrT=colT+(fila+1);
-      setCelda(addrU,cv.vr_unit);
-      if(colC){
-        setCelda(addrT,cv.vr_total,'ROUND('+addrU+'*'+colC+(fila+1)+',2)');
-      }else{
-        setCelda(addrT,cv.vr_total);
-      }
-    });
-    var range=XLSX.utils.decode_range(wsF['!ref']);
-    var maxC=range.e.c;
-    range.e.c=Math.max(maxC,mapeoF.col_vr_unitario,mapeoF.col_vr_total);
-    wsF['!ref']=XLSX.utils.encode_range(range);
-    var base=(fo.nombre_archivo||'formulario').replace(/\.xlsx?$/i,'');
-    XLSX.writeFile(wbF,base+'_PRECIOS_'+pres.codigo+'.xlsx');
-    showToast('Formulario exportado correctamente',{type:'ok',dur:2500});
-  };
-
   return(
     <div style={{display:'flex',flexDirection:'column',gap:8}}>
       <TituloSubTab pres={pres} presupuestos={presupuestos} tituloSubTab="Entregables" extra={<span style={{fontSize:10,color:'var(--tx3)'}}>{itemsArr.length} items &middot; Valor total: {fmt(r.valorTotal)}</span>}/>
@@ -8156,7 +8124,7 @@ function PresEntregablesPanel({pres,presupuestos,calcResumenPres,calcItemVal,cal
             <div style={{border:'1px solid var(--bdr)',borderRadius:4,padding:14,display:'flex',flexDirection:'column',gap:8}}>
               <div style={{fontSize:12,fontWeight:700,color:'var(--ac)'}}>FORMULARIO ORIGINAL</div>
               <div style={{fontSize:10,color:'var(--tx2)',lineHeight:1.4}}>Devuelve el mismo Excel de la entidad ({pres.formulario_original.nombre_archivo}) con las columnas de Vr. Unitario y Vr. Total llenas.</div>
-              <button className="btn" onClick={exportarFormularioLleno} style={{fontSize:11,padding:'6px 12px',border:'1px solid var(--ok)',borderRadius:4,background:'rgba(74,222,128,.08)',color:'var(--ok)',cursor:'pointer',display:'inline-flex',alignItems:'center',gap:6,justifyContent:'center'}}><IconExport/> Exportar Formulario con Precios</button>
+              <button className="btn" onClick={function(){exportarFormularioLlenoGlobal(pres,calcItemVal,setPendientes,{pctA:r.pctA||0,pctI:r.pctI||0,pctU:r.pctU||0})}} style={{fontSize:11,padding:'6px 12px',border:'1px solid var(--ok)',borderRadius:4,background:'rgba(74,222,128,.08)',color:'var(--ok)',cursor:'pointer',display:'inline-flex',alignItems:'center',gap:6,justifyContent:'center'}}><IconExport/> Exportar Formulario con Precios</button>
             </div>
           }
         </div>
@@ -8276,6 +8244,84 @@ function PresBannerProyecto({pres,presupuestos,setTab}){
       <button onClick={function(){setTab(9)}} style={{fontSize:10,padding:'3px 10px',border:'1px solid var(--err)',borderRadius:4,background:'transparent',color:'var(--err)',cursor:'pointer',flexShrink:0}}>Ir a Proyectos →</button>
     </div>
   );
+}
+
+function exportarFormularioLlenoGlobal(pres,calcItemVal,setPendientesFn,aiuConfig){
+  try{
+  var v=validarExportacionFormulario(pres);
+  if(!v.valido){if(setPendientesFn)setPendientesFn(v.pendientes);else showToast('Faltan: '+v.pendientes.join('; '),{type:'warn',dur:8000});return}
+  var fo=pres.formulario_original;
+  if(!fo||!fo.archivo_b64){showToast('Sube el formulario original para completar la exportacion',{type:'warn',dur:5000});return}
+  var wbF=XLSX.read(fo.archivo_b64,{type:'base64'});
+  var wsF=wbF.Sheets[wbF.SheetNames[0]];
+  var mapeoF=fo.mapeo;
+  var colU=colLetter(mapeoF.col_vr_unitario);
+  var colT=colLetter(mapeoF.col_vr_total);
+  var colC=mapeoF.col_cantidad!=null?colLetter(mapeoF.col_cantidad):null;
+  var setCelda=function(addr,v,f){
+    var prev=wsF[addr];
+    var celda={t:'n',v:v};
+    if(f)celda.f=f;
+    if(prev&&prev.s)celda.s=prev.s;
+    celda.z=(prev&&prev.z)?prev.z:'#,##0.00';
+    wsF[addr]=celda;
+  };
+  var setCellStr=function(addr,v){
+    var prev=wsF[addr];
+    var celda={t:'s',v:v};
+    if(prev&&prev.s)celda.s=prev.s;
+    wsF[addr]=celda;
+  };
+  var itemsArr=(pres.items||[]).filter(function(it){return !esCapituloFinal(it)});
+  itemsArr.forEach(function(it){
+    var cv=calcItemVal(it);
+    var fila=it.fila_original;
+    var addrU=colU+(fila+1),addrT=colT+(fila+1);
+    setCelda(addrU,cv.vr_unit);
+    if(colC){
+      setCelda(addrT,cv.vr_total,'ROUND('+addrU+'*'+colC+(fila+1)+',2)');
+    }else{
+      setCelda(addrT,cv.vr_total);
+    }
+  });
+
+  /* ── Filas AIU al final del presupuesto ── */
+  var hasAiu=aiuConfig&&(aiuConfig.pctA>0||aiuConfig.pctI>0||aiuConfig.pctU>0);
+  var numFilasRef=0;
+  if(hasAiu){
+    var cdTotal=0;
+    itemsArr.forEach(function(it){cdTotal+=calcItemVal(it).vr_total});
+    var maxFila=0;
+    (pres.items||[]).forEach(function(it){if(it.fila_original!=null&&it.fila_original+1>maxFila)maxFila=it.fila_original+1});
+    var rowAdm=maxFila+2;
+    var rowImp=maxFila+3;
+    var rowUti=maxFila+4;
+    var colDesc=mapeoF.col_descripcion!=null?colLetter(mapeoF.col_descripcion):colLetter(1);
+    setCellStr(colDesc+rowAdm,'Administración ('+Number(aiuConfig.pctA).toFixed(2)+'%)');
+    setCelda(colT+rowAdm,r2(cdTotal*aiuConfig.pctA/100));
+    setCellStr(colDesc+rowImp,'Imprevistos ('+Number(aiuConfig.pctI).toFixed(2)+'%)');
+    setCelda(colT+rowImp,r2(cdTotal*aiuConfig.pctI/100));
+    setCellStr(colDesc+rowUti,'Utilidad ('+Number(aiuConfig.pctU).toFixed(2)+'%)');
+    setCelda(colT+rowUti,r2(cdTotal*aiuConfig.pctU/100));
+    numFilasRef=rowUti;
+  }
+
+  var range=XLSX.utils.decode_range(wsF['!ref']);
+  var maxC=range.e.c;
+  range.e.c=Math.max(maxC,mapeoF.col_vr_unitario,mapeoF.col_vr_total);
+  if(numFilasRef>0)range.e.r=Math.max(range.e.r,numFilasRef-1);
+  wsF['!ref']=XLSX.utils.encode_range(range);
+
+  /* ── Ajustar anchos de columna para evitar ####### ── */
+  var cols=wsF['!cols']||[];
+  if(mapeoF.col_vr_unitario!=null){cols[mapeoF.col_vr_unitario]=cols[mapeoF.col_vr_unitario]||{};cols[mapeoF.col_vr_unitario].wch=Math.max(cols[mapeoF.col_vr_unitario].wch||0,16);}
+  if(mapeoF.col_vr_total!=null){cols[mapeoF.col_vr_total]=cols[mapeoF.col_vr_total]||{};cols[mapeoF.col_vr_total].wch=Math.max(cols[mapeoF.col_vr_total].wch||0,22);}
+  wsF['!cols']=cols;
+
+  var base=(fo.nombre_archivo||'formulario').replace(/\.xlsx?$/i,'');
+  XLSX.writeFile(wbF,base+'_PRECIOS_'+pres.codigo+'.xlsx');
+  showToast('Formulario exportado correctamente'+(hasAiu?' con AIU al final':''),{type:'ok',dur:2500});
+  }catch(ex){showToast('Error al exportar: '+ex.message,{type:'err',dur:10000})}
 }
 
 var FORM_TABLE_MAXW=1145; /* debe igualar la suma del colgroup de la tabla de items (fase revision) */
@@ -8496,7 +8542,10 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
 
   var exportarFormularioRapido=function(){
     if(!fo||!fo.archivo_b64){showToast('No hay formulario para exportar',{type:'warn'});return}
-    exportarFormularioLleno();
+    var useOv=pres.aiu_override&&pres.aiu_override.activo;
+    var cfg=data.config||{};
+    var aiuC={pctA:useOv?(safeFloat(pres.aiu_override.pct_a)||0):(safeFloat(cfg.pct_administracion)||0),pctI:useOv?(safeFloat(pres.aiu_override.pct_i)||0):(safeFloat(cfg.pct_imprevistos)||0),pctU:useOv?(safeFloat(pres.aiu_override.pct_u)||0):(safeFloat(cfg.pct_utilidad)||0)};
+    exportarFormularioLlenoGlobal(pres,calcItemVal,null,aiuC);
   };
 
   var mapeosGuardados=(data.config_listas&&data.config_listas.mapeos_formulario)||[];
@@ -8550,12 +8599,26 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
     setFase(pres.formulario_original?'revision':'inicio');
   };
 
-  var importarFormulario=function(){
+  var importarFormulario=async function(){
     if(!archivoRaw||!mapeoValido)return;
     var ws=archivoRaw.Sheets[archivoRaw.SheetNames[0]];
     var filas=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',blankrows:true});
     var colApu=fuenteApu==='codigo_1'?mapeo.col_codigo_1:fuenteApu==='codigo_2'?mapeo.col_codigo_2:mapeo.col_item;
     var mapeoFinal=Object.assign({},mapeo,{col_codigo_apu:colApu});
+
+    /* ── Confirmacion previa a la importacion ── */
+    var fi=mapeoFinal.fila_inicio;
+    var previewRows=[];
+    for(var pi=fi;pi<Math.min(fi+3,filas.length);pi++){
+      var pf=filas[pi];
+      var celdas=(pf||[]).map(function(c){return String(c||'').trim()}).filter(function(c){return c!==''});
+      if(celdas.length>0)previewRows.push('Fila '+(pi+1)+': '+celdas.slice(0,4).join(' | '));
+    }
+    var msg='Se importarán los datos a partir de la fila '+(fi+1)+' (índice '+fi+').\n\n'
+      +'Vista previa:\n'+(previewRows.length?previewRows.join('\n'):'(sin datos visibles)')+'\n\n'
+      +'Total de filas en el archivo: '+filas.length+'\n'
+      +'¿Confirmar importación?';
+    if(!(await askConfirm(msg)))return;
 
     var b64=null;var archivoDemasiadoGrande=false;
     try{

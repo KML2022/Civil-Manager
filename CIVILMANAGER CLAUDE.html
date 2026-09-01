@@ -8959,14 +8959,9 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
         <BannerEstadoProyecto pres={pres} estadoLabel={estadoLabel} estadoColor={estadoColor}/>
         <div style={{display:'flex',gap:6,alignItems:'center'}}>
           {!readOnly&&<button className="btn" onClick={addCapitulo} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--ok)',borderRadius:4,background:'rgba(74,222,128,.06)',color:'var(--ok)',cursor:'pointer'}}>+ Capitulo</button>}
-          {!readOnly&&<button className="btn" onClick={reimportar} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--bdr)',borderRadius:4,background:'none',color:'var(--tx2)',cursor:'pointer'}}>{'↩ '+(fo?'Reimportar':'Subir Excel')}</button>}
           {!readOnly&&fo&&<button className="btn" onClick={editarMapeo} style={{fontSize:10,padding:'4px 10px',border:'1px solid #fbbf24',borderRadius:4,background:'rgba(251,191,36,.08)',color:'#fbbf24',cursor:'pointer',fontWeight:600}}>✏️ Editar Mapeo</button>}
-          {!readOnly&&<button className="btn" onClick={function(){setShowImportApuPres(true)}} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--ac)',borderRadius:4,background:'rgba(77,143,247,.08)',color:'var(--ac)',cursor:'pointer'}}>📥 Importar APU (Excel)</button>}
-          {!readOnly&&fo&&<button className="btn" onClick={function(){setShowAsignarApuTodos(true)}} style={{fontSize:10,padding:'4px 10px',border:'1px solid #a78bfa',borderRadius:4,background:'rgba(167,139,250,.08)',color:'#a78bfa',cursor:'pointer',fontWeight:600}}>🔄 Asignar APU a todos</button>}
           {pres.estado!=='cerrado'&&<button className="btn" onClick={siguienteEstado} style={{fontSize:10,padding:'4px 10px',border:'1px solid '+(pres.estado==='borrador'?'var(--ac)':'var(--ok)'),borderRadius:4,background:pres.estado==='borrador'?'rgba(77,143,247,.08)':'rgba(74,222,128,.08)',color:pres.estado==='borrador'?'var(--ac)':'var(--ok)',cursor:'pointer',fontWeight:600}}>{pres.estado==='borrador'?'→ Revisión':'→ Cerrado'}</button>}
           {pres.estado==='cerrado'&&<span style={{fontSize:10,color:'var(--ok)',fontWeight:700}}>🔒 Cerrado</span>}
-          {fo&&<button className="btn" onClick={exportarFormularioRapido} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--ok)',borderRadius:4,background:'rgba(74,222,128,.06)',color:'var(--ok)',cursor:'pointer'}}>📤 Exportar Excel</button>}
-          {!readOnly&&fo&&<button className="btn" onClick={eliminarFormulario} style={{fontSize:10,padding:'4px 10px',border:'1px solid #f87171',borderRadius:4,background:'rgba(248,113,113,.08)',color:'#f87171',cursor:'pointer'}}>🗑 Eliminar</button>}
           <button onClick={function(){setTab(14)}} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--bdr)',borderRadius:4,background:'transparent',color:'var(--tx2)',cursor:'pointer'}}>📦 Ver recursos del proyecto</button>
           <input className="ni" placeholder="Buscar item..." value={busq} onChange={function(e){setBusq(e.target.value);setPage(0)}} style={{width:160,height:22,fontSize:10,border:'1px solid var(--ac)',borderRadius:4,marginLeft:8}}/>
         </div>
@@ -9070,10 +9065,19 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
             </tbody>
           </table>
         </div>
-        <div style={{display:'flex',alignItems:'center',gap:8,padding:'6px 12px',borderTop:'1px solid var(--bdr)',fontSize:11,color:'var(--tx3)',width:'100%',boxSizing:'border-box'}}>
-          <button disabled={page===0} onClick={function(){setPage(page-1)}} style={{padding:'2px 8px',fontSize:10,opacity:page===0?0.4:1,cursor:page===0?'not-allowed':'pointer'}}>{'← Anterior'}</button>
-          <span>Página {page+1} de {totalPaginas} ({itemsFiltrados.length} ítems)</span>
-          <button disabled={page>=totalPaginas-1} onClick={function(){setPage(page+1)}} style={{padding:'2px 8px',fontSize:10,opacity:page>=totalPaginas-1?0.4:1,cursor:page>=totalPaginas-1?'not-allowed':'pointer'}}>{'Siguiente →'}</button>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,padding:'6px 12px',borderTop:'1px solid var(--bdr)',fontSize:11,color:'var(--tx3)',width:'100%',boxSizing:'border-box'}}>
+          <div style={{display:'flex',alignItems:'center',gap:8}}>
+            <button disabled={page===0} onClick={function(){setPage(page-1)}} style={{padding:'2px 8px',fontSize:10,opacity:page===0?0.4:1,cursor:page===0?'not-allowed':'pointer'}}>{'← Anterior'}</button>
+            <span>Página {page+1} de {totalPaginas} ({itemsFiltrados.length} ítems)</span>
+            <button disabled={page>=totalPaginas-1} onClick={function(){setPage(page+1)}} style={{padding:'2px 8px',fontSize:10,opacity:page>=totalPaginas-1?0.4:1,cursor:page>=totalPaginas-1?'not-allowed':'pointer'}}>{'Siguiente →'}</button>
+          </div>
+          <div style={{display:'flex',alignItems:'center',gap:6}}>
+            {!readOnly&&fo&&<button className="btn" onClick={function(){setShowAsignarApuTodos(true)}} style={{fontSize:9,padding:'3px 8px',border:'1px solid #a78bfa',borderRadius:4,background:'rgba(167,139,250,.08)',color:'#a78bfa',cursor:'pointer',fontWeight:600}}>🔄 Asignar APU</button>}
+            {!readOnly&&<button className="btn" onClick={function(){setShowImportApuPres(true)}} style={{fontSize:9,padding:'3px 8px',border:'1px solid var(--ac)',borderRadius:4,background:'rgba(77,143,247,.08)',color:'var(--ac)',cursor:'pointer'}}>📥 Importar APU (Excel)</button>}
+            {fo&&<button className="btn" onClick={exportarFormularioRapido} style={{fontSize:9,padding:'3px 8px',border:'1px solid var(--ok)',borderRadius:4,background:'rgba(74,222,128,.06)',color:'var(--ok)',cursor:'pointer'}}>📤 Exportar Formulario (Excel)</button>}
+            {!readOnly&&<button className="btn" onClick={reimportar} style={{fontSize:9,padding:'3px 8px',border:'1px solid var(--bdr)',borderRadius:4,background:'none',color:'var(--tx2)',cursor:'pointer'}}>↩ Reimportar Formulario</button>}
+            {!readOnly&&fo&&<button className="btn" onClick={eliminarFormulario} style={{fontSize:9,padding:'3px 8px',border:'1px solid #f87171',borderRadius:4,background:'rgba(248,113,113,.08)',color:'#f87171',cursor:'pointer'}}>🗑 Eliminar</button>}
+          </div>
         </div>
       </div>
       {fo&&

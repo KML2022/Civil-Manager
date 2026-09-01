@@ -216,6 +216,8 @@ select.ni option{background:var(--bg3);color:var(--tx);padding:4px 8px}
 
 .ni[type=number]::-webkit-inner-spin-button,.ni[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
 
+input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+
 
 
 .sel{background:transparent;border:none;color:var(--tx);font-family:'Inter',sans-serif;font-size:11px;padding:0 4px;height:24px;outline:none;width:100%;cursor:pointer;-webkit-appearance:none}
@@ -8307,7 +8309,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
     setTipoPrecioFormulario((pres&&pres.tipoPrecioFormulario)||'apu');
     var tipo=(pres&&pres.tipoPrecioFormulario)||'apu';
     if(tipo==='entidad'&&pres&&pres.items){
-      var sinP=pres.items.filter(function(it){return!it.es_capitulo_manual&&(!it.precioEntidad||it.precioEntidad<=0)});
+      var sinP=pres.items.filter(function(it){return!esCapituloFinal(it)&&(!it.precioEntidad||it.precioEntidad<=0)});
       setAlarmasPrecioFaltante(sinP.length>0?sinP.map(function(it){return it.num_item||it.descripcion}):null);
     }else{
       setAlarmasPrecioFaltante(null);
@@ -8358,12 +8360,13 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
   var updItem=function(i,k,v){
     if(readOnly)return;
     var arr=pres.items.slice();arr[i]=Object.assign({},arr[i]);arr[i][k]=v;
-    saveItems(arr);
     if(k==='precioEntidad'&&tipoPrecioFormulario==='entidad'){
-      var sinP=arr.filter(function(it){return!it.es_capitulo_manual&&(!it.precioEntidad||it.precioEntidad<=0)});
+      var sinP=arr.filter(function(it){return!esCapituloFinal(it)&&(!it.precioEntidad||it.precioEntidad<=0)});
       var nuevaAlarma=sinP.length>0?sinP.map(function(it){return it.num_item||it.descripcion}):null;
       setAlarmasPrecioFaltante(nuevaAlarma);
-      onChange(Object.assign({},pres,{alarmasPrecioFaltante:nuevaAlarma}));
+      saveItems(arr,{alarmasPrecioFaltante:nuevaAlarma});
+    }else{
+      saveItems(arr);
     }
   };
   var openApuModal=function(i){if(!readOnly){setApuModal({open:true,itemIdx:i,search:'',catFilter:''});setApuSel(null)}};
@@ -8627,15 +8630,18 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
       if(sinPrecio.length>0){
         var alarma=sinPrecio.map(function(it){return it.num_item||it.descripcion});
         setAlarmasPrecioFaltante(alarma);
-        onChange(Object.assign({},n[idxPres],{alarmasPrecioFaltante:alarma}));
+        n[idxPres]=Object.assign({},n[idxPres],{alarmasPrecioFaltante:alarma});
+        onChange(Object.assign({},data,{presupuestos:n}));
         showToast('⚠ '+sinPrecio.length+' item(s) sin precio unitario. Verifique la columna "Vr. Unitario" en el Excel.',{type:'warn',dur:8000});
       }else{
         setAlarmasPrecioFaltante(null);
-        onChange(Object.assign({},n[idxPres],{alarmasPrecioFaltante:null}));
+        n[idxPres]=Object.assign({},n[idxPres],{alarmasPrecioFaltante:null});
+        onChange(Object.assign({},data,{presupuestos:n}));
       }
     }else{
       setAlarmasPrecioFaltante(null);
-      onChange(Object.assign({},n[idxPres],{alarmasPrecioFaltante:null}));
+      n[idxPres]=Object.assign({},n[idxPres],{alarmasPrecioFaltante:null});
+      onChange(Object.assign({},data,{presupuestos:n}));
     }
     setArchivoRaw(null);setPreviewFilas([]);setPreviewMerges([]);
     setFase('revision');
@@ -8987,8 +8993,8 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
         </div>}
         {alarmasPrecioFaltante&&alarmasPrecioFaltante.length>0&&(
           <div style={{display:'flex',alignItems:'flex-start',gap:10,padding:'8px 14px',borderRadius:4,fontSize:11,lineHeight:1.6,background:'rgba(248,113,113,.08)',border:'1px solid #f87171',color:'#f87171'}}>
-            <span style={{flex:1}}>⚠ {alarmasPrecioFaltante.length} ítem(s) sin precio de entidad definido: {alarmasPrecioFaltante.slice(0,15).join(', ')}{alarmasPrecioFaltante.length>15?'…':''}. Complételos en la columna "Tipo Precio".</span>
-            <button onClick={function(){setAlarmasPrecioFaltante(null);onChange(Object.assign({},pres,{alarmasPrecioFaltante:null}))}} style={{background:'none',border:'none',cursor:'pointer',color:'var(--tx3)',fontSize:14,lineHeight:1,padding:'0 2px',flexShrink:0}} title="Cerrar">✕</button>
+            <span style={{flex:1}}>⚠ {alarmasPrecioFaltante.length} ítem(s) sin precio de entidad definido: {alarmasPrecioFaltante.slice(0,15).join(', ')}{alarmasPrecioFaltante.length>15?'…':''}. Complételos en la columna "Vr. Unit".</span>
+            <button onClick={function(){setAlarmasPrecioFaltante(null);onChange(Object.assign({},data,{presupuestos:presupuestos.map(function(p,idx){return idx===idxPres?Object.assign({},p,{alarmasPrecioFaltante:null}):p})}))}} style={{background:'none',border:'none',cursor:'pointer',color:'var(--tx3)',fontSize:14,lineHeight:1,padding:'0 2px',flexShrink:0}} title="Cerrar">✕</button>
           </div>
         )}
       </div>
@@ -8996,7 +9002,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
         <div className="xl-scroll" style={{overflowX:'auto',flex:'1 1 0',minHeight:0,minWidth:0,maxHeight:'none',scrollbarGutter:'stable'}}>
           <table className="tbl-hanken-test" style={{tableLayout:'fixed',width:FORM_TABLE_INNERW,fontSize:10}}>
             <colgroup>
-              <col style={{width:40}}/><col style={{width:65}}/><col style={{width:100}}/><col style={{width:382}}/><col style={{width:70}}/><col style={{width:80}}/><col style={{width:90}}/><col style={{width:100}}/><col style={{width:90}}/><col style={{width:110}}/>
+              <col style={{width:40}}/><col style={{width:65}}/><col style={{width:100}}/><col style={{width:392}}/><col style={{width:70}}/><col style={{width:80}}/><col style={{width:90}}/><col style={{width:100}}/><col style={{width:80}}/><col style={{width:110}}/>
             </colgroup>
             <thead><tr><th>#</th><th style={{textAlign:'center'}}>APU</th><th style={{textAlign:'center'}}>Item</th><th>Descripcion</th><th style={{textAlign:'center'}}>UN</th><th>Cant.</th><th>Vr. Unit</th><th>Vr. Total</th><th style={{textAlign:'center'}}>Tipo Precio</th><th className="col-act">Acciones</th></tr></thead>
             <tbody>
@@ -9036,20 +9042,18 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
                     <td style={{whiteSpace:'normal',wordBreak:'break-word'}}>{isEdit?<input className="ni" value={it.descripcion} onChange={function(e){updItem(i,'descripcion',e.target.value)}} style={{width:'100%',fontSize:10}} placeholder="Descripcion"/>:it.descripcion}</td>
                     <td style={{textAlign:'center'}}>{isEdit?<input className="ni" value={it.unidad} onChange={function(e){updItem(i,'unidad',e.target.value)}} style={{width:'100%',fontSize:10,textAlign:'center'}}/>:it.unidad}</td>
                     <td style={{textAlign:'right'}}>{isEdit?<NumInput step=".01" inputMode="decimal" value={it.cantidad} onChange={function(v){updItem(i,'cantidad',v)}} style={{width:'100%',fontSize:10,textAlign:'right'}} decimals={2}/>:fmt(it.cantidad)}</td>
-                    <td style={{textAlign:'right'}}>{(apu||it.tipoPrecio==='entidad')?fmt(c.vr_unit):'-'}</td>
+                    <td style={{textAlign:'right'}}>{(it.tipoPrecio==='entidad'&&!readOnly&&isEdit)?
+                      <input type="number" value={it.precioEntidad==null?'':it.precioEntidad}
+                        onChange={function(e){var val=e.target.value===''?null:parseFloat(e.target.value)||0;updItem(i,'precioEntidad',val)}}
+                        style={{width:'100%',fontSize:10,textAlign:'right',background:'rgba(251,191,36,.08)',color:'#fbbf24',border:'1px solid rgba(251,191,36,.3)',borderRadius:3,padding:'1px 4px',boxSizing:'border-box',MozAppearance:'textfield',appearance:'textfield'}}
+                        placeholder="0" step="0.01" inputMode="decimal"/>
+                      :(apu||it.tipoPrecio==='entidad')?fmt(c.vr_unit):'-'}</td>
                     <td style={{textAlign:'right',fontWeight:600}}>{(apu||it.tipoPrecio==='entidad')?fmt(c.vr_total):'-'}</td>
                     <td style={{textAlign:'center'}}>
                       <select value={it.tipoPrecio||'apu'} onChange={function(e){updItem(i,'tipoPrecio',e.target.value)}} disabled={readOnly} style={{fontSize:9,background:'var(--bg2)',color:'var(--tx)',border:'1px solid var(--bdr)',borderRadius:3,padding:'1px 3px',width:'100%'}}>
                         <option value="apu">APU</option>
                         <option value="entidad">Entidad</option>
                       </select>
-                      {it.tipoPrecio==='entidad'&&(
-                        <input type="number"
-                          value={it.precioEntidad==null?'':it.precioEntidad}
-                          onChange={function(e){var val=e.target.value===''?null:parseFloat(e.target.value)||0;updItem(i,'precioEntidad',val);showToast('Precio actualizado: '+fmt(val),{type:'ok',dur:2000})}}
-                          disabled={readOnly} placeholder="$ precio entidad" style={{marginTop:3,width:'100%',fontSize:9,background:'var(--bg2)',color:'#fbbf24',border:'1px solid #fbbf24',borderRadius:3,padding:'1px 4px'}}/>
-                      )}
-                      {it.tipoPrecio==='entidad'&&!it.precioEntidad&&<div style={{fontSize:8,color:'#f87171',marginTop:2}}>⚠ Sin definir</div>}
                     </td>
                     <td className="col-act" style={{textAlign:'center',whiteSpace:'nowrap',boxSizing:'border-box',height:'inherit'}}>
                       <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100%'}}>

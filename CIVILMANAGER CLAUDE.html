@@ -8298,8 +8298,6 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
   var showImportApuPresState=useState(false);var showImportApuPres=showImportApuPresState[0],setShowImportApuPres=showImportApuPresState[1];
   var showAsignarApuTodosState=useState(false);var showAsignarApuTodos=showAsignarApuTodosState[0],setShowAsignarApuTodos=showAsignarApuTodosState[1];
   var modoDestinoState=useState(null);var modoDestino=modoDestinoState[0],setModoDestino=modoDestinoState[1];
-  var precioTempState=useState(null);var precioTemp=precioTempState[0],setPrecioTemp=precioTempState[1];
-  var precioTempRef=useRef(null);
   var herrPct=data.config&&data.config.herr_pct!=null?Number(data.config.herr_pct):5;
   var fileRef=useRef(null);
   var presId=pres&&pres.id;
@@ -8459,21 +8457,6 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
     var arr=pres.items.slice();arr[i]=Object.assign({},arr[i],{apu_id:null,tiene_apu:false,alerta_sin_apu:true});
     saveItems(arr);
     showToast('APU removido',{type:'ok',dur:2000});
-  };
-
-  var prepararPrecioEntidad=function(i,valor,item){
-    if(valor===null||(item.precioEntidad!==null&&item.precioEntidad===valor)){setPrecioTemp(null);return}
-    setPrecioTemp({idx:i,valor:valor,item:item,anterior:item.precioEntidad});
-  };
-  var confirmarPrecioEntidad=function(){
-    if(!precioTemp)return;
-    updItem(precioTemp.idx,'precioEntidad',precioTemp.valor);
-    precioTempRef.current=null;
-    setPrecioTemp(null);
-  };
-  var cancelarPrecioEntidad=function(){
-    precioTempRef.current=null;
-    setPrecioTemp(null);
   };
 
   var siguienteEstado=async function(){
@@ -9056,15 +9039,14 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
                     <td style={{textAlign:'right'}}>{(apu||it.tipoPrecio==='entidad')?fmt(c.vr_unit):'-'}</td>
                     <td style={{textAlign:'right',fontWeight:600}}>{(apu||it.tipoPrecio==='entidad')?fmt(c.vr_total):'-'}</td>
                     <td style={{textAlign:'center'}}>
-                      <select value={it.tipoPrecio||'apu'} onChange={function(e){updItem(i,'tipoPrecio',e.target.value)}} disabled={readOnly||preciosFijos} style={{fontSize:9,background:'var(--bg2)',color:'var(--tx)',border:'1px solid var(--bdr)',borderRadius:3,padding:'1px 3px',width:'100%'}}>
+                      <select value={it.tipoPrecio||'apu'} onChange={function(e){updItem(i,'tipoPrecio',e.target.value)}} disabled={readOnly} style={{fontSize:9,background:'var(--bg2)',color:'var(--tx)',border:'1px solid var(--bdr)',borderRadius:3,padding:'1px 3px',width:'100%'}}>
                         <option value="apu">APU</option>
                         <option value="entidad">Entidad</option>
                       </select>
                       {it.tipoPrecio==='entidad'&&(
                         <input type="number"
-                          value={precioTemp&&precioTemp.idx===i?precioTemp.valor:(it.precioEntidad==null?'':it.precioEntidad)}
-                          onChange={function(e){var val=e.target.value===''?null:parseFloat(e.target.value)||0;var tmp={idx:i,valor:val,item:it,anterior:it.precioEntidad};precioTempRef.current=tmp;setPrecioTemp(tmp)}}
-                          onBlur={function(){var cur=precioTempRef.current;if(cur&&cur.idx===i&&cur.valor!==cur.anterior)setPrecioTemp(Object.assign({},cur,{show:true}));else{precioTempRef.current=null;setPrecioTemp(null)}}}
+                          value={it.precioEntidad==null?'':it.precioEntidad}
+                          onChange={function(e){var val=e.target.value===''?null:parseFloat(e.target.value)||0;updItem(i,'precioEntidad',val);showToast('Precio actualizado: '+fmt(val),{type:'ok',dur:2000})}}
                           disabled={readOnly} placeholder="$ precio entidad" style={{marginTop:3,width:'100%',fontSize:9,background:'var(--bg2)',color:'#fbbf24',border:'1px solid #fbbf24',borderRadius:3,padding:'1px 4px'}}/>
                       )}
                       {it.tipoPrecio==='entidad'&&!it.precioEntidad&&<div style={{fontSize:8,color:'#f87171',marginTop:2}}>⚠ Sin definir</div>}
@@ -9242,37 +9224,6 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
                 <button className="btn" onClick={function(){setShowAsignarApuTodos(false)}} style={{fontSize:10,padding:'5px 14px',border:'1px solid var(--bdr)',borderRadius:4,background:'none',color:'var(--tx2)',cursor:'pointer'}}>Cancelar</button>
                 <button className="btn" onClick={执行Asignacion} disabled={itemsSinApu.length===0||apusDisponibles.length===0} style={{fontSize:10,padding:'5px 14px',border:'1px solid #a78bfa',borderRadius:4,background:itemsSinApu.length>0&&apusDisponibles.length>0?'#a78bfa':'var(--bg2)',color:itemsSinApu.length>0&&apusDisponibles.length>0?'#fff':'var(--tx3)',cursor:itemsSinApu.length>0&&apusDisponibles.length>0?'pointer':'not-allowed',fontWeight:700}}>Asignar APU automáticos ({resultado.auto})</button>
               </div>
-            </div>
-          </div>
-        </div>
-        );
-      })()}
-      {precioTemp&&precioTemp.show&&(function(){
-        var it=precioTemp.item;
-        var subTotal=r2((precioTemp.valor||0)*(it.cantidad||0));
-        return(
-        <div className="modal-overlay" onClick={cancelarPrecioEntidad}>
-          <div className="modal-box" style={{width:420,maxWidth:'95vw'}} onClick={function(e){e.stopPropagation()}}>
-            <div className="modal-hdr">
-              <span className="title">💰 Confirmar precio de entidad</span>
-              <button onClick={cancelarPrecioEntidad} style={{background:'none',border:'none',cursor:'pointer',padding:2,color:'var(--ok)'}}><IconX/></button>
-            </div>
-            <div style={{padding:'12px 16px',fontSize:11,lineHeight:1.8}}>
-              <div style={{marginBottom:8}}>
-                <strong>Item:</strong> {it.num_item} — <span style={{color:'var(--tx2)'}}>{it.descripcion}</span>
-              </div>
-              <div style={{marginBottom:8}}>
-                <strong>Unidad:</strong> {it.unidad} &nbsp;|&nbsp; <strong>Cantidad:</strong> {fmt(it.cantidad)}
-              </div>
-              <div style={{borderTop:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)',padding:'8px 0',margin:'8px 0',display:'flex',flexDirection:'column',gap:4}}>
-                <div><strong>Valor digitado:</strong> <span style={{color:'#fbbf24',fontWeight:700,fontSize:13}}>{fmt(precioTemp.valor)}</span></div>
-                {precioTemp.anterior!=null&&<div><strong>Valor anterior:</strong> <span style={{color:'var(--tx3)'}}>{fmt(precioTemp.anterior)}</span></div>}
-                <div><strong>Subtotal item:</strong> <span style={{color:'var(--ok)',fontWeight:700,fontSize:13}}>{fmt(subTotal)}</span></div>
-              </div>
-            </div>
-            <div style={{display:'flex',gap:8,justifyContent:'flex-end',padding:'8px 16px 12px'}}>
-              <button className="btn" onClick={cancelarPrecioEntidad} style={{fontSize:10,padding:'5px 14px',border:'1px solid var(--bdr)',borderRadius:4,background:'none',color:'var(--tx2)',cursor:'pointer'}}>Cancelar</button>
-              <button className="btn" onClick={confirmarPrecioEntidad} style={{fontSize:10,padding:'5px 14px',border:'1px solid var(--ok)',borderRadius:4,background:'var(--ok)',color:'#fff',cursor:'pointer',fontWeight:700}}>✓ Confirmar</button>
             </div>
           </div>
         </div>

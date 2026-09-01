@@ -8296,6 +8296,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
   var editIdxState=useState(null);var editIdx=editIdxState[0],setEditIdx=editIdxState[1];
   var apuSelState=useState(null);var apuSel=apuSelState[0],setApuSel=apuSelState[1];
   var showImportApuPresState=useState(false);var showImportApuPres=showImportApuPresState[0],setShowImportApuPres=showImportApuPresState[1];
+  var showAsignarApuTodosState=useState(false);var showAsignarApuTodos=showAsignarApuTodosState[0],setShowAsignarApuTodos=showAsignarApuTodosState[1];
   var modoDestinoState=useState(null);var modoDestino=modoDestinoState[0],setModoDestino=modoDestinoState[1];
   var herrPct=data.config&&data.config.herr_pct!=null?Number(data.config.herr_pct):5;
   var fileRef=useRef(null);
@@ -8304,7 +8305,13 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
   useEffect(function(){
     setFase(pres&&(pres.formulario_original||(pres.items||[]).length>0)?'revision':'inicio');
     setTipoPrecioFormulario((pres&&pres.tipoPrecioFormulario)||'apu');
-    setAlarmasPrecioFaltante(null);
+    var tipo=(pres&&pres.tipoPrecioFormulario)||'apu';
+    if(tipo==='entidad'&&pres&&pres.items){
+      var sinP=pres.items.filter(function(it){return!it.es_capitulo_manual&&(!it.precioEntidad||it.precioEntidad<=0)});
+      setAlarmasPrecioFaltante(sinP.length>0?sinP.map(function(it){return it.num_item||it.descripcion}):null);
+    }else{
+      setAlarmasPrecioFaltante(null);
+    }
   },[presId]);
 
   if(!pres)return <PresBannerProyecto pres={pres} presupuestos={presupuestos} setTab={setTab}/>;
@@ -8352,6 +8359,12 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
     if(readOnly)return;
     var arr=pres.items.slice();arr[i]=Object.assign({},arr[i]);arr[i][k]=v;
     saveItems(arr);
+    if(k==='precioEntidad'&&tipoPrecioFormulario==='entidad'){
+      var sinP=arr.filter(function(it){return!it.es_capitulo_manual&&(!it.precioEntidad||it.precioEntidad<=0)});
+      var nuevaAlarma=sinP.length>0?sinP.map(function(it){return it.num_item||it.descripcion}):null;
+      setAlarmasPrecioFaltante(nuevaAlarma);
+      onChange(Object.assign({},pres,{alarmasPrecioFaltante:nuevaAlarma}));
+    }
   };
   var openApuModal=function(i){if(!readOnly){setApuModal({open:true,itemIdx:i,search:'',catFilter:''});setApuSel(null)}};
   var closeApuModal=function(){setApuModal({open:false,itemIdx:null,search:'',catFilter:''});setApuSel(null)};
@@ -8434,15 +8447,14 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
       var precioTecho=r2(parseFloat(itemActual.precioEntidad)||0);
       var costoDirecto=r2(totalDirectoDeApu(found));
       if(costoDirecto!==precioTecho){
-        showToast('🔴 No se puede asignar: el costo directo del APU ('+fmt(costoDirecto)+') no es igual al precio de la entidad ('+fmt(precioTecho)+'). Ajuste los recursos del APU antes de asignarlo.',{type:'err'});
-        return;
+        showToast('⚠ El costo directo del APU ('+fmt(costoDirecto)+') difiere del precio entidad ('+fmt(precioTecho)+'). El precio de venta será el precio de entidad.',{type:'warn',dur:5000});
       }
     }
     assignApu(found.id);
   };
   var unassignApu=async function(i){
     if(readOnly)return;if(!(await askConfirm('¿Desea quitar el APU asignado a este ítem? Esta acción no se puede deshacer.')))return;
-    var arr=pres.items.slice();arr[i]=Object.assign({},arr[i],{apu_id:null,tiene_apu:false});
+    var arr=pres.items.slice();arr[i]=Object.assign({},arr[i],{apu_id:null,tiene_apu:false,alerta_sin_apu:true});
     saveItems(arr);
     showToast('APU removido',{type:'ok',dur:2000});
   };
@@ -8455,7 +8467,9 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
       if(itemsSinPrecio.length>0){
         if(!(await askConfirm('⚠ '+itemsSinPrecio.length+' ítem(s) con precio de entidad sin definir.\nAl cambiar a Revisión quedarán con precio $0. ¿Continuar?')))return;
       }
-      if(!(await askConfirm('¿Cambiar "'+pres.nombre+'" a Revisión?\n\nLos precios de entidad se bloquearán y podrá asignar APU a los ítems.')))return;
+      var itemsSinApu=(pres.items||[]).filter(function(it){return!esCapituloFinal(it)&&!it.tiene_apu});
+      var msgAPU=itemsSinApu.length>0?'\n\n⚠ '+itemsSinApu.length+' ítem(s) sin APU asignado. El módulo de Programación no podrá funcionar con estos items.':'';
+      if(!(await askConfirm('¿Cambiar "'+pres.nombre+'" a Revisión?\n\nLos precios de entidad se bloquearán y podrá asignar APU a los ítems.'+msgAPU)))return;
     }
     if(pres.estado==='en_revision'){
       if(!(await askConfirm('¿Cerrar "'+pres.nombre+'"?\n\nEsto bloqueará TODO el proyecto. No se podrán hacer más cambios.')))return;
@@ -8611,13 +8625,17 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
     if(tipoPrecioFormulario==='entidad'){
       var sinPrecio=itemsReales.filter(function(it){return!it.precioEntidad||it.precioEntidad<=0});
       if(sinPrecio.length>0){
-        setAlarmasPrecioFaltante(sinPrecio.map(function(it){return it.num_item||it.descripcion}));
+        var alarma=sinPrecio.map(function(it){return it.num_item||it.descripcion});
+        setAlarmasPrecioFaltante(alarma);
+        onChange(Object.assign({},n[idxPres],{alarmasPrecioFaltante:alarma}));
         showToast('⚠ '+sinPrecio.length+' item(s) sin precio unitario. Verifique la columna "Vr. Unitario" en el Excel.',{type:'warn',dur:8000});
       }else{
         setAlarmasPrecioFaltante(null);
+        onChange(Object.assign({},n[idxPres],{alarmasPrecioFaltante:null}));
       }
     }else{
       setAlarmasPrecioFaltante(null);
+      onChange(Object.assign({},n[idxPres],{alarmasPrecioFaltante:null}));
     }
     setArchivoRaw(null);setPreviewFilas([]);setPreviewMerges([]);
     setFase('revision');
@@ -8944,6 +8962,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
           {!readOnly&&<button className="btn" onClick={reimportar} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--bdr)',borderRadius:4,background:'none',color:'var(--tx2)',cursor:'pointer'}}>{'↩ '+(fo?'Reimportar':'Subir Excel')}</button>}
           {!readOnly&&fo&&<button className="btn" onClick={editarMapeo} style={{fontSize:10,padding:'4px 10px',border:'1px solid #fbbf24',borderRadius:4,background:'rgba(251,191,36,.08)',color:'#fbbf24',cursor:'pointer',fontWeight:600}}>✏️ Editar Mapeo</button>}
           {!readOnly&&<button className="btn" onClick={function(){setShowImportApuPres(true)}} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--ac)',borderRadius:4,background:'rgba(77,143,247,.08)',color:'var(--ac)',cursor:'pointer'}}>📥 Importar APU (Excel)</button>}
+          {!readOnly&&fo&&<button className="btn" onClick={function(){setShowAsignarApuTodos(true)}} style={{fontSize:10,padding:'4px 10px',border:'1px solid #a78bfa',borderRadius:4,background:'rgba(167,139,250,.08)',color:'#a78bfa',cursor:'pointer',fontWeight:600}}>🔄 Asignar APU a todos</button>}
           {pres.estado!=='cerrado'&&<button className="btn" onClick={siguienteEstado} style={{fontSize:10,padding:'4px 10px',border:'1px solid '+(pres.estado==='borrador'?'var(--ac)':'var(--ok)'),borderRadius:4,background:pres.estado==='borrador'?'rgba(77,143,247,.08)':'rgba(74,222,128,.08)',color:pres.estado==='borrador'?'var(--ac)':'var(--ok)',cursor:'pointer',fontWeight:600}}>{pres.estado==='borrador'?'→ Revisión':'→ Cerrado'}</button>}
           {pres.estado==='cerrado'&&<span style={{fontSize:10,color:'var(--ok)',fontWeight:700}}>🔒 Cerrado</span>}
           {fo&&<button className="btn" onClick={exportarFormularioRapido} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--ok)',borderRadius:4,background:'rgba(74,222,128,.06)',color:'var(--ok)',cursor:'pointer'}}>📤 Exportar Excel</button>}
@@ -8974,7 +8993,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
         {alarmasPrecioFaltante&&alarmasPrecioFaltante.length>0&&(
           <div style={{display:'flex',alignItems:'flex-start',gap:10,padding:'8px 14px',borderRadius:4,fontSize:11,lineHeight:1.6,background:'rgba(248,113,113,.08)',border:'1px solid #f87171',color:'#f87171'}}>
             <span style={{flex:1}}>⚠ {alarmasPrecioFaltante.length} ítem(s) sin precio de entidad definido: {alarmasPrecioFaltante.slice(0,15).join(', ')}{alarmasPrecioFaltante.length>15?'…':''}. Complételos en la columna "Tipo Precio".</span>
-            <button onClick={function(){setAlarmasPrecioFaltante(null)}} style={{background:'none',border:'none',cursor:'pointer',color:'var(--tx3)',fontSize:14,lineHeight:1,padding:'0 2px',flexShrink:0}} title="Cerrar">✕</button>
+            <button onClick={function(){setAlarmasPrecioFaltante(null);onChange(Object.assign({},pres,{alarmasPrecioFaltante:null}))}} style={{background:'none',border:'none',cursor:'pointer',color:'var(--tx3)',fontSize:14,lineHeight:1,padding:'0 2px',flexShrink:0}} title="Cerrar">✕</button>
           </div>
         )}
       </div>
@@ -9014,9 +9033,9 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
                   <tr key={it.id} onBlur={function(e){if(!e.currentTarget.contains(e.relatedTarget))setEditIdx(null)}}>
                     <td style={{textAlign:'center',color:'var(--tx3)'}}>{i+1}</td>
                     <td style={{textAlign:'center'}}>
-                      {it.tipoPrecio==='entidad'&&preciosFijos?
-                        <span style={{fontSize:9,color:'var(--tx3)'}}>— precios firmes</span>
-                      :apu?<span style={{fontSize:9,color:'var(--ok)',fontWeight:600}}>{apu.codigo}</span>:<span style={{fontSize:9,color:'var(--err)'}}>Sin asignar</span>}
+                      {apu?<span style={{fontSize:9,color:'var(--ok)',fontWeight:600}}>{apu.codigo}</span>
+                      :it.alerta_sin_apu?<span style={{fontSize:9,color:'#f87171',fontWeight:600}}>🔴 Sin APU</span>
+                      :<span style={{fontSize:9,color:'var(--err)'}}>Sin asignar</span>}
                     </td>
                     <td style={{textAlign:'center'}}>{isEdit?<input className="ni" value={it.num_item} onChange={function(e){updItem(i,'num_item',e.target.value)}} style={{width:'100%',fontSize:10,textAlign:'center'}} autoFocus/>:it.num_item}</td>
                     <td style={{whiteSpace:'normal',wordBreak:'break-word'}}>{isEdit?<input className="ni" value={it.descripcion} onChange={function(e){updItem(i,'descripcion',e.target.value)}} style={{width:'100%',fontSize:10}} placeholder="Descripcion"/>:it.descripcion}</td>
@@ -9037,7 +9056,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
                     <td className="col-act" style={{textAlign:'center',whiteSpace:'nowrap',boxSizing:'border-box',height:'inherit'}}>
                       <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100%'}}>
                         <span style={{width:24,display:'inline-flex',justifyContent:'center'}}>{!readOnly&&<button onClick={function(){setEditIdx(isEdit?null:i)}} title="Editar" style={{background:'none',border:'none',cursor:'pointer',padding:0}}><IconEdit/></button>}</span>
-                        <span style={{width:24,display:'inline-flex',justifyContent:'center'}}>{!readOnly&&!(it.tipoPrecio==='entidad'&&preciosFijos&&!apu)&&(apu?
+                        <span style={{width:24,display:'inline-flex',justifyContent:'center'}}>{!readOnly&&(apu?
                           <button onClick={function(){unassignApu(i)}} title="Quitar APU" style={{background:'none',border:'none',color:'#f87171',cursor:'pointer',padding:0,fontSize:15,fontWeight:700,verticalAlign:'middle'}}>⊘</button>
                           :<button onClick={function(){openApuModal(i)}} title="Asignar APU" style={{background:'none',border:'none',color:'var(--ac)',cursor:'pointer',padding:0,fontSize:11,fontWeight:700,verticalAlign:'middle'}}>APU</button>
                         )}</span>
@@ -9109,6 +9128,100 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
             onClose={function(){setShowImportApuPres(false);setModoDestino(null)}}/>
         );
       })()}
+      {showAsignarApuTodos&&(function(){
+        var itemsSinApu=itemsArr.filter(function(it){return!it.es_capitulo_manual&&!it.tiene_apu});
+        var apusDisponibles=pres.apus_snap||[];
+        var apusPorUnidad={};
+        apusDisponibles.forEach(function(a){var u=(a.unidad||'').toLowerCase().trim();if(!apusPorUnidad[u])apusPorUnidad[u]=[];apusPorUnidad[u].push(a)});
+        var resultado={auto:0,manual:0,sinApu:0,items:[]};
+        itemsSinApu.forEach(function(it){
+          var u=(it.unidad||'').toLowerCase().trim();
+          var candidatos=apusPorUnidad[u]||[];
+          if(candidatos.length===1){resultado.auto++;resultado.items.push({item:it.num_item,apu:candidatos[0].codigo,ok:true})}
+          else if(candidatos.length>1){resultado.manual++;resultado.items.push({item:it.num_item,apu:candidatos.length+' opciones',ok:false})}
+          else{resultado.sinApu++;resultado.items.push({item:it.num_item,apu:'Sin APU disponible',ok:false})}
+        });
+        var执行Asignacion=function(){
+          var arr=pres.items.slice();var asignados=0;
+          var snapApus=(pres.apus_snap||[]).slice();
+          var insumosSnap=(pres.insumos_snap||[]).slice();
+          var equiposSnap=(pres.equipos_snap||[]).slice();
+          var cargosSnap=(pres.cargos_snap||[]).slice();
+          for(var idx=0;idx<arr.length;idx++){
+            var it=arr[idx];if(it.es_capitulo_manual||it.tiene_apu)continue;
+            var u=(it.unidad||'').toLowerCase().trim();
+            var candidatos=apusPorUnidad[u]||[];
+            if(candidatos.length===1){
+              var apuOrig=candidatos[0];var apuEnSnap=snapApus.find(function(a){return a.id===apuOrig.id});
+              if(!apuEnSnap){
+                var clon=Object.assign({},apuOrig,{id:uid(),apu_origen_id:apuOrig.id});
+                snapApus.push(clon);
+                asegurarEnSnapshot(insumosSnap,data.insumos||[],'insumo_id',clon.recursos_ins);
+                asegurarEnSnapshot(equiposSnap,data.equipos||[],'equipo_id',clon.recursos_eq);
+                asegurarEnSnapshot(equiposSnap,data.equipos||[],'equipo_id',clon.recursos_transporte);
+                asegurarEnSnapshot(cargosSnap,data.cargos||[],'cargo_id',clon.recursos_mo);
+                arr[idx]=Object.assign({},it,{apu_id:clon.id,tiene_apu:true,alerta_sin_apu:false});
+              }else{
+                arr[idx]=Object.assign({},it,{apu_id:apuEnSnap.id,tiene_apu:true,alerta_sin_apu:false});
+              }
+              asignados++;
+            }
+          }
+          if(asignados>0){
+            saveItems(arr,{apus_snap:snapApus,insumos_snap:insumosSnap,equipos_snap:equiposSnap,cargos_snap:cargosSnap});
+          }
+          showToast(asignados+' items asignados con APU. '+resultado.manual+' items con múltiples opciones (asignar manualmente).',{type:asignados>0?'ok':'warn',dur:5000});
+          setShowAsignarApuTodos(false);
+        };
+        return(
+        <div className="modal-overlay" onClick={function(){setShowAsignarApuTodos(false)}}>
+          <div className="modal-box" style={{width:600,maxWidth:'95vw'}} onClick={function(e){e.stopPropagation()}}>
+            <div className="modal-hdr">
+              <span className="title">🔄 Asignar APU a todos los items</span>
+              <button onClick={function(){setShowAsignarApuTodos(false)}} style={{background:'none',border:'none',cursor:'pointer',padding:2,color:'var(--ok)'}}><IconX/></button>
+            </div>
+            <div style={{padding:'10px 16px',fontSize:11,lineHeight:1.7,color:'var(--tx)'}}>
+              <div style={{background:'rgba(251,191,36,.1)',border:'1px solid #fbbf24',borderRadius:4,padding:'8px 12px',marginBottom:10}}>
+                <strong style={{color:'#fbbf24'}}>⚠ Importante:</strong> El módulo de <strong>Programación</strong> requiere que todos los items tengan un APU asignado para poder calcular necesidades de materiales, disponibilidad de equipos y programación de mano de obra por frentes de trabajo.
+              </div>
+              <div style={{marginBottom:8}}>
+                <strong>Items sin APU:</strong> <span style={{color:'#f87171',fontWeight:700}}>{itemsSinApu.length}</span>
+              </div>
+              <div style={{marginBottom:8}}>
+                <strong>APU disponibles en el proyecto:</strong> <span style={{color:apusDisponibles.length>0?'var(--ok)':'#f87171',fontWeight:700}}>{apusDisponibles.length}</span>
+              </div>
+              {apusDisponibles.length===0&&<div style={{background:'rgba(248,113,113,.08)',border:'1px solid #f87171',borderRadius:4,padding:'8px 12px',marginBottom:10,color:'#f87171'}}>
+                No hay APU en el catálogo del proyecto. Primero importe APU desde Excel usando el botón <strong>"📥 Importar APU (Excel)"</strong>.
+              </div>}
+              {itemsSinApu.length>0&&apusDisponibles.length>0&&(
+                <div style={{maxHeight:200,overflowY:'auto',border:'1px solid var(--bdr)',borderRadius:4,marginBottom:10}}>
+                  <table style={{width:'100%',fontSize:10,borderCollapse:'collapse'}}>
+                    <thead><tr style={{background:'var(--bg2)'}}>
+                      <th style={{padding:'4px 8px',textAlign:'left',borderBottom:'1px solid var(--bdr)'}}>Item</th>
+                      <th style={{padding:'4px 8px',textAlign:'left',borderBottom:'1px solid var(--bdr)'}}>Unidad</th>
+                      <th style={{padding:'4px 8px',textAlign:'left',borderBottom:'1px solid var(--bdr)'}}>APU encontrado</th>
+                      <th style={{padding:'4px 8px',textAlign:'center',borderBottom:'1px solid var(--bdr)'}}>Estado</th>
+                    </tr></thead>
+                    <tbody>{resultado.items.map(function(r,i){
+                      return <tr key={i} style={{background:i%2===0?'transparent':'rgba(255,255,255,.02)'}}>
+                        <td style={{padding:'3px 8px'}}>{r.item}</td>
+                        <td style={{padding:'3px 8px'}}>{itemsSinApu[i]?itemsSinApu[i].unidad:'—'}</td>
+                        <td style={{padding:'3px 8px'}}>{r.apu}</td>
+                        <td style={{padding:'3px 8px',textAlign:'center'}}>{r.ok?<span style={{color:'var(--ok)'}}>✓ Auto</span>:<span style={{color:'#fbbf24'}}>⚠ Manual</span>}</td>
+                      </tr>;
+                    })}</tbody>
+                  </table>
+                </div>
+              )}
+              <div style={{display:'flex',gap:8,justifyContent:'flex-end',paddingTop:8,borderTop:'1px solid var(--bdr)'}}>
+                <button className="btn" onClick={function(){setShowAsignarApuTodos(false)}} style={{fontSize:10,padding:'5px 14px',border:'1px solid var(--bdr)',borderRadius:4,background:'none',color:'var(--tx2)',cursor:'pointer'}}>Cancelar</button>
+                <button className="btn" onClick={执行Asignacion} disabled={itemsSinApu.length===0||apusDisponibles.length===0} style={{fontSize:10,padding:'5px 14px',border:'1px solid #a78bfa',borderRadius:4,background:itemsSinApu.length>0&&apusDisponibles.length>0?'#a78bfa':'var(--bg2)',color:itemsSinApu.length>0&&apusDisponibles.length>0?'#fff':'var(--tx3)',cursor:itemsSinApu.length>0&&apusDisponibles.length>0?'pointer':'not-allowed',fontWeight:700}}>Asignar APU automáticos ({resultado.auto})</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        );
+      })()}
       {apuModal.open&&(function(){
         var itemActual=apuModal.itemIdx!==null?itemsArr[apuModal.itemIdx]:null;
         var apuSeleccionado=apuSel?filteredApus().find(function(a){return apuKey(a)===apuSel}):null;
@@ -9126,12 +9239,12 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
             </div>
             {esEntidad&&(
               <div style={{padding:'6px 14px',display:'flex',alignItems:'center',gap:16,flexWrap:'wrap',fontSize:11,
-                background:!apuSeleccionado?'transparent':exacto?'rgba(74,222,128,.08)':'rgba(248,113,113,.12)',
-                borderBottom:'1px solid '+(!apuSeleccionado?'var(--bdr)':exacto?'var(--ok)':'#f87171')}}>
+                background:!apuSeleccionado?'transparent':exacto?'rgba(74,222,128,.08)':'rgba(251,191,36,.1)',
+                borderBottom:'1px solid '+(!apuSeleccionado?'var(--bdr)':exacto?'var(--ok)':'#fbbf24')}}>
                 <span style={{color:'var(--tx2)'}}>🎯 Precio techo (entidad): <strong style={{color:'#fbbf24'}}>{fmt(precioTecho)}</strong></span>
-                {apuSeleccionado&&<span style={{color:exacto?'var(--ok)':'#f87171'}}>Costo directo del APU seleccionado: <strong>{fmt(costoDirectoSel)}</strong></span>}
-                {apuSeleccionado&&<span style={{fontWeight:700,color:exacto?'var(--ok)':'#f87171'}}>
-                  {exacto?'🟢 Igual al precio de la entidad':costoDirectoSel>precioTecho?'🔴 EXCEDE en '+fmt(costoDirectoSel-precioTecho):'🔴 Falta '+fmt(precioTecho-costoDirectoSel)+' para igualar'}
+                {apuSeleccionado&&<span style={{color:exacto?'var(--ok)':'#fbbf24'}}>Costo directo del APU seleccionado: <strong>{fmt(costoDirectoSel)}</strong></span>}
+                {apuSeleccionado&&<span style={{fontWeight:700,color:exacto?'var(--ok)':'#fbbf24'}}>
+                  {exacto?'🟢 Igual al precio de la entidad':costoDirectoSel>precioTecho?'⚠ EXCEDE en '+fmt(costoDirectoSel-precioTecho):'⚠ Falta '+fmt(precioTecho-costoDirectoSel)+' para igualar'}
                 </span>}
               </div>
             )}
@@ -9182,7 +9295,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
             </div>
             <div className="modal-foot">
               <button className="btn" onClick={closeApuModal} style={{fontSize:11,padding:'6px 14px',border:'1px solid var(--bdr)',borderRadius:4,background:'none',color:'var(--tx2)',cursor:'pointer'}}>Cancelar</button>
-              <button className="btn" disabled={!apuSel||!exacto} onClick={confirmarAsignacion} style={{fontSize:11,padding:'6px 14px',border:'1px solid var(--ok)',borderRadius:4,color:(apuSel&&exacto)?'var(--ok)':'var(--tx3)',background:(apuSel&&exacto)?'rgba(74,222,128,.08)':'transparent',cursor:(apuSel&&exacto)?'pointer':'not-allowed'}} title={esEntidad&&!exacto?'El costo directo del APU debe ser exactamente igual al precio de la entidad':''}>✓ Asignar este APU</button>
+              <button className="btn" disabled={!apuSel} onClick={confirmarAsignacion} style={{fontSize:11,padding:'6px 14px',border:'1px solid var(--ok)',borderRadius:4,color:apuSel?'var(--ok)':'var(--tx3)',background:apuSel?'rgba(74,222,128,.08)':'transparent',cursor:apuSel?'pointer':'not-allowed'}} title={esEntidad&&!exacto?'El costo directo del APU difiere del precio de entidad':''}>✓ Asignar este APU</button>
             </div>
           </div>
         </div>

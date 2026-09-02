@@ -8305,7 +8305,8 @@ var exportarFormularioLlenoGlobal=async function(pres,calcItemVal,setPendientesF
   var colC=mapeoF.col_cantidad!=null?colLetter(mapeoF.col_cantidad):null;
   var colDesc=mapeoF.col_descripcion!=null?colLetter(mapeoF.col_descripcion):colLetter(1);
 
-  /* ── 6. Helpers XML ── */
+  /* ── 6. Helpers XML (con createElementNS para preservar namespace OOXML) ── */
+  var SSML_NS='http://schemas.openxmlformats.org/spreadsheetml/2006/main';
   function xmlFindRow(rNum){
     var rows=sheetData.getElementsByTagName('row');
     for(var i=0;i<rows.length;i++){if(parseInt(rows[i].getAttribute('r'))===rNum)return rows[i]}
@@ -8314,7 +8315,7 @@ var exportarFormularioLlenoGlobal=async function(pres,calcItemVal,setPendientesF
   function xmlEnsureRow(rNum){
     var existing=xmlFindRow(rNum);
     if(existing)return existing;
-    var newRow=doc.createElement('row');
+    var newRow=doc.createElementNS(SSML_NS,'row');
     newRow.setAttribute('r',rNum);
     var allRows=sheetData.getElementsByTagName('row');
     var inserted=false;
@@ -8327,7 +8328,7 @@ var exportarFormularioLlenoGlobal=async function(pres,calcItemVal,setPendientesF
   function xmlEnsureCell(row,ref,sIdx){
     var cells=row.getElementsByTagName('c');
     for(var i=0;i<cells.length;i++){if(cells[i].getAttribute('r')===ref)return cells[i]}
-    var cell=doc.createElement('c');
+    var cell=doc.createElementNS(SSML_NS,'c');
     cell.setAttribute('r',ref);
     if(sIdx!=null&&sIdx>0)cell.setAttribute('s',sIdx);
     var inserted=false;
@@ -8341,7 +8342,7 @@ var exportarFormularioLlenoGlobal=async function(pres,calcItemVal,setPendientesF
     var cell=xmlEnsureCell(row,ref,sIdx);
     cell.removeAttribute('t');
     while(cell.firstChild)cell.removeChild(cell.firstChild);
-    var vEl=doc.createElement('v');
+    var vEl=doc.createElementNS(SSML_NS,'v');
     vEl.textContent=String(val);
     cell.appendChild(vEl);
   }
@@ -8349,19 +8350,19 @@ var exportarFormularioLlenoGlobal=async function(pres,calcItemVal,setPendientesF
     var cell=xmlEnsureCell(row,ref,sIdx);
     cell.removeAttribute('t');
     while(cell.firstChild)cell.removeChild(cell.firstChild);
-    var fEl=doc.createElement('f');
+    var fEl=doc.createElementNS(SSML_NS,'f');
     fEl.textContent=formula;
     cell.appendChild(fEl);
-    var vEl=doc.createElement('v');
+    var vEl=doc.createElementNS(SSML_NS,'v');
     vEl.textContent='';
     cell.appendChild(vEl);
   }
   function xmlSetInlineStr(row,ref,text,sIdx){
-    var cell=xmlEnsureCell(row,ref,sIdx);
+    var cell=xmlEnsureCell(row,ref,sIdx!=null?sIdx:0);
     cell.setAttribute('t','inlineStr');
     while(cell.firstChild)cell.removeChild(cell.firstChild);
-    var isEl=doc.createElement('is');
-    var tEl=doc.createElement('t');
+    var isEl=doc.createElementNS(SSML_NS,'is');
+    var tEl=doc.createElementNS(SSML_NS,'t');
     tEl.textContent=text;
     isEl.appendChild(tEl);
     cell.appendChild(isEl);
@@ -8407,23 +8408,23 @@ var exportarFormularioLlenoGlobal=async function(pres,calcItemVal,setPendientesF
     var rowCD=maxFila+2,rowAdm=maxFila+3,rowImp=maxFila+4,rowUti=maxFila+5,rowCT=maxFila+6;
     /* CD */
     var rCD=xmlEnsureRow(rowCD);
-    xmlSetInlineStr(rCD,colDesc+rowCD,'Costo Directo (CD)',numFmtIdx);
+    xmlSetInlineStr(rCD,colDesc+rowCD,'Costo Directo (CD)',0);
     xmlSetFormula(rCD,colT+rowCD,'SUM('+colT+minFila+':'+colT+maxFila+')',numFmtIdx);
     /* Administracion */
     var rAdm=xmlEnsureRow(rowAdm);
-    xmlSetInlineStr(rAdm,colDesc+rowAdm,'Administraci\u00f3n ('+Number(aiuConfig.pctA).toFixed(2)+'%)',numFmtIdx);
+    xmlSetInlineStr(rAdm,colDesc+rowAdm,'Administraci\u00f3n ('+Number(aiuConfig.pctA).toFixed(2)+'%)',0);
     xmlSetFormula(rAdm,colT+rowAdm,'ROUND('+colT+rowCD+'*'+aiuConfig.pctA+'/100,2)',numFmtIdx);
     /* Imprevistos */
     var rImp=xmlEnsureRow(rowImp);
-    xmlSetInlineStr(rImp,colDesc+rowImp,'Imprevistos ('+Number(aiuConfig.pctI).toFixed(2)+'%)',numFmtIdx);
+    xmlSetInlineStr(rImp,colDesc+rowImp,'Imprevistos ('+Number(aiuConfig.pctI).toFixed(2)+'%)',0);
     xmlSetFormula(rImp,colT+rowImp,'ROUND('+colT+rowCD+'*'+aiuConfig.pctI+'/100,2)',numFmtIdx);
     /* Utilidad */
     var rUti=xmlEnsureRow(rowUti);
-    xmlSetInlineStr(rUti,colDesc+rowUti,'Utilidad ('+Number(aiuConfig.pctU).toFixed(2)+'%)',numFmtIdx);
+    xmlSetInlineStr(rUti,colDesc+rowUti,'Utilidad ('+Number(aiuConfig.pctU).toFixed(2)+'%)',0);
     xmlSetFormula(rUti,colT+rowUti,'ROUND('+colT+rowCD+'*'+aiuConfig.pctU+'/100,2)',numFmtIdx);
     /* Costo Total */
     var rCT=xmlEnsureRow(rowCT);
-    xmlSetInlineStr(rCT,colDesc+rowCT,'Costo Total (CT)',numFmtIdx);
+    xmlSetInlineStr(rCT,colDesc+rowCT,'Costo Total (CT)',0);
     xmlSetFormula(rCT,colT+rowCT,'ROUND('+colT+rowCD+'+'+colT+rowAdm+'+'+colT+rowImp+'+'+colT+rowUti+',2)',numFmtIdx);
     lastRow=rowCT;
   }
@@ -8436,9 +8437,13 @@ var exportarFormularioLlenoGlobal=async function(pres,calcItemVal,setPendientesF
     dimEl.setAttribute('ref',startCell+':'+colT+lastRow);
   }
 
-  /* ── 10. Serializar y escribir de vuelta ── */
+  /* ── 10. Serializar, preservar xmlns:r y escribir de vuelta ── */
   var serializer=new XMLSerializer();
   var newSheetXml=serializer.serializeToString(doc);
+  /* Preservar xmlns:r para que el logo/drawing funcione */
+  if(newSheetXml.indexOf('xmlns:r=')===-1){
+    newSheetXml=newSheetXml.replace('<worksheet ','<worksheet xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" ');
+  }
   zip.file('xl/worksheets/sheet1.xml',newSheetXml);
 
   /* ── 11. Descargar ── */

@@ -8248,6 +8248,28 @@ function PresBannerProyecto({pres,presupuestos,setTab}){
   );
 }
 
+/* ── Transformar estilos de formato plano (lectura) a anidado (escritura) para xlsx-js-style ── */
+function transformStylesForWrite(wb){
+  if(!wb||!wb.Sheets)return;
+  Object.keys(wb.Sheets).forEach(function(name){
+    var ws=wb.Sheets[name];if(!ws)return;
+    Object.keys(ws).forEach(function(addr){
+      if(addr.charAt(0)==='!')return;
+      var c=ws[addr];if(!c||!c.s)return;
+      /* fill: flat → nested */
+      if((c.s.fgColor||c.s.bgColor)&&!c.s.fill){
+        c.s.fill={patternType:'solid'};
+        if(c.s.fgColor){c.s.fill.fgColor=c.s.fgColor;delete c.s.fgColor}
+        if(c.s.bgColor){c.s.fill.bgColor=c.s.bgColor;delete c.s.bgColor}
+      }
+      /* font: fontName → font.name */
+      if(c.s.fontName&&!c.s.font){c.s.font={name:c.s.fontName};delete c.s.fontName}
+      /* numFmt: z → s.numFmt */
+      if(!c.s.numFmt&&c.z){c.s.numFmt=c.z}
+    });
+  });
+}
+
 var exportarFormularioLlenoGlobal=async function(pres,calcItemVal,setPendientesFn,aiuConfig){
   try{
   var v=validarExportacionFormulario(pres);
@@ -8267,33 +8289,50 @@ var exportarFormularioLlenoGlobal=async function(pres,calcItemVal,setPendientesF
     }catch(e){}
   }
 
-  /* ── Paso 2: Leer workbook con SheetJS + cellStyles ── */
-  var wbF=XLSX.read(fo.archivo_b64,{type:'base64',cellStyles:true});
+  /* ── Paso 2: Leer workbook con SheetJS + cellStyles y transformar estilos ── */
+  var wbF=XLSX.read(fo.archivo_b64,{type:'base64',cellStyles:true,cellNF:true});
+  transformStylesForWrite(wbF);
   var wsF=wbF.Sheets[wbF.SheetNames[0]];
   var mapeoF=fo.mapeo;
   var colU=colLetter(mapeoF.col_vr_unitario);
   var colT=colLetter(mapeoF.col_vr_total);
   var colC=mapeoF.col_cantidad!=null?colLetter(mapeoF.col_cantidad):null;
   var colDesc=mapeoF.col_descripcion!=null?colLetter(mapeoF.col_descripcion):colLetter(1);
+  var numFmtStr='#,##0.00';
   var setCelda=function(addr,v,f){
     var prev=wsF[addr];
     var celda={t:'n',v:v};
     if(f)celda.f=f;
-    if(prev&&prev.s)celda.s=prev.s;
-    celda.z=(prev&&prev.z)?prev.z:'#,##0.00';
+    /* Heredar estilo de celda previa, o crear nuevo */
+    if(prev&&prev.s){
+      celda.s=JSON.parse(JSON.stringify(prev.s));
+    }else{
+      celda.s={};
+    }
+    celda.s.numFmt=numFmtStr;
     wsF[addr]=celda;
   };
   var setCeldaFormula=function(addr,fm){
     var prev=wsF[addr];
     var celda={t:'n',f:fm};
-    if(prev&&prev.s)celda.s=prev.s;
-    celda.z=(prev&&prev.z)?prev.z:'#,##0.00';
+    if(prev&&prev.s){
+      celda.s=JSON.parse(JSON.stringify(prev.s));
+    }else{
+      celda.s={};
+    }
+    celda.s.numFmt=numFmtStr;
     wsF[addr]=celda;
   };
   var setCellStr=function(addr,v,s){
     var prev=wsF[addr];
     var celda={t:'s',v:v};
-    if(s)celda.s=s;else if(prev&&prev.s)celda.s=prev.s;
+    if(s){
+      celda.s=s;
+    }else if(prev&&prev.s){
+      celda.s=JSON.parse(JSON.stringify(prev.s));
+    }else{
+      celda.s={};
+    }
     wsF[addr]=celda;
   };
   var itemsArr=(pres.items||[]).filter(function(it){return !esCapituloFinal(it)});
@@ -8322,8 +8361,9 @@ var exportarFormularioLlenoGlobal=async function(pres,calcItemVal,setPendientesF
       }
     });
     if(minFila===Infinity)minFila=mapeoF.fila_inicio+1;
-    var sBoldBgTop={font:{bold:true},fill:{fgColor:{rgb:'F2F2F2'}},border:[{top:{style:'medium',color:{rgb:'999999'}}},{bottom:{style:'thin',color:{rgb:'CCCCCC'}}}]};
-    var sBoldBgBot={font:{bold:true},fill:{fgColor:{rgb:'F2F2F2'}},border:[{top:{style:'thin',color:{rgb:'CCCCCC'}}},{bottom:{style:'double',color:{rgb:'333333'}}}]};
+    var sBoldBgTop={numFmt:'#,##0.00',font:{bold:true},fill:{patternType:'solid',fgColor:{rgb:'FFF2F2F2'}},border:[{top:{style:'medium',color:{rgb:'FF999999'}}},{bottom:{style:'thin',color:{rgb:'FFCCCCCC'}}}]};
+    var sBoldBgBot={numFmt:'#,##0.00',font:{bold:true},fill:{patternType:'solid',fgColor:{rgb:'FFF2F2F2'}},border:[{top:{style:'thin',color:{rgb:'FFCCCCCC'}}},{bottom:{style:'double',color:{rgb:'FF333333'}}}]};
+    var sNumFmt={numFmt:'#,##0.00'};
     var rowCD=maxFila+2;
     var rowAdm=maxFila+3;
     var rowImp=maxFila+4;
@@ -8331,11 +8371,11 @@ var exportarFormularioLlenoGlobal=async function(pres,calcItemVal,setPendientesF
     var rowCT=maxFila+6;
     setCellStr(colDesc+rowCD,'Costo Directo (CD)',sBoldBgTop);
     setCeldaFormula(colT+rowCD,'=SUM('+colT+minFila+':'+colT+maxFila+')');
-    setCellStr(colDesc+rowAdm,'Administración ('+Number(aiuConfig.pctA).toFixed(2)+'%)');
+    setCellStr(colDesc+rowAdm,'Administración ('+Number(aiuConfig.pctA).toFixed(2)+'%)',sNumFmt);
     setCeldaFormula(colT+rowAdm,'=ROUND('+colT+rowCD+'*'+aiuConfig.pctA+'/100,2)');
-    setCellStr(colDesc+rowImp,'Imprevistos ('+Number(aiuConfig.pctI).toFixed(2)+'%)');
+    setCellStr(colDesc+rowImp,'Imprevistos ('+Number(aiuConfig.pctI).toFixed(2)+'%)',sNumFmt);
     setCeldaFormula(colT+rowImp,'=ROUND('+colT+rowCD+'*'+aiuConfig.pctI+'/100,2)');
-    setCellStr(colDesc+rowUti,'Utilidad ('+Number(aiuConfig.pctU).toFixed(2)+'%)');
+    setCellStr(colDesc+rowUti,'Utilidad ('+Number(aiuConfig.pctU).toFixed(2)+'%)',sNumFmt);
     setCeldaFormula(colT+rowUti,'=ROUND('+colT+rowCD+'*'+aiuConfig.pctU+'/100,2)');
     setCellStr(colDesc+rowCT,'Costo Total (CT)',sBoldBgBot);
     setCeldaFormula(colT+rowCT,'=ROUND('+colT+rowCD+'+'+colT+rowAdm+'+'+colT+rowImp+'+'+colT+rowUti+',2)');
@@ -8353,8 +8393,8 @@ var exportarFormularioLlenoGlobal=async function(pres,calcItemVal,setPendientesF
   if(mapeoF.col_vr_total!=null){cols[mapeoF.col_vr_total]=cols[mapeoF.col_vr_total]||{};cols[mapeoF.col_vr_total].wch=Math.max(cols[mapeoF.col_vr_total].wch||0,22);}
   wsF['!cols']=cols;
 
-  /* ── Paso 5: Escribir workbook con SheetJS ── */
-  var newB64=XLSX.write(wbF,{type:'base64',bookType:'xlsx'});
+  /* ── Paso 5: Escribir workbook con SheetJS + cellStyles ── */
+  var newB64=XLSX.write(wbF,{type:'base64',bookType:'xlsx',cellStyles:true});
 
   /* ── Paso 6: Re-inyectar imagenes con JSZip ── */
   var base=(fo.nombre_archivo||'formulario').replace(/\.xlsx?$/i,'');

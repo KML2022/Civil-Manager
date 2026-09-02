@@ -20,6 +20,8 @@
 
 <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
@@ -8246,13 +8248,27 @@ function PresBannerProyecto({pres,presupuestos,setTab}){
   );
 }
 
-function exportarFormularioLlenoGlobal(pres,calcItemVal,setPendientesFn,aiuConfig){
+var exportarFormularioLlenoGlobal=async function(pres,calcItemVal,setPendientesFn,aiuConfig){
   try{
   var v=validarExportacionFormulario(pres);
   if(!v.valido){if(setPendientesFn)setPendientesFn(v.pendientes);else showToast('Faltan: '+v.pendientes.join('; '),{type:'warn',dur:8000});return}
   var fo=pres.formulario_original;
   if(!fo||!fo.archivo_b64){showToast('Sube el formulario original para completar la exportacion',{type:'warn',dur:5000});return}
-  var wbF=XLSX.read(fo.archivo_b64,{type:'base64'});
+
+  /* ── Paso 1: Extraer archivos de imagen del ZIP original con JSZip ── */
+  var mediaFiles={};var drawingFiles={};
+  if(typeof JSZip!=='undefined'){
+    try{
+      var zipOrig=await JSZip.loadAsync(fo.archivo_b64,{base64:true});
+      zipOrig.forEach(function(path,file){
+        if(path.match(/^xl\/media\//))mediaFiles[path]=file;
+        if(path.match(/^xl\/drawings\//))drawingFiles[path]=file;
+      });
+    }catch(e){}
+  }
+
+  /* ── Paso 2: Leer workbook con SheetJS + cellStyles ── */
+  var wbF=XLSX.read(fo.archivo_b64,{type:'base64',cellStyles:true});
   var wsF=wbF.Sheets[wbF.SheetNames[0]];
   var mapeoF=fo.mapeo;
   var colU=colLetter(mapeoF.col_vr_unitario);
@@ -8280,17 +8296,6 @@ function exportarFormularioLlenoGlobal(pres,calcItemVal,setPendientesFn,aiuConfi
     if(s)celda.s=s;else if(prev&&prev.s)celda.s=prev.s;
     wsF[addr]=celda;
   };
-  /* Buscar estilo de referencia de las celdas de precio existentes (ultima fila con datos) */
-  var refStyleVal=null;
-  var refStyleLbl=null;
-  (pres.items||[]).forEach(function(it){
-    if(it.fila_original!=null&&!esCapituloFinal(it)){
-      var addrT=colT+(it.fila_original+1);
-      var addrDesc=colDesc+(it.fila_original+1);
-      if(wsF[addrT]&&wsF[addrT].s)refStyleVal=wsF[addrT].s;
-      if(wsF[addrDesc]&&wsF[addrDesc].s)refStyleLbl=wsF[addrDesc].s;
-    }
-  });
   var itemsArr=(pres.items||[]).filter(function(it){return !esCapituloFinal(it)});
   itemsArr.forEach(function(it){
     var cv=calcItemVal(it);
@@ -8304,11 +8309,10 @@ function exportarFormularioLlenoGlobal(pres,calcItemVal,setPendientesFn,aiuConfi
     }
   });
 
-  /* ── Filas resumen al final: CD, AIU, CT ── */
+  /* ── Paso 3: Filas resumen al final: CD, AIU, CT ── */
   var hasAiu=aiuConfig&&(aiuConfig.pctA>0||aiuConfig.pctI>0||aiuConfig.pctU>0);
   var numFilasRef=0;
   if(hasAiu){
-    /* Encontrar primera y ultima fila de datos (1-indexed para Excel) */
     var minFila=Infinity;var maxFila=0;
     (pres.items||[]).forEach(function(it){
       if(it.fila_original!=null){
@@ -8318,57 +8322,78 @@ function exportarFormularioLlenoGlobal(pres,calcItemVal,setPendientesFn,aiuConfi
       }
     });
     if(minFila===Infinity)minFila=mapeoF.fila_inicio+1;
-
-    /* Estilo para filas de resumen (negrita + fondo gris) */
-    var sBoldBg={font:{bold:true},fill:{fgColor:{rgb:'F2F2F2'}},border:[{top:{style:'thin',color:{rgb:'CCCCCC'}}},{bottom:{style:'thin',color:{rgb:'CCCCCC'}}}]};
     var sBoldBgTop={font:{bold:true},fill:{fgColor:{rgb:'F2F2F2'}},border:[{top:{style:'medium',color:{rgb:'999999'}}},{bottom:{style:'thin',color:{rgb:'CCCCCC'}}}]};
     var sBoldBgBot={font:{bold:true},fill:{fgColor:{rgb:'F2F2F2'}},border:[{top:{style:'thin',color:{rgb:'CCCCCC'}}},{bottom:{style:'double',color:{rgb:'333333'}}}]};
-
-    /* Filas: CD, (vacía), Admin, Imp, Uti, CT */
     var rowCD=maxFila+2;
     var rowAdm=maxFila+3;
     var rowImp=maxFila+4;
     var rowUti=maxFila+5;
     var rowCT=maxFila+6;
-
-    /* Costo Directo (CD) — negrita + fondo gris */
     setCellStr(colDesc+rowCD,'Costo Directo (CD)',sBoldBgTop);
     setCeldaFormula(colT+rowCD,'=SUM('+colT+minFila+':'+colT+maxFila+')');
-
-    /* Administración */
     setCellStr(colDesc+rowAdm,'Administración ('+Number(aiuConfig.pctA).toFixed(2)+'%)');
     setCeldaFormula(colT+rowAdm,'=ROUND('+colT+rowCD+'*'+aiuConfig.pctA+'/100,2)');
-
-    /* Imprevistos */
     setCellStr(colDesc+rowImp,'Imprevistos ('+Number(aiuConfig.pctI).toFixed(2)+'%)');
     setCeldaFormula(colT+rowImp,'=ROUND('+colT+rowCD+'*'+aiuConfig.pctI+'/100,2)');
-
-    /* Utilidad */
     setCellStr(colDesc+rowUti,'Utilidad ('+Number(aiuConfig.pctU).toFixed(2)+'%)');
     setCeldaFormula(colT+rowUti,'=ROUND('+colT+rowCD+'*'+aiuConfig.pctU+'/100,2)');
-
-    /* Costo Total (CT) — negrita + fondo gris + doble borde inferior */
     setCellStr(colDesc+rowCT,'Costo Total (CT)',sBoldBgBot);
     setCeldaFormula(colT+rowCT,'=ROUND('+colT+rowCD+'+'+colT+rowAdm+'+'+colT+rowImp+'+'+colT+rowUti+',2)');
-
     numFilasRef=rowCT;
   }
 
+  /* ── Paso 4: Ajustar rango y anchos de columna ── */
   var range=XLSX.utils.decode_range(wsF['!ref']);
   var maxC=range.e.c;
   range.e.c=Math.max(maxC,mapeoF.col_vr_unitario,mapeoF.col_vr_total);
   if(numFilasRef>0)range.e.r=Math.max(range.e.r,numFilasRef-1);
   wsF['!ref']=XLSX.utils.encode_range(range);
-
-  /* ── Ajustar anchos de columna para evitar ####### ── */
   var cols=wsF['!cols']||[];
   if(mapeoF.col_vr_unitario!=null){cols[mapeoF.col_vr_unitario]=cols[mapeoF.col_vr_unitario]||{};cols[mapeoF.col_vr_unitario].wch=Math.max(cols[mapeoF.col_vr_unitario].wch||0,16);}
   if(mapeoF.col_vr_total!=null){cols[mapeoF.col_vr_total]=cols[mapeoF.col_vr_total]||{};cols[mapeoF.col_vr_total].wch=Math.max(cols[mapeoF.col_vr_total].wch||0,22);}
   wsF['!cols']=cols;
 
+  /* ── Paso 5: Escribir workbook con SheetJS ── */
+  var newB64=XLSX.write(wbF,{type:'base64',bookType:'xlsx'});
+
+  /* ── Paso 6: Re-inyectar imagenes con JSZip ── */
   var base=(fo.nombre_archivo||'formulario').replace(/\.xlsx?$/i,'');
-  XLSX.writeFile(wbF,base+'_PRECIOS_'+pres.codigo+'.xlsx');
-  showToast('Formulario exportado correctamente'+(hasAiu?' con CD, AIU y CT al final':''),{type:'ok',dur:2500});
+  var nombreFinal=base+'_PRECIOS_'+pres.codigo+'.xlsx';
+  var hasMedia=Object.keys(mediaFiles).length>0;
+  if(hasMedia&&typeof JSZip!=='undefined'){
+    try{
+      var zipNew=await JSZip.loadAsync(newB64,{base64:true});
+      var paths=Object.keys(mediaFiles);
+      for(var mi=0;mi<paths.length;mi++){
+        zipNew.file(paths[mi],await mediaFiles[paths[mi]].async('nodebuffer'));
+      }
+      var dPaths=Object.keys(drawingFiles);
+      for(var di=0;di<dPaths.length;di++){
+        zipNew.file(dPaths[di],await drawingFiles[dPaths[di]].async('nodebuffer'));
+      }
+      var finalBlob=await zipNew.generateAsync({type:'blob'});
+      var url=URL.createObjectURL(finalBlob);
+      var link=document.createElement('a');
+      link.href=url;link.download=nombreFinal;
+      document.body.appendChild(link);link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }catch(ezip){
+      /* Fallback: descargar sin imagenes */
+      var blobB64=atob(newB64);var arr=new Uint8Array(blobB64.length);
+      for(var bi=0;bi<blobB64.length;bi++)arr[bi]=blobB64.charCodeAt(bi);
+      var blobFallback=new Blob([arr],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+      var urlF=URL.createObjectURL(blobFallback);
+      var linkF=document.createElement('a');
+      linkF.href=urlF;linkF.download=nombreFinal;
+      document.body.appendChild(linkF);linkF.click();
+      document.body.removeChild(linkF);
+      URL.revokeObjectURL(urlF);
+    }
+  }else{
+    XLSX.writeFile(wbF,nombreFinal);
+  }
+  showToast('Formulario exportado correctamente'+(hasAiu?' con CD, AIU y CT al final':'')+(hasMedia?' (con logo)':''),{type:'ok',dur:2500});
   }catch(ex){showToast('Error al exportar: '+ex.message,{type:'err',dur:10000})}
 }
 

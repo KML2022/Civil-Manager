@@ -8249,7 +8249,7 @@ function PresBannerProyecto({pres,presupuestos,setTab}){
 }
 
 /* ══════════════════════════════════════════════════════════════════════
-   Exportación ZIP-directo: solo modifica sheet1.xml, preserva TODO lo demás
+   Exportación string-based: manipula XML como string, preserva TODO
    ══════════════════════════════════════════════════════════════════════ */
 function _xmlFindNumFmtStyleIndex(stylesDoc,formatCode){
   var targetId=4; /* built-in #,##0.00 */
@@ -8266,6 +8266,8 @@ function _xmlFindNumFmtStyleIndex(stylesDoc,formatCode){
   }
   return 0;
 }
+function _xmlEscapeAttr(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+function _xmlEscapeText(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
 
 var exportarFormularioLlenoGlobal=async function(pres,calcItemVal,setPendientesFn,aiuConfig){
   try{
@@ -8278,104 +8280,77 @@ var exportarFormularioLlenoGlobal=async function(pres,calcItemVal,setPendientesF
   /* ── 1. Cargar ZIP original ── */
   var zip=await JSZip.loadAsync(fo.archivo_b64,{base64:true});
 
-  /* ── 2. Leer sheet1.xml ── */
+  /* ── 2. Leer sheet1.xml como string puro ── */
   var sheetFile=zip.file('xl/worksheets/sheet1.xml');
   if(!sheetFile){showToast('No se encontro sheet1.xml',{type:'err',dur:5000});return}
-  var sheetXml=await sheetFile.async('string');
+  var xml=await sheetFile.async('string');
 
-  /* ── 3. Parsear XML ── */
-  var parser=new DOMParser();
-  var doc=parser.parseFromString(sheetXml,'application/xml');
-  var sheetData=doc.getElementsByTagName('sheetData')[0];
-  if(!sheetData){showToast('sheetData no encontrado',{type:'err',dur:5000});return}
-
-  /* ── 4. Buscar style index para #,##0.00 ── */
+  /* ── 3. Buscar style index para #,##0.00 ── */
   var numFmtIdx=0;
   var stylesFile=zip.file('xl/styles.xml');
   if(stylesFile){
     var stylesXml=await stylesFile.async('string');
+    var parser=new DOMParser();
     var stylesDoc=parser.parseFromString(stylesXml,'application/xml');
     numFmtIdx=_xmlFindNumFmtStyleIndex(stylesDoc,'#,##0.00');
   }
 
-  /* ── 5. Mapeo de columnas ── */
+  /* ── 4. Mapeo de columnas ── */
   var mapeoF=fo.mapeo;
   var colU=colLetter(mapeoF.col_vr_unitario);
   var colT=colLetter(mapeoF.col_vr_total);
   var colC=mapeoF.col_cantidad!=null?colLetter(mapeoF.col_cantidad):null;
   var colDesc=mapeoF.col_descripcion!=null?colLetter(mapeoF.col_descripcion):colLetter(1);
 
-  /* ── 6. Helpers XML (con createElementNS para preservar namespace OOXML) ── */
-  var SSML_NS='http://schemas.openxmlformats.org/spreadsheetml/2006/main';
-  function xmlFindRow(rNum){
-    var rows=sheetData.getElementsByTagName('row');
-    for(var i=0;i<rows.length;i++){if(parseInt(rows[i].getAttribute('r'))===rNum)return rows[i]}
-    return null;
+  /* ── 5. Helpers string-based ── */
+  /* Reemplaza o agrega un <c> dentro de un bloque <row r="N">...</row> */
+  function xmlPatchCell(rowXml,cellRef,cellXml){
+    /* Buscar si ya existe <c r="REF">...</c> */
+    var cellRegex=new RegExp('<c\\s+r="'+cellRef+'"\\s*[^>]*>.*?</c>','s');
+    if(cellRegex.test(rowXml)){
+      return rowXml.replace(cellRegex,cellXml);
+    }
+    /* No existe: insertar antes de </row> */
+    return rowXml.replace('</row>',cellXml+'</row>');
   }
-  function xmlEnsureRow(rNum){
-    var existing=xmlFindRow(rNum);
+  /* Construye XML de celda numérica */
+  function xmlNumCell(ref,val,sIdx){
+    var sAttr=sIdx>0?' s="'+sIdx+'"':'';
+    return '<c r="'+ref+'"'+sAttr+'><v>'+_xmlEscapeAttr(val)+'</v></c>';
+  }
+  /* Construye XML de celda con fórmula */
+  function xmlFormulaCell(ref,formula,sIdx){
+    var sAttr=sIdx>0?' s="'+sIdx+'"':'';
+    return '<c r="'+ref+'"'+sAttr+'><f>'+_xmlEscapeText(formula)+'</f><v></v></c>';
+  }
+  /* Construye XML de celda inlineStr (texto) */
+  function xmlStrCell(ref,text,sIdx){
+    var sAttr=sIdx>0?' s="'+sIdx+'"':'';
+    return '<c r="'+ref+'" t="inlineStr"'+sAttr+'><is><t>'+_xmlEscapeText(text)+'</t></is></c>';
+  }
+  /* Busca el bloque <row r="N">...</row> en el string XML */
+  function xmlFindRowBlock(rNum){
+    var regex=new RegExp('(<row\\s+r="'+rNum+'"\\s*[^>]*>)(.*?)(</row>)','s');
+    var match=xml.match(regex);
+    return match?{full:match[0],open:match[1],inner:match[2],close:match[3],index:match.index}:null;
+  }
+  /* Asegura que existe un <row r="N"> y devuelve su bloque */
+  function xmlEnsureRowBlock(rNum){
+    var existing=xmlFindRowBlock(rNum);
     if(existing)return existing;
-    var newRow=doc.createElementNS(SSML_NS,'row');
-    newRow.setAttribute('r',rNum);
-    var allRows=sheetData.getElementsByTagName('row');
-    var inserted=false;
-    for(var j=0;j<allRows.length;j++){
-      if(parseInt(allRows[j].getAttribute('r'))>rNum){sheetData.insertBefore(newRow,allRows[j]);inserted=true;break}
-    }
-    if(!inserted)sheetData.appendChild(newRow);
-    return newRow;
+    /* Crear nuevo row vacío antes de </sheetData> */
+    var newRowXml='<row r="'+rNum+'"></row>';
+    xml=xml.replace('</sheetData>',newRowXml+'</sheetData>');
+    return xmlFindRowBlock(rNum);
   }
-  function xmlEnsureCell(row,ref,sIdx){
-    var cells=row.getElementsByTagName('c');
-    for(var i=0;i<cells.length;i++){if(cells[i].getAttribute('r')===ref)return cells[i]}
-    var cell=doc.createElementNS(SSML_NS,'c');
-    cell.setAttribute('r',ref);
-    if(sIdx!=null&&sIdx>0)cell.setAttribute('s',sIdx);
-    var inserted=false;
-    for(var j=0;j<cells.length;j++){
-      if(cells[j].getAttribute('r').localeCompare(ref)>0){row.insertBefore(cell,cells[j]);inserted=true;break}
-    }
-    if(!inserted)row.appendChild(cell);
-    return cell;
-  }
-  function xmlSetNumber(row,ref,val,sIdx){
-    var cell=xmlEnsureCell(row,ref,sIdx);
-    cell.removeAttribute('t');
-    while(cell.firstChild)cell.removeChild(cell.firstChild);
-    var vEl=doc.createElementNS(SSML_NS,'v');
-    vEl.textContent=String(val);
-    cell.appendChild(vEl);
-  }
-  function xmlSetFormula(row,ref,formula,sIdx){
-    var cell=xmlEnsureCell(row,ref,sIdx);
-    cell.removeAttribute('t');
-    while(cell.firstChild)cell.removeChild(cell.firstChild);
-    var fEl=doc.createElementNS(SSML_NS,'f');
-    fEl.textContent=formula;
-    cell.appendChild(fEl);
-    var vEl=doc.createElementNS(SSML_NS,'v');
-    vEl.textContent='';
-    cell.appendChild(vEl);
-  }
-  function xmlSetInlineStr(row,ref,text,sIdx){
-    var cell=xmlEnsureCell(row,ref,sIdx!=null?sIdx:0);
-    cell.setAttribute('t','inlineStr');
-    while(cell.firstChild)cell.removeChild(cell.firstChild);
-    var isEl=doc.createElementNS(SSML_NS,'is');
-    var tEl=doc.createElementNS(SSML_NS,'t');
-    tEl.textContent=text;
-    isEl.appendChild(tEl);
-    cell.appendChild(isEl);
-  }
-  function xmlInheritStyle(row,ref){
-    var cell=row.getElementsByTagName('c');
-    for(var i=0;i<cell.length;i++){
-      if(cell[i].getAttribute('r')===ref){var s=cell[i].getAttribute('s');return s?parseInt(s):0}
-    }
-    return 0;
+  /* Hereda estilo de una celda existente en el row block */
+  function xmlInheritStyle(rowBlock,ref){
+    if(!rowBlock)return 0;
+    var m=rowBlock.inner.match(new RegExp('<c\\s+r="'+ref+'"\\s*[^>]*s="(\\d+)"'));
+    return m?parseInt(m[1]):0;
   }
 
-  /* ── 7. Modificar filas de items (Vr.Unit + Vr.Total) ── */
+  /* ── 6. Modificar filas de items (Vr.Unit + Vr.Total) ── */
   var itemsArr=(pres.items||[]).filter(function(it){return !esCapituloFinal(it)});
   var minFila=Infinity,maxFila=0;
   itemsArr.forEach(function(it){
@@ -8385,68 +8360,69 @@ var exportarFormularioLlenoGlobal=async function(pres,calcItemVal,setPendientesF
     var rowNum=fila+1;
     if(rowNum<minFila)minFila=rowNum;
     if(rowNum>maxFila)maxFila=rowNum;
-    var row=xmlEnsureRow(rowNum);
+    var rowBlock=xmlEnsureRowBlock(rowNum);
     var addrU=colU+rowNum,addrT=colT+rowNum;
-    /* Heredar estilo existente de la celda original */
-    var sU=xmlInheritStyle(row,addrU);
-    var sT=xmlInheritStyle(row,addrT);
+    var sU=xmlInheritStyle(rowBlock,addrU);
+    var sT=xmlInheritStyle(rowBlock,addrT);
     if(sU===0&&numFmtIdx>0)sU=numFmtIdx;
     if(sT===0&&numFmtIdx>0)sT=numFmtIdx;
-    xmlSetNumber(row,addrU,cv.vr_unit,sU);
+    /* Modificar Vr.Unit */
+    var newInner=rowBlock.inner;
+    newInner=xmlPatchCell(newInner,addrU,xmlNumCell(addrU,cv.vr_unit,sU));
+    /* Modificar Vr.Total */
     if(colC){
-      xmlSetFormula(row,addrT,'ROUND('+addrU+'*'+colC+rowNum+',2)',sT);
+      newInner=xmlPatchCell(newInner,addrT,xmlFormulaCell(addrT,'ROUND('+addrU+'*'+colC+rowNum+',2)',sT));
     }else{
-      xmlSetNumber(row,addrT,cv.vr_total,sT);
+      newInner=xmlPatchCell(newInner,addrT,xmlNumCell(addrT,cv.vr_total,sT));
     }
+    xml=xml.substring(0,rowBlock.index)+rowBlock.open+newInner+rowBlock.close+xml.substring(rowBlock.index+rowBlock.full.length);
   });
   if(minFila===Infinity)minFila=mapeoF.fila_inicio+1;
 
-  /* ── 8. Agregar filas CD / AIU / CT ── */
+  /* ── 7. Agregar filas CD / AIU / CT ── */
   var hasAiu=aiuConfig&&(aiuConfig.pctA>0||aiuConfig.pctI>0||aiuConfig.pctU>0);
   var lastRow=maxFila;
   if(hasAiu){
     var rowCD=maxFila+2,rowAdm=maxFila+3,rowImp=maxFila+4,rowUti=maxFila+5,rowCT=maxFila+6;
+    var newRows='';
     /* CD */
-    var rCD=xmlEnsureRow(rowCD);
-    xmlSetInlineStr(rCD,colDesc+rowCD,'Costo Directo (CD)',0);
-    xmlSetFormula(rCD,colT+rowCD,'SUM('+colT+minFila+':'+colT+maxFila+')',numFmtIdx);
+    newRows+='<row r="'+rowCD+'">';
+    newRows+=xmlStrCell(colDesc+rowCD,'Costo Directo (CD)',0);
+    newRows+=xmlFormulaCell(colT+rowCD,'SUM('+colT+minFila+':'+colT+maxFila+')',numFmtIdx);
+    newRows+='</row>';
     /* Administracion */
-    var rAdm=xmlEnsureRow(rowAdm);
-    xmlSetInlineStr(rAdm,colDesc+rowAdm,'Administraci\u00f3n ('+Number(aiuConfig.pctA).toFixed(2)+'%)',0);
-    xmlSetFormula(rAdm,colT+rowAdm,'ROUND('+colT+rowCD+'*'+aiuConfig.pctA+'/100,2)',numFmtIdx);
+    newRows+='<row r="'+rowAdm+'">';
+    newRows+=xmlStrCell(colDesc+rowAdm,'Administraci\u00f3n ('+Number(aiuConfig.pctA).toFixed(2)+'%)',0);
+    newRows+=xmlFormulaCell(colT+rowAdm,'ROUND('+colT+rowCD+'*'+aiuConfig.pctA+'/100,2)',numFmtIdx);
+    newRows+='</row>';
     /* Imprevistos */
-    var rImp=xmlEnsureRow(rowImp);
-    xmlSetInlineStr(rImp,colDesc+rowImp,'Imprevistos ('+Number(aiuConfig.pctI).toFixed(2)+'%)',0);
-    xmlSetFormula(rImp,colT+rowImp,'ROUND('+colT+rowCD+'*'+aiuConfig.pctI+'/100,2)',numFmtIdx);
+    newRows+='<row r="'+rowImp+'">';
+    newRows+=xmlStrCell(colDesc+rowImp,'Imprevistos ('+Number(aiuConfig.pctI).toFixed(2)+'%)',0);
+    newRows+=xmlFormulaCell(colT+rowImp,'ROUND('+colT+rowCD+'*'+aiuConfig.pctI+'/100,2)',numFmtIdx);
+    newRows+='</row>';
     /* Utilidad */
-    var rUti=xmlEnsureRow(rowUti);
-    xmlSetInlineStr(rUti,colDesc+rowUti,'Utilidad ('+Number(aiuConfig.pctU).toFixed(2)+'%)',0);
-    xmlSetFormula(rUti,colT+rowUti,'ROUND('+colT+rowCD+'*'+aiuConfig.pctU+'/100,2)',numFmtIdx);
+    newRows+='<row r="'+rowUti+'">';
+    newRows+=xmlStrCell(colDesc+rowUti,'Utilidad ('+Number(aiuConfig.pctU).toFixed(2)+'%)',0);
+    newRows+=xmlFormulaCell(colT+rowUti,'ROUND('+colT+rowCD+'*'+aiuConfig.pctU+'/100,2)',numFmtIdx);
+    newRows+='</row>';
     /* Costo Total */
-    var rCT=xmlEnsureRow(rowCT);
-    xmlSetInlineStr(rCT,colDesc+rowCT,'Costo Total (CT)',0);
-    xmlSetFormula(rCT,colT+rowCT,'ROUND('+colT+rowCD+'+'+colT+rowAdm+'+'+colT+rowImp+'+'+colT+rowUti+',2)',numFmtIdx);
+    newRows+='<row r="'+rowCT+'">';
+    newRows+=xmlStrCell(colDesc+rowCT,'Costo Total (CT)',0);
+    newRows+=xmlFormulaCell(colT+rowCT,'ROUND('+colT+rowCD+'+'+colT+rowAdm+'+'+colT+rowImp+'+'+colT+rowUti+',2)',numFmtIdx);
+    newRows+='</row>';
+    /* Insertar antes de </sheetData> */
+    xml=xml.replace('</sheetData>',newRows+'</sheetData>');
     lastRow=rowCT;
   }
 
-  /* ── 9. Actualizar <dimension> ── */
-  var dimEl=doc.getElementsByTagName('dimension')[0];
-  if(dimEl){
-    var dimRef=dimEl.getAttribute('ref')||'A1:A1';
-    var startCell=dimRef.split(':')[0];
-    dimEl.setAttribute('ref',startCell+':'+colT+lastRow);
-  }
+  /* ── 8. Actualizar <dimension ref="..."> ── */
+  xml=xml.replace(/(<dimension\s+ref=")([^"]*?)(")/,function(m,pref,ref,suf){
+    var startCell=ref.split(':')[0];
+    return pref+startCell+':'+colT+lastRow+suf;
+  });
 
-  /* ── 10. Serializar, preservar xmlns:r y escribir de vuelta ── */
-  var serializer=new XMLSerializer();
-  var newSheetXml=serializer.serializeToString(doc);
-  /* Preservar xmlns:r para que el logo/drawing funcione */
-  if(newSheetXml.indexOf('xmlns:r=')===-1){
-    newSheetXml=newSheetXml.replace('<worksheet ','<worksheet xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" ');
-  }
-  zip.file('xl/worksheets/sheet1.xml',newSheetXml);
-
-  /* ── 11. Descargar ── */
+  /* ── 9. Escribir de vuelta y descargar ── */
+  zip.file('xl/worksheets/sheet1.xml',xml);
   var base=(fo.nombre_archivo||'formulario').replace(/\.xlsx?$/i,'');
   var nombreFinal=base+'_PRECIOS_'+pres.codigo+'.xlsx';
   var blob=await zip.generateAsync({type:'blob'});

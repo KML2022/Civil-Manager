@@ -8339,8 +8339,8 @@ var exportarFormularioLlenoGlobal=async function(pres,calcItemVal,setPendientesF
   var numFmtStr='#,##0.00';
   var setCelda=function(addr,v,f){
     var prev=wsF[addr];
-    var celda={t:'n',v:v};
-    if(f)celda.f=f;
+    var celda={t:'n'};
+    if(f){celda.f=f}else{celda.v=v}
     /* Heredar estilo de celda previa, o crear nuevo */
     if(prev&&prev.s){
       celda.s=JSON.parse(JSON.stringify(prev.s));
@@ -8350,15 +8350,17 @@ var exportarFormularioLlenoGlobal=async function(pres,calcItemVal,setPendientesF
     celda.s.numFmt=numFmtStr;
     wsF[addr]=celda;
   };
-  var setCeldaFormula=function(addr,fm){
+  var setCeldaFormula=function(addr,fm,s){
     var prev=wsF[addr];
     var celda={t:'n',f:fm};
-    if(prev&&prev.s){
+    if(s){
+      celda.s=s;
+    }else if(prev&&prev.s){
       celda.s=JSON.parse(JSON.stringify(prev.s));
     }else{
       celda.s={};
     }
-    celda.s.numFmt=numFmtStr;
+    if(!celda.s.numFmt)celda.s.numFmt=numFmtStr;
     wsF[addr]=celda;
   };
   var setCellStr=function(addr,v,s){
@@ -8408,15 +8410,15 @@ var exportarFormularioLlenoGlobal=async function(pres,calcItemVal,setPendientesF
     var rowUti=maxFila+5;
     var rowCT=maxFila+6;
     setCellStr(colDesc+rowCD,'Costo Directo (CD)',sBoldBgTop);
-    setCeldaFormula(colT+rowCD,'=SUM('+colT+minFila+':'+colT+maxFila+')');
+    setCeldaFormula(colT+rowCD,'=SUM('+colT+minFila+':'+colT+maxFila+')',sBoldBgTop);
     setCellStr(colDesc+rowAdm,'Administración ('+Number(aiuConfig.pctA).toFixed(2)+'%)',sNumFmt);
-    setCeldaFormula(colT+rowAdm,'=ROUND('+colT+rowCD+'*'+aiuConfig.pctA+'/100,2)');
+    setCeldaFormula(colT+rowAdm,'=ROUND('+colT+rowCD+'*'+aiuConfig.pctA+'/100,2)',sNumFmt);
     setCellStr(colDesc+rowImp,'Imprevistos ('+Number(aiuConfig.pctI).toFixed(2)+'%)',sNumFmt);
-    setCeldaFormula(colT+rowImp,'=ROUND('+colT+rowCD+'*'+aiuConfig.pctI+'/100,2)');
+    setCeldaFormula(colT+rowImp,'=ROUND('+colT+rowCD+'*'+aiuConfig.pctI+'/100,2)',sNumFmt);
     setCellStr(colDesc+rowUti,'Utilidad ('+Number(aiuConfig.pctU).toFixed(2)+'%)',sNumFmt);
-    setCeldaFormula(colT+rowUti,'=ROUND('+colT+rowCD+'*'+aiuConfig.pctU+'/100,2)');
+    setCeldaFormula(colT+rowUti,'=ROUND('+colT+rowCD+'*'+aiuConfig.pctU+'/100,2)',sNumFmt);
     setCellStr(colDesc+rowCT,'Costo Total (CT)',sBoldBgBot);
-    setCeldaFormula(colT+rowCT,'=ROUND('+colT+rowCD+'+'+colT+rowAdm+'+'+colT+rowImp+'+'+colT+rowUti+',2)');
+    setCeldaFormula(colT+rowCT,'=ROUND('+colT+rowCD+'+'+colT+rowAdm+'+'+colT+rowImp+'+'+colT+rowUti+',2)',sBoldBgBot);
     numFilasRef=rowCT;
   }
 

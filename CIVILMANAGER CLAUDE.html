@@ -8256,16 +8256,52 @@ function transformStylesForWrite(wb){
     Object.keys(ws).forEach(function(addr){
       if(addr.charAt(0)==='!')return;
       var c=ws[addr];if(!c||!c.s)return;
-      /* fill: flat → nested */
-      if((c.s.fgColor||c.s.bgColor)&&!c.s.fill){
-        c.s.fill={patternType:'solid'};
-        if(c.s.fgColor){c.s.fill.fgColor=c.s.fgColor;delete c.s.fgColor}
-        if(c.s.bgColor){c.s.fill.bgColor=c.s.bgColor;delete c.s.bgColor}
+      var s=c.s;
+      /* ── fill: flat → nested ── */
+      if((s.fgColor||s.bgColor||s.patternType)&&!s.fill){
+        s.fill={};
+        if(s.patternType){s.fill.patternType=s.patternType;delete s.patternType}else{s.fill.patternType='solid'}
+        if(s.fgColor){s.fill.fgColor=s.fgColor;delete s.fgColor}
+        if(s.bgColor){s.fill.bgColor=s.bgColor;delete s.bgColor}
       }
-      /* font: fontName → font.name */
-      if(c.s.fontName&&!c.s.font){c.s.font={name:c.s.fontName};delete c.s.fontName}
-      /* numFmt: z → s.numFmt */
-      if(!c.s.numFmt&&c.z){c.s.numFmt=c.z}
+      /* ── font: flat → nested ── */
+      var fontProps=['fontName','bold','italic','sz','color','strike','underline','vertAlign','outline','shadow'];
+      var hasFontFlat=fontProps.some(function(p){return s[p]!==undefined});
+      if(hasFontFlat&&!s.font){
+        s.font={};
+        if(s.fontName!==undefined){s.font.name=s.fontName;delete s.fontName}
+        if(s.bold!==undefined){s.font.bold=s.bold;delete s.bold}
+        if(s.italic!==undefined){s.font.italic=s.italic;delete s.italic}
+        if(s.sz!==undefined){s.font.sz=s.sz;delete s.sz}
+        if(s.color!==undefined){s.font.color=s.color;delete s.color}
+        if(s.strike!==undefined){s.font.strike=s.strike;delete s.strike}
+        if(s.underline!==undefined){s.font.underline=s.underline;delete s.underline}
+        if(s.vertAlign!==undefined){s.font.vertAlign=s.vertAlign;delete s.vertAlign}
+        if(s.outline!==undefined){s.font.outline=s.outline;delete s.outline}
+        if(s.shadow!==undefined){s.font.shadow=s.shadow;delete s.shadow}
+      }
+      /* ── border: flat → nested ── */
+      var borderSides=['top','bottom','left','right','diagonal'];
+      var hasBorderFlat=borderSides.some(function(p){return s[p]&&s[p].style});
+      if(hasBorderFlat&&!s.border){
+        s.border={};
+        borderSides.forEach(function(side){
+          if(s[side]&&s[side].style){s.border[side]=s[side];delete s[side]}
+        });
+        if(s.diagonalUp!==undefined){s.border.diagonalUp=s.diagonalUp;delete s.diagonalUp}
+        if(s.diagonalDown!==undefined){s.border.diagonalDown=s.diagonalDown;delete s.diagonalDown}
+      }
+      /* ── alignment: flat → nested ── */
+      var alignProps=['horizontal','vertical','wrapText','readingOrder','textRotation','indent'];
+      var hasAlignFlat=alignProps.some(function(p){return s[p]!==undefined});
+      if(hasAlignFlat&&!s.alignment){
+        s.alignment={};
+        alignProps.forEach(function(p){
+          if(s[p]!==undefined){s.alignment[p]=s[p];delete s[p]}
+        });
+      }
+      /* ── numFmt: z → s.numFmt ── */
+      if(!s.numFmt&&c.z){s.numFmt=c.z}
     });
   });
 }
@@ -8277,20 +8313,22 @@ var exportarFormularioLlenoGlobal=async function(pres,calcItemVal,setPendientesF
   var fo=pres.formulario_original;
   if(!fo||!fo.archivo_b64){showToast('Sube el formulario original para completar la exportacion',{type:'warn',dur:5000});return}
 
-  /* ── Paso 1: Extraer archivos de imagen del ZIP original con JSZip ── */
-  var mediaFiles={};var drawingFiles={};
+  /* ── Paso 1: Extraer archivos de imagen y relaciones del ZIP original con JSZip ── */
+  var mediaFiles={};var drawingFiles={};var relsFiles={};
   if(typeof JSZip!=='undefined'){
     try{
       var zipOrig=await JSZip.loadAsync(fo.archivo_b64,{base64:true});
       zipOrig.forEach(function(path,file){
         if(path.match(/^xl\/media\//))mediaFiles[path]=file;
         if(path.match(/^xl\/drawings\//))drawingFiles[path]=file;
+        if(path.match(/^xl\/drawings\/_rels\//)||path.match(/^xl\/worksheets\/_rels\//)||path.match(/^xl\/_rels\//))relsFiles[path]=file;
+        if(path==='[Content_Types].xml')relsFiles[path]=file;
       });
     }catch(e){}
   }
 
   /* ── Paso 2: Leer workbook con SheetJS + cellStyles y transformar estilos ── */
-  var wbF=XLSX.read(fo.archivo_b64,{type:'base64',cellStyles:true,cellNF:true});
+  var wbF=XLSX.read(fo.archivo_b64,{type:'base64',cellStyles:true,cellNF:true,sheetStubs:true});
   transformStylesForWrite(wbF);
   var wsF=wbF.Sheets[wbF.SheetNames[0]];
   var mapeoF=fo.mapeo;
@@ -8361,8 +8399,8 @@ var exportarFormularioLlenoGlobal=async function(pres,calcItemVal,setPendientesF
       }
     });
     if(minFila===Infinity)minFila=mapeoF.fila_inicio+1;
-    var sBoldBgTop={numFmt:'#,##0.00',font:{bold:true},fill:{patternType:'solid',fgColor:{rgb:'FFF2F2F2'}},border:[{top:{style:'medium',color:{rgb:'FF999999'}}},{bottom:{style:'thin',color:{rgb:'FFCCCCCC'}}}]};
-    var sBoldBgBot={numFmt:'#,##0.00',font:{bold:true},fill:{patternType:'solid',fgColor:{rgb:'FFF2F2F2'}},border:[{top:{style:'thin',color:{rgb:'FFCCCCCC'}}},{bottom:{style:'double',color:{rgb:'FF333333'}}}]};
+    var sBoldBgTop={numFmt:'#,##0.00',font:{bold:true},fill:{patternType:'solid',fgColor:{rgb:'FFF2F2F2'}},border:{top:{style:'medium',color:{rgb:'FF999999'}},bottom:{style:'thin',color:{rgb:'FFCCCCCC'}}}};
+    var sBoldBgBot={numFmt:'#,##0.00',font:{bold:true},fill:{patternType:'solid',fgColor:{rgb:'FFF2F2F2'}},border:{top:{style:'thin',color:{rgb:'FFCCCCCC'}},bottom:{style:'double',color:{rgb:'FF333333'}}}};
     var sNumFmt={numFmt:'#,##0.00'};
     var rowCD=maxFila+2;
     var rowAdm=maxFila+3;
@@ -8396,11 +8434,12 @@ var exportarFormularioLlenoGlobal=async function(pres,calcItemVal,setPendientesF
   /* ── Paso 5: Escribir workbook con SheetJS + cellStyles ── */
   var newB64=XLSX.write(wbF,{type:'base64',bookType:'xlsx',cellStyles:true});
 
-  /* ── Paso 6: Re-inyectar imagenes con JSZip ── */
+  /* ── Paso 6: Re-inyectar imagenes, drawings y relaciones con JSZip ── */
   var base=(fo.nombre_archivo||'formulario').replace(/\.xlsx?$/i,'');
   var nombreFinal=base+'_PRECIOS_'+pres.codigo+'.xlsx';
   var hasMedia=Object.keys(mediaFiles).length>0;
-  if(hasMedia&&typeof JSZip!=='undefined'){
+  var hasRels=Object.keys(relsFiles).length>0;
+  if((hasMedia||hasRels)&&typeof JSZip!=='undefined'){
     try{
       var zipNew=await JSZip.loadAsync(newB64,{base64:true});
       var paths=Object.keys(mediaFiles);
@@ -8410,6 +8449,10 @@ var exportarFormularioLlenoGlobal=async function(pres,calcItemVal,setPendientesF
       var dPaths=Object.keys(drawingFiles);
       for(var di=0;di<dPaths.length;di++){
         zipNew.file(dPaths[di],await drawingFiles[dPaths[di]].async('nodebuffer'));
+      }
+      var rPaths=Object.keys(relsFiles);
+      for(var ri=0;ri<rPaths.length;ri++){
+        zipNew.file(rPaths[ri],await relsFiles[rPaths[ri]].async('nodebuffer'));
       }
       var finalBlob=await zipNew.generateAsync({type:'blob'});
       var url=URL.createObjectURL(finalBlob);
@@ -8433,7 +8476,7 @@ var exportarFormularioLlenoGlobal=async function(pres,calcItemVal,setPendientesF
   }else{
     XLSX.writeFile(wbF,nombreFinal);
   }
-  showToast('Formulario exportado correctamente'+(hasAiu?' con CD, AIU y CT al final':'')+(hasMedia?' (con logo)':''),{type:'ok',dur:2500});
+  showToast('Formulario exportado correctamente'+(hasAiu?' con CD, AIU y CT al final':'')+(hasMedia||hasRels?' (con logo y formatos)':''),{type:'ok',dur:2500});
   }catch(ex){showToast('Error al exportar: '+ex.message,{type:'err',dur:10000})}
 }
 

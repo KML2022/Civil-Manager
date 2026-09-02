@@ -8258,6 +8258,7 @@ function exportarFormularioLlenoGlobal(pres,calcItemVal,setPendientesFn,aiuConfi
   var colU=colLetter(mapeoF.col_vr_unitario);
   var colT=colLetter(mapeoF.col_vr_total);
   var colC=mapeoF.col_cantidad!=null?colLetter(mapeoF.col_cantidad):null;
+  var colDesc=mapeoF.col_descripcion!=null?colLetter(mapeoF.col_descripcion):colLetter(1);
   var setCelda=function(addr,v,f){
     var prev=wsF[addr];
     var celda={t:'n',v:v};
@@ -8266,12 +8267,30 @@ function exportarFormularioLlenoGlobal(pres,calcItemVal,setPendientesFn,aiuConfi
     celda.z=(prev&&prev.z)?prev.z:'#,##0.00';
     wsF[addr]=celda;
   };
-  var setCellStr=function(addr,v){
+  var setCeldaFormula=function(addr,fm){
     var prev=wsF[addr];
-    var celda={t:'s',v:v};
+    var celda={t:'n',f:fm};
     if(prev&&prev.s)celda.s=prev.s;
+    celda.z=(prev&&prev.z)?prev.z:'#,##0.00';
     wsF[addr]=celda;
   };
+  var setCellStr=function(addr,v,s){
+    var prev=wsF[addr];
+    var celda={t:'s',v:v};
+    if(s)celda.s=s;else if(prev&&prev.s)celda.s=prev.s;
+    wsF[addr]=celda;
+  };
+  /* Buscar estilo de referencia de las celdas de precio existentes (ultima fila con datos) */
+  var refStyleVal=null;
+  var refStyleLbl=null;
+  (pres.items||[]).forEach(function(it){
+    if(it.fila_original!=null&&!esCapituloFinal(it)){
+      var addrT=colT+(it.fila_original+1);
+      var addrDesc=colDesc+(it.fila_original+1);
+      if(wsF[addrT]&&wsF[addrT].s)refStyleVal=wsF[addrT].s;
+      if(wsF[addrDesc]&&wsF[addrDesc].s)refStyleLbl=wsF[addrDesc].s;
+    }
+  });
   var itemsArr=(pres.items||[]).filter(function(it){return !esCapituloFinal(it)});
   itemsArr.forEach(function(it){
     var cv=calcItemVal(it);
@@ -8285,25 +8304,54 @@ function exportarFormularioLlenoGlobal(pres,calcItemVal,setPendientesFn,aiuConfi
     }
   });
 
-  /* ── Filas AIU al final del presupuesto ── */
+  /* ── Filas resumen al final: CD, AIU, CT ── */
   var hasAiu=aiuConfig&&(aiuConfig.pctA>0||aiuConfig.pctI>0||aiuConfig.pctU>0);
   var numFilasRef=0;
   if(hasAiu){
-    var cdTotal=0;
-    itemsArr.forEach(function(it){cdTotal+=calcItemVal(it).vr_total});
-    var maxFila=0;
-    (pres.items||[]).forEach(function(it){if(it.fila_original!=null&&it.fila_original+1>maxFila)maxFila=it.fila_original+1});
-    var rowAdm=maxFila+2;
-    var rowImp=maxFila+3;
-    var rowUti=maxFila+4;
-    var colDesc=mapeoF.col_descripcion!=null?colLetter(mapeoF.col_descripcion):colLetter(1);
+    /* Encontrar primera y ultima fila de datos (1-indexed para Excel) */
+    var minFila=Infinity;var maxFila=0;
+    (pres.items||[]).forEach(function(it){
+      if(it.fila_original!=null){
+        var er=it.fila_original+1;
+        if(er<minFila)minFila=er;
+        if(er>maxFila)maxFila=er;
+      }
+    });
+    if(minFila===Infinity)minFila=mapeoF.fila_inicio+1;
+
+    /* Estilo para filas de resumen (negrita + fondo gris) */
+    var sBoldBg={font:{bold:true},fill:{fgColor:{rgb:'F2F2F2'}},border:[{top:{style:'thin',color:{rgb:'CCCCCC'}}},{bottom:{style:'thin',color:{rgb:'CCCCCC'}}}]};
+    var sBoldBgTop={font:{bold:true},fill:{fgColor:{rgb:'F2F2F2'}},border:[{top:{style:'medium',color:{rgb:'999999'}}},{bottom:{style:'thin',color:{rgb:'CCCCCC'}}}]};
+    var sBoldBgBot={font:{bold:true},fill:{fgColor:{rgb:'F2F2F2'}},border:[{top:{style:'thin',color:{rgb:'CCCCCC'}}},{bottom:{style:'double',color:{rgb:'333333'}}}]};
+
+    /* Filas: CD, (vacía), Admin, Imp, Uti, CT */
+    var rowCD=maxFila+2;
+    var rowAdm=maxFila+3;
+    var rowImp=maxFila+4;
+    var rowUti=maxFila+5;
+    var rowCT=maxFila+6;
+
+    /* Costo Directo (CD) — negrita + fondo gris */
+    setCellStr(colDesc+rowCD,'Costo Directo (CD)',sBoldBgTop);
+    setCeldaFormula(colT+rowCD,'=SUM('+colT+minFila+':'+colT+maxFila+')');
+
+    /* Administración */
     setCellStr(colDesc+rowAdm,'Administración ('+Number(aiuConfig.pctA).toFixed(2)+'%)');
-    setCelda(colT+rowAdm,r2(cdTotal*aiuConfig.pctA/100));
+    setCeldaFormula(colT+rowAdm,'=ROUND('+colT+rowCD+'*'+aiuConfig.pctA+'/100,2)');
+
+    /* Imprevistos */
     setCellStr(colDesc+rowImp,'Imprevistos ('+Number(aiuConfig.pctI).toFixed(2)+'%)');
-    setCelda(colT+rowImp,r2(cdTotal*aiuConfig.pctI/100));
+    setCeldaFormula(colT+rowImp,'=ROUND('+colT+rowCD+'*'+aiuConfig.pctI+'/100,2)');
+
+    /* Utilidad */
     setCellStr(colDesc+rowUti,'Utilidad ('+Number(aiuConfig.pctU).toFixed(2)+'%)');
-    setCelda(colT+rowUti,r2(cdTotal*aiuConfig.pctU/100));
-    numFilasRef=rowUti;
+    setCeldaFormula(colT+rowUti,'=ROUND('+colT+rowCD+'*'+aiuConfig.pctU+'/100,2)');
+
+    /* Costo Total (CT) — negrita + fondo gris + doble borde inferior */
+    setCellStr(colDesc+rowCT,'Costo Total (CT)',sBoldBgBot);
+    setCeldaFormula(colT+rowCT,'=ROUND('+colT+rowCD+'+'+colT+rowAdm+'+'+colT+rowImp+'+'+colT+rowUti+',2)');
+
+    numFilasRef=rowCT;
   }
 
   var range=XLSX.utils.decode_range(wsF['!ref']);
@@ -8320,7 +8368,7 @@ function exportarFormularioLlenoGlobal(pres,calcItemVal,setPendientesFn,aiuConfi
 
   var base=(fo.nombre_archivo||'formulario').replace(/\.xlsx?$/i,'');
   XLSX.writeFile(wbF,base+'_PRECIOS_'+pres.codigo+'.xlsx');
-  showToast('Formulario exportado correctamente'+(hasAiu?' con AIU al final':''),{type:'ok',dur:2500});
+  showToast('Formulario exportado correctamente'+(hasAiu?' con CD, AIU y CT al final':''),{type:'ok',dur:2500});
   }catch(ex){showToast('Error al exportar: '+ex.message,{type:'err',dur:10000})}
 }
 

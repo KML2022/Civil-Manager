@@ -8177,6 +8177,7 @@ var MAPEO_CAMPOS=[
   {key:'col_vr_total',label:'Vr. Total (a llenar)',requerido:true}
 ];
 function colLetter(i){return i<26?String.fromCharCode(65+i):'A'+String.fromCharCode(65+i-26)}
+function arrayBufferToBase64(buf){var bytes=new Uint8Array(buf);var s='';var CH=32768;for(var i=0;i<bytes.length;i+=CH){s+=String.fromCharCode.apply(null,bytes.subarray(i,i+CH))}return btoa(s)}
 function mapeoVacio(){return{fila_inicio:0,col_item:null,col_codigo_1:null,col_codigo_2:null,col_codigo_apu:null,col_descripcion:null,col_unidad:null,col_cantidad:null,col_vr_unitario:null,col_vr_total:null,nombre_mapeo:''}}
 
 /* Banner unificado: reemplaza PresBannerProyecto + sec-hdr por elemento (usado en los 4 sub-tabs de Presupuestos
@@ -8251,23 +8252,66 @@ function PresBannerProyecto({pres,presupuestos,setTab}){
 /* ══════════════════════════════════════════════════════════════════════
    Exportación string-based: manipula XML como string, preserva TODO
    ══════════════════════════════════════════════════════════════════════ */
-function _xmlFindNumFmtStyleIndex(stylesDoc,formatCode){
-  var targetId=4; /* built-in #,##0.00 */
-  var numFmts=stylesDoc.getElementsByTagName('numFmt');
-  for(var i=0;i<numFmts.length;i++){
-    if(numFmts[i].getAttribute('formatCode')===formatCode){targetId=parseInt(numFmts[i].getAttribute('numFmtId'));break}
-  }
-  var cellXfs=stylesDoc.getElementsByTagName('cellXfs');
-  if(cellXfs.length>0){
-    var xfs=cellXfs[0].getElementsByTagName('xf');
-    for(var j=0;j<xfs.length;j++){
-      if(parseInt(xfs[j].getAttribute('numFmtId'))===targetId)return j;
-    }
-  }
-  return 0;
-}
 function _xmlEscapeAttr(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
 function _xmlEscapeText(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+/* Anexa una entrada a una sección de styles.xml (fonts/fills/borders/cellXfs) y actualiza count.
+   Devuelve {xml, id} donde id es el índice 0-based de la nueva entrada. */
+function _xmlAppendStyleEntry(stylesXml,section,entry){
+  var idx=stylesXml.indexOf('<'+section);
+  if(idx===-1)return{xml:stylesXml,id:-1};
+  var tagEnd=stylesXml.indexOf('>',idx);
+  if(tagEnd===-1)return{xml:stylesXml,id:-1};
+  var openTag=stylesXml.substring(idx,tagEnd+1);
+  var cm=openTag.match(/count="(\d+)"/);
+  var count=cm?parseInt(cm[1]):0;
+  var newOpen=openTag.replace(/count="\d+"/,'count="'+(count+1)+'"');
+  var newXml;
+  if(/\/>\s*$/.test(openTag)){
+    newOpen=newOpen.replace(/\/>\s*$/,'>');
+    newXml=stylesXml.substring(0,idx)+newOpen+entry+'</'+section+'>'+stylesXml.substring(tagEnd+1);
+  }else{
+    var closeTag='</'+section+'>';
+    var closeIdx=stylesXml.indexOf(closeTag,tagEnd);
+    if(closeIdx===-1)return{xml:stylesXml,id:-1};
+    newXml=stylesXml.substring(0,idx)+newOpen+stylesXml.substring(tagEnd+1,closeIdx)+entry+closeTag+stylesXml.substring(closeIdx+closeTag.length);
+  }
+  return{xml:newXml,id:count};
+}
+/* Asegura estilos propios en styles.xml (string-based): font bold, fill gris claro,
+   borde thin, xfs combinados. Devuelve {xml, ids:{fontBold,fillGray,borderThin,xfBorder,xfNumBorder,xfGray,xfGrayNum}}. */
+function _xmlEnsureStyles(stylesXml){
+  var ids={fontBold:0,fillGray:1,borderThin:0,xfBorder:0,xfNumBorder:0,xfGray:0,xfGrayNum:0};
+  var r;
+  /* 1. Font bold: clonar primer font y anteponer <b/> */
+  var font0=(stylesXml.match(/<font[^>]*>[\s\S]*?<\/font>/)||[])[0]||'<font><sz val="11"/><color theme="1"/><name val="Calibri"/><family val="2"/><scheme val="minor"/></font>';
+  var fontBoldEntry=font0.replace(/<font[^>]*>/,'$&<b/>');
+  r=_xmlAppendStyleEntry(stylesXml,'fonts',fontBoldEntry);
+  stylesXml=r.xml;if(r.id>=0)ids.fontBold=r.id;
+  /* 2. Fill gris claro sólido */
+  r=_xmlAppendStyleEntry(stylesXml,'fills','<fill><patternFill patternType="solid"><fgColor rgb="FFD9D9D9"/><bgColor indexed="64"/></patternFill></fill>');
+  stylesXml=r.xml;if(r.id>=0)ids.fillGray=r.id;
+  /* 3. Borde thin negro en 4 lados */
+  r=_xmlAppendStyleEntry(stylesXml,'borders','<border><left style="thin"><color rgb="FF000000"/></left><right style="thin"><color rgb="FF000000"/></right><top style="thin"><color rgb="FF000000"/></top><bottom style="thin"><color rgb="FF000000"/></bottom><diagonal/></border>');
+  stylesXml=r.xml;if(r.id>=0)ids.borderThin=r.id;
+  /* 4. xfs combinados (numFmtId 4 builtin = #,##0.00) */
+  r=_xmlAppendStyleEntry(stylesXml,'cellXfs','<xf numFmtId="0" fontId="0" fillId="0" borderId="'+ids.borderThin+'" xfId="0" applyNumberFormat="0" applyFont="0" applyFill="0" applyBorder="1"/>');
+  stylesXml=r.xml;if(r.id>=0)ids.xfBorder=r.id;
+  r=_xmlAppendStyleEntry(stylesXml,'cellXfs','<xf numFmtId="4" fontId="0" fillId="0" borderId="'+ids.borderThin+'" xfId="0" applyNumberFormat="1" applyFont="0" applyFill="0" applyBorder="1"/>');
+  stylesXml=r.xml;if(r.id>=0)ids.xfNumBorder=r.id;
+  r=_xmlAppendStyleEntry(stylesXml,'cellXfs','<xf numFmtId="0" fontId="'+ids.fontBold+'" fillId="'+ids.fillGray+'" borderId="'+ids.borderThin+'" xfId="0" applyNumberFormat="0" applyFont="1" applyFill="1" applyBorder="1"/>');
+  stylesXml=r.xml;if(r.id>=0)ids.xfGray=r.id;
+  r=_xmlAppendStyleEntry(stylesXml,'cellXfs','<xf numFmtId="4" fontId="'+ids.fontBold+'" fillId="'+ids.fillGray+'" borderId="'+ids.borderThin+'" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1" applyBorder="1"/>');
+  stylesXml=r.xml;if(r.id>=0)ids.xfGrayNum=r.id;
+  return{xml:stylesXml,ids:ids};
+}
+/* Pone el atributo s en una celda existente dentro de un row-inner (string). Si no existe la celda, no hace nada. */
+function _xmlSetCellStyle(rowInner,ref,sIdx){
+  var re=new RegExp('(<c\\s+r="'+ref+'"[^>]*?)(/?>)');
+  return rowInner.replace(re,function(m,head,tail){
+    var h=head.replace(/\s+s="\d+"/,'');
+    return h+' s="'+sIdx+'"'+tail;
+  });
+}
 
 var exportarFormularioLlenoGlobal=async function(pres,calcItemVal,setPendientesFn,aiuConfig){
   try{
@@ -8285,14 +8329,14 @@ var exportarFormularioLlenoGlobal=async function(pres,calcItemVal,setPendientesF
   if(!sheetFile){showToast('No se encontro sheet1.xml',{type:'err',dur:5000});return}
   var xml=await sheetFile.async('string');
 
-  /* ── 3. Buscar style index para #,##0.00 ── */
-  var numFmtIdx=0;
+  /* ── 3. Asegurar estilos propios en styles.xml (gris, bold, bordes, numFmt) ── */
+  var stIds={fontBold:0,fillGray:1,borderThin:0,xfBorder:0,xfNumBorder:0,xfGray:0,xfGrayNum:0};
   var stylesFile=zip.file('xl/styles.xml');
   if(stylesFile){
     var stylesXml=await stylesFile.async('string');
-    var parser=new DOMParser();
-    var stylesDoc=parser.parseFromString(stylesXml,'application/xml');
-    numFmtIdx=_xmlFindNumFmtStyleIndex(stylesDoc,'#,##0.00');
+    var stRes=_xmlEnsureStyles(stylesXml);
+    zip.file('xl/styles.xml',stRes.xml);
+    stIds=stRes.ids;
   }
 
   /* ── 4. Mapeo de columnas ── */
@@ -8303,10 +8347,10 @@ var exportarFormularioLlenoGlobal=async function(pres,calcItemVal,setPendientesF
   var colDesc=mapeoF.col_descripcion!=null?colLetter(mapeoF.col_descripcion):colLetter(1);
 
   /* ── 5. Helpers string-based ── */
-  /* Reemplaza o agrega un <c> dentro de un bloque <row r="N">...</row> */
+  /* Reemplaza o agrega un <c> dentro de un bloque <row r="N">...</row>.
+     Cubre <c r="REF">...</c>, <c r="REF"></c> y self-closing <c r="REF"/> */
   function xmlPatchCell(rowXml,cellRef,cellXml){
-    /* Buscar si ya existe <c r="REF">...</c> */
-    var cellRegex=new RegExp('<c\\s+r="'+cellRef+'"\\s*[^>]*>.*?</c>','s');
+    var cellRegex=new RegExp('<c\\s+r="'+cellRef+'"[^>]*(?:/>|>.*?</c>)','s');
     if(cellRegex.test(rowXml)){
       return rowXml.replace(cellRegex,cellXml);
     }
@@ -8318,10 +8362,11 @@ var exportarFormularioLlenoGlobal=async function(pres,calcItemVal,setPendientesF
     var sAttr=sIdx>0?' s="'+sIdx+'"':'';
     return '<c r="'+ref+'"'+sAttr+'><v>'+_xmlEscapeAttr(val)+'</v></c>';
   }
-  /* Construye XML de celda con fórmula */
-  function xmlFormulaCell(ref,formula,sIdx){
+  /* Construye XML de celda con fórmula + valor caché (para ver valor sin recalcular) */
+  function xmlFormulaCell(ref,formula,sIdx,cached){
     var sAttr=sIdx>0?' s="'+sIdx+'"':'';
-    return '<c r="'+ref+'"'+sAttr+'><f>'+_xmlEscapeText(formula)+'</f><v></v></c>';
+    var vText=(cached==null||cached==='')?'':_xmlEscapeAttr(cached);
+    return '<c r="'+ref+'"'+sAttr+'><f>'+_xmlEscapeText(formula)+'</f><v>'+vText+'</v></c>';
   }
   /* Construye XML de celda inlineStr (texto) */
   function xmlStrCell(ref,text,sIdx){
@@ -8334,25 +8379,45 @@ var exportarFormularioLlenoGlobal=async function(pres,calcItemVal,setPendientesF
     var match=xml.match(regex);
     return match?{full:match[0],open:match[1],inner:match[2],close:match[3],index:match.index}:null;
   }
-  /* Asegura que existe un <row r="N"> y devuelve su bloque */
+  /* Asegura que existe un <row r="N"> y devuelve su bloque (inserción ordenada) */
   function xmlEnsureRowBlock(rNum){
     var existing=xmlFindRowBlock(rNum);
     if(existing)return existing;
-    /* Crear nuevo row vacío antes de </sheetData> */
     var newRowXml='<row r="'+rNum+'"></row>';
-    xml=xml.replace('</sheetData>',newRowXml+'</sheetData>');
+    /* Insertar en posición ordenada por r */
+    var rowRe=/<row\s+r="(\d+)"[^>]*>/g;
+    var m,lastIdx=xml.indexOf('</sheetData>'),insertAt=lastIdx;
+    while((m=rowRe.exec(xml))!==null){
+      if(m.index>lastIdx)break;
+      var rn=parseInt(m[1]);
+      if(rn>rNum){insertAt=m.index;break}
+    }
+    xml=xml.substring(0,insertAt)+newRowXml+xml.substring(insertAt);
     return xmlFindRowBlock(rNum);
   }
-  /* Hereda estilo de una celda existente en el row block */
-  function xmlInheritStyle(rowBlock,ref){
-    if(!rowBlock)return 0;
-    var m=rowBlock.inner.match(new RegExp('<c\\s+r="'+ref+'"\\s*[^>]*s="(\\d+)"'));
-    return m?parseInt(m[1]):0;
+  /* ── 6. Estilo base tabla completa: header + capítulos en gris ── */
+  var colMaxIdx=mapeoF.col_vr_total;
+  function xmlStyleRowCells(rNum,sIdx){
+    var rb=xmlFindRowBlock(rNum);
+    if(!rb)return;
+    var newInner=rb.inner;
+    for(var ci=0;ci<=colMaxIdx;ci++){
+      newInner=_xmlSetCellStyle(newInner,colLetter(ci)+rNum,sIdx);
+    }
+    xml=xml.substring(0,rb.index)+rb.open+newInner+rb.close+xml.substring(rb.index+rb.full.length);
   }
+  /* Header (fila Excel = fila_inicio) */
+  var headerRow=mapeoF.fila_inicio;
+  if(headerRow>=1)xmlStyleRowCells(headerRow,stIds.xfGray);
+  /* Capítulos en gris */
+  (pres.items||[]).forEach(function(it){
+    if(!esCapituloFinal(it)||it.fila_original==null)return;
+    xmlStyleRowCells(it.fila_original+1,stIds.xfGray);
+  });
 
-  /* ── 6. Modificar filas de items (Vr.Unit + Vr.Total) ── */
+  /* ── 7. Modificar filas de items (Vr.Unit + Vr.Total con valor caché) ── */
   var itemsArr=(pres.items||[]).filter(function(it){return !esCapituloFinal(it)});
-  var minFila=Infinity,maxFila=0;
+  var minFila=Infinity,maxFila=0,cdTotal=0;
   itemsArr.forEach(function(it){
     var cv=calcItemVal(it);
     var fila=it.fila_original;
@@ -8360,68 +8425,69 @@ var exportarFormularioLlenoGlobal=async function(pres,calcItemVal,setPendientesF
     var rowNum=fila+1;
     if(rowNum<minFila)minFila=rowNum;
     if(rowNum>maxFila)maxFila=rowNum;
+    cdTotal=r2(cdTotal+cv.vr_total);
     var rowBlock=xmlEnsureRowBlock(rowNum);
     var addrU=colU+rowNum,addrT=colT+rowNum;
-    var sU=xmlInheritStyle(rowBlock,addrU);
-    var sT=xmlInheritStyle(rowBlock,addrT);
-    if(sU===0&&numFmtIdx>0)sU=numFmtIdx;
-    if(sT===0&&numFmtIdx>0)sT=numFmtIdx;
-    /* Modificar Vr.Unit */
     var newInner=rowBlock.inner;
-    newInner=xmlPatchCell(newInner,addrU,xmlNumCell(addrU,cv.vr_unit,sU));
-    /* Modificar Vr.Total */
+    /* Bordes en celdas existentes (Vr se reescribe abajo con su estilo) */
+    for(var ci=0;ci<=colMaxIdx;ci++){
+      var refB=colLetter(ci)+rowNum;
+      if(refB===addrU||refB===addrT)continue;
+      newInner=_xmlSetCellStyle(newInner,refB,stIds.xfBorder);
+    }
+    /* Vr.Unit (valor) + Vr.Total (fórmula con caché) */
+    newInner=xmlPatchCell(newInner,addrU,xmlNumCell(addrU,cv.vr_unit,stIds.xfNumBorder));
     if(colC){
-      newInner=xmlPatchCell(newInner,addrT,xmlFormulaCell(addrT,'ROUND('+addrU+'*'+colC+rowNum+',2)',sT));
+      newInner=xmlPatchCell(newInner,addrT,xmlFormulaCell(addrT,'ROUND('+addrU+'*'+colC+rowNum+',2)',stIds.xfNumBorder,cv.vr_total));
     }else{
-      newInner=xmlPatchCell(newInner,addrT,xmlNumCell(addrT,cv.vr_total,sT));
+      newInner=xmlPatchCell(newInner,addrT,xmlNumCell(addrT,cv.vr_total,stIds.xfNumBorder));
     }
     xml=xml.substring(0,rowBlock.index)+rowBlock.open+newInner+rowBlock.close+xml.substring(rowBlock.index+rowBlock.full.length);
   });
   if(minFila===Infinity)minFila=mapeoF.fila_inicio+1;
 
-  /* ── 7. Agregar filas CD / AIU / CT ── */
+  /* ── 8. Agregar filas CD / AIU / CT (ancho completo A..Vr.Total) ── */
   var hasAiu=aiuConfig&&(aiuConfig.pctA>0||aiuConfig.pctI>0||aiuConfig.pctU>0);
   var lastRow=maxFila;
+  function xmlEmptyCell(ref,sIdx){
+    return sIdx>0?'<c r="'+ref+'" s="'+sIdx+'"/>':'<c r="'+ref+'"/>';
+  }
+  function xmlSummaryRow(rNum,label,isGray,numFormula,numCached){
+    var sTxt=isGray?stIds.xfGray:stIds.xfBorder;
+    var sNum=isGray?stIds.xfGrayNum:stIds.xfNumBorder;
+    var sFill=isGray?stIds.xfGray:stIds.xfBorder;
+    var row='<row r="'+rNum+'">';
+    for(var ci=0;ci<=colMaxIdx;ci++){
+      var ref=colLetter(ci)+rNum;
+      if(ref===colDesc+rNum){row+=xmlStrCell(ref,label,sTxt)}
+      else if(ref===colT+rNum){row+=xmlFormulaCell(ref,numFormula,sNum,numCached)}
+      else{row+=xmlEmptyCell(ref,sFill)}
+    }
+    row+='</row>';
+    return row;
+  }
   if(hasAiu){
     var rowCD=maxFila+2,rowAdm=maxFila+3,rowImp=maxFila+4,rowUti=maxFila+5,rowCT=maxFila+6;
+    var admV=r2(cdTotal*aiuConfig.pctA/100),impV=r2(cdTotal*aiuConfig.pctI/100),utiV=r2(cdTotal*aiuConfig.pctU/100);
+    var ctV=r2(cdTotal+admV+impV+utiV);
     var newRows='';
-    /* CD */
-    newRows+='<row r="'+rowCD+'">';
-    newRows+=xmlStrCell(colDesc+rowCD,'Costo Directo (CD)',0);
-    newRows+=xmlFormulaCell(colT+rowCD,'SUM('+colT+minFila+':'+colT+maxFila+')',numFmtIdx);
-    newRows+='</row>';
-    /* Administracion */
-    newRows+='<row r="'+rowAdm+'">';
-    newRows+=xmlStrCell(colDesc+rowAdm,'Administraci\u00f3n ('+Number(aiuConfig.pctA).toFixed(2)+'%)',0);
-    newRows+=xmlFormulaCell(colT+rowAdm,'ROUND('+colT+rowCD+'*'+aiuConfig.pctA+'/100,2)',numFmtIdx);
-    newRows+='</row>';
-    /* Imprevistos */
-    newRows+='<row r="'+rowImp+'">';
-    newRows+=xmlStrCell(colDesc+rowImp,'Imprevistos ('+Number(aiuConfig.pctI).toFixed(2)+'%)',0);
-    newRows+=xmlFormulaCell(colT+rowImp,'ROUND('+colT+rowCD+'*'+aiuConfig.pctI+'/100,2)',numFmtIdx);
-    newRows+='</row>';
-    /* Utilidad */
-    newRows+='<row r="'+rowUti+'">';
-    newRows+=xmlStrCell(colDesc+rowUti,'Utilidad ('+Number(aiuConfig.pctU).toFixed(2)+'%)',0);
-    newRows+=xmlFormulaCell(colT+rowUti,'ROUND('+colT+rowCD+'*'+aiuConfig.pctU+'/100,2)',numFmtIdx);
-    newRows+='</row>';
-    /* Costo Total */
-    newRows+='<row r="'+rowCT+'">';
-    newRows+=xmlStrCell(colDesc+rowCT,'Costo Total (CT)',0);
-    newRows+=xmlFormulaCell(colT+rowCT,'ROUND('+colT+rowCD+'+'+colT+rowAdm+'+'+colT+rowImp+'+'+colT+rowUti+',2)',numFmtIdx);
-    newRows+='</row>';
+    newRows+=xmlSummaryRow(rowCD,'Costo Directo (CD)',true,'SUM('+colT+minFila+':'+colT+maxFila+')',cdTotal);
+    newRows+=xmlSummaryRow(rowAdm,'Administración ('+Number(aiuConfig.pctA).toFixed(2)+'%)',false,'ROUND('+colT+rowCD+'*'+aiuConfig.pctA+'/100,2)',admV);
+    newRows+=xmlSummaryRow(rowImp,'Imprevistos ('+Number(aiuConfig.pctI).toFixed(2)+'%)',false,'ROUND('+colT+rowCD+'*'+aiuConfig.pctI+'/100,2)',impV);
+    newRows+=xmlSummaryRow(rowUti,'Utilidad ('+Number(aiuConfig.pctU).toFixed(2)+'%)',false,'ROUND('+colT+rowCD+'*'+aiuConfig.pctU+'/100,2)',utiV);
+    newRows+=xmlSummaryRow(rowCT,'Costo Total (CT)',true,'ROUND('+colT+rowCD+'+'+colT+rowAdm+'+'+colT+rowImp+'+'+colT+rowUti+',2)',ctV);
     /* Insertar antes de </sheetData> */
     xml=xml.replace('</sheetData>',newRows+'</sheetData>');
     lastRow=rowCT;
   }
 
-  /* ── 8. Actualizar <dimension ref="..."> ── */
+  /* ── 9. Actualizar <dimension ref="..."> ── */
   xml=xml.replace(/(<dimension\s+ref=")([^"]*?)(")/,function(m,pref,ref,suf){
     var startCell=ref.split(':')[0];
     return pref+startCell+':'+colT+lastRow+suf;
   });
 
-  /* ── 9. Escribir de vuelta y descargar ── */
+  /* ── 10. Escribir de vuelta y descargar ── */
   zip.file('xl/worksheets/sheet1.xml',xml);
   var base=(fo.nombre_archivo||'formulario').replace(/\.xlsx?$/i,'');
   var nombreFinal=base+'_PRECIOS_'+pres.codigo+'.xlsx';
@@ -8445,6 +8511,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
   var alarmasPrecioFaltanteState=useState(null);var alarmasPrecioFaltante=alarmasPrecioFaltanteState[0],setAlarmasPrecioFaltante=alarmasPrecioFaltanteState[1];
   var archivoRawState=useState(null);var archivoRaw=archivoRawState[0],setArchivoRaw=archivoRawState[1];
   var nombreArchivoState=useState('');var nombreArchivo=nombreArchivoState[0],setNombreArchivo=nombreArchivoState[1];
+  var b64OriginalState=useState(null);var b64Original=b64OriginalState[0],setB64Original=b64OriginalState[1];
   var previewFilasState=useState([]);var previewFilas=previewFilasState[0],setPreviewFilas=previewFilasState[1];
   var previewMergesState=useState([]);var previewMerges=previewMergesState[0],setPreviewMerges=previewMergesState[1];
   var mapeoState=useState(mapeoVacio());var mapeo=mapeoState[0],setMapeo=mapeoState[1];
@@ -8672,6 +8739,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
       var ws=wb.Sheets[wb.SheetNames[0]];
       var todas=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',blankrows:true});
       setArchivoRaw(wb);
+      setB64Original(arrayBufferToBase64(ev.target.result));
       setNombreArchivo(file.name);
       setPreviewFilas(todas.slice(0,50));
       setPreviewMerges(ws['!merges']||[]);
@@ -8732,11 +8800,14 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
       +'¿Confirmar importación?';
     if(!(await askConfirm(msg)))return;
 
-    var b64=null;var archivoDemasiadoGrande=false;
-    try{
-      var out=XLSX.write(archivoRaw,{type:'base64',bookType:'xlsx'});
-      if(out.length<4000000){b64=out}else{archivoDemasiadoGrande=true}
-    }catch(ex){archivoDemasiadoGrande=true}
+    var b64=b64Original||null;var archivoDemasiadoGrande=false;
+    if(!b64){
+      /* Fallback: re-serializar el workbook parseado (pierde logo/formatos) */
+      try{
+        var out=XLSX.write(archivoRaw,{type:'base64',bookType:'xlsx'});
+        if(out.length<4000000){b64=out}else{archivoDemasiadoGrande=true}
+      }catch(ex){archivoDemasiadoGrande=true}
+    }
 
     var items=[];
     var capituloActual='';
@@ -8818,7 +8889,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
       n[idxPres]=Object.assign({},n[idxPres],{alarmasPrecioFaltante:null});
       onChange(Object.assign({},data,{presupuestos:n}));
     }
-    setArchivoRaw(null);setPreviewFilas([]);setPreviewMerges([]);
+    setArchivoRaw(null);setB64Original(null);setPreviewFilas([]);setPreviewMerges([]);
     setFase('revision');
   };
 
@@ -8837,6 +8908,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
         var ws=wb.Sheets[wb.SheetNames[0]];
         var rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:null,blankrows:true});
         setArchivoRaw(wb);
+        setB64Original(fo.archivo_b64||null);
         setPreviewFilas(rows);
         setPreviewMerges(ws['!merges']||[]);
         setNombreArchivo(fo.nombre_archivo||'');

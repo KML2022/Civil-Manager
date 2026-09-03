@@ -8254,6 +8254,8 @@ function PresBannerProyecto({pres,presupuestos,setTab}){
    ══════════════════════════════════════════════════════════════════════ */
 function _xmlEscapeAttr(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
 function _xmlEscapeText(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+/* Número seguro para <v>: NaN/Infinity/undefined → 0 (evita XLSX corrupto) */
+function _xmlNum(v){var n=Number(v);return isFinite(n)?n:0}
 /* Anexa una entrada a una sección de styles.xml (fonts/fills/borders/cellXfs) y actualiza count.
    Devuelve {xml, id} donde id es el índice 0-based de la nueva entrada. */
 function _xmlAppendStyleEntry(stylesXml,section,entry){
@@ -8282,8 +8284,9 @@ function _xmlAppendStyleEntry(stylesXml,section,entry){
 function _xmlEnsureStyles(stylesXml){
   var ids={fontBold:0,fillGray:1,borderThin:0,xfBorder:0,xfNumBorder:0,xfGray:0,xfGrayNum:0};
   var r;
-  /* 1. Font bold: clonar primer font y anteponer <b/> */
+  /* 1. Font bold: clonar primer font, quitar <b> previo si existe y anteponer uno solo */
   var font0=(stylesXml.match(/<font[^>]*>[\s\S]*?<\/font>/)||[])[0]||'<font><sz val="11"/><color theme="1"/><name val="Calibri"/><family val="2"/><scheme val="minor"/></font>';
+  font0=font0.replace(/<b[^>]*\/?>/g,'');
   var fontBoldEntry=font0.replace(/<font[^>]*>/,'$&<b/>');
   r=_xmlAppendStyleEntry(stylesXml,'fonts',fontBoldEntry);
   stylesXml=r.xml;if(r.id>=0)ids.fontBold=r.id;
@@ -8330,14 +8333,19 @@ var exportarFormularioLlenoGlobal=async function(pres,calcItemVal,setPendientesF
   var xml=await sheetFile.async('string');
 
   /* ── 3. Asegurar estilos propios en styles.xml (gris, bold, bordes, numFmt) ── */
+  /* Modo seguro: si el parche de estilos falla, se exporta solo con valores */
   var stIds={fontBold:0,fillGray:1,borderThin:0,xfBorder:0,xfNumBorder:0,xfGray:0,xfGrayNum:0};
-  var stylesFile=zip.file('xl/styles.xml');
-  if(stylesFile){
-    var stylesXml=await stylesFile.async('string');
-    var stRes=_xmlEnsureStyles(stylesXml);
-    zip.file('xl/styles.xml',stRes.xml);
-    stIds=stRes.ids;
-  }
+  var sinEstilos=false;
+  try{
+    var stylesFile=zip.file('xl/styles.xml');
+    if(stylesFile){
+      var stylesXml=await stylesFile.async('string');
+      var stRes=_xmlEnsureStyles(stylesXml);
+      if(stRes.xml.indexOf('</cellXfs>')===-1)throw new Error('styles sin cellXfs');
+      zip.file('xl/styles.xml',stRes.xml);
+      stIds=stRes.ids;
+    }else{sinEstilos=true}
+  }catch(eSt){sinEstilos=true;stIds={fontBold:0,fillGray:1,borderThin:0,xfBorder:0,xfNumBorder:0,xfGray:0,xfGrayNum:0}}
 
   /* ── 4. Mapeo de columnas ── */
   var mapeoF=fo.mapeo;
@@ -8357,15 +8365,15 @@ var exportarFormularioLlenoGlobal=async function(pres,calcItemVal,setPendientesF
     /* No existe: insertar antes de </row> */
     return rowXml.replace('</row>',cellXml+'</row>');
   }
-  /* Construye XML de celda numérica */
+  /* Construye XML de celda numérica (valor sanitizado) */
   function xmlNumCell(ref,val,sIdx){
     var sAttr=sIdx>0?' s="'+sIdx+'"':'';
-    return '<c r="'+ref+'"'+sAttr+'><v>'+_xmlEscapeAttr(val)+'</v></c>';
+    return '<c r="'+ref+'"'+sAttr+'><v>'+_xmlEscapeAttr(_xmlNum(val))+'</v></c>';
   }
-  /* Construye XML de celda con fórmula + valor caché (para ver valor sin recalcular) */
+  /* Construye XML de celda con fórmula + valor caché sanitizado (para ver valor sin recalcular) */
   function xmlFormulaCell(ref,formula,sIdx,cached){
     var sAttr=sIdx>0?' s="'+sIdx+'"':'';
-    var vText=(cached==null||cached==='')?'':_xmlEscapeAttr(cached);
+    var vText=(cached==null||cached==='')?'':_xmlEscapeAttr(_xmlNum(cached));
     return '<c r="'+ref+'"'+sAttr+'><f>'+_xmlEscapeText(formula)+'</f><v>'+vText+'</v></c>';
   }
   /* Construye XML de celda inlineStr (texto) */
@@ -8498,7 +8506,7 @@ var exportarFormularioLlenoGlobal=async function(pres,calcItemVal,setPendientesF
   document.body.appendChild(link);link.click();
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
-  showToast('Formulario exportado correctamente'+(hasAiu?' con CD, AIU y CT al final':'')+' (con logo y formatos)',{type:'ok',dur:2500});
+  showToast('Formulario exportado correctamente'+(hasAiu?' con CD, AIU y CT al final':'')+(sinEstilos?' (solo valores, sin formato)':''),{type:sinEstilos?'warn':'ok',dur:2500});
   }catch(ex){showToast('Error al exportar: '+ex.message,{type:'err',dur:10000})}
 }
 

@@ -8256,6 +8256,14 @@ function _xmlEscapeAttr(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'
 function _xmlEscapeText(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
 /* Número seguro para <v>: NaN/Infinity/undefined → 0 (evita XLSX corrupto) */
 function _xmlNum(v){var n=Number(v);return isFinite(n)?n:0}
+/* Valida que un string sea XML bien formado (detecta tags cruzados/duplicados) */
+function _xmlIsWellFormed(xmlStr){
+  try{
+    var p=new DOMParser();
+    var d=p.parseFromString(xmlStr,'application/xml');
+    return d.getElementsByTagName('parsererror').length===0;
+  }catch(e){return false}
+}
 /* Anexa una entrada a una sección de styles.xml (fonts/fills/borders/cellXfs) y actualiza count.
    Devuelve {xml, id} donde id es el índice 0-based de la nueva entrada. */
 function _xmlAppendStyleEntry(stylesXml,section,entry){
@@ -8284,10 +8292,10 @@ function _xmlAppendStyleEntry(stylesXml,section,entry){
 function _xmlEnsureStyles(stylesXml){
   var ids={fontBold:0,fillGray:1,borderThin:0,xfBorder:0,xfNumBorder:0,xfGray:0,xfGrayNum:0};
   var r;
-  /* 1. Font bold: clonar primer font, quitar <b> previo si existe y anteponer uno solo */
-  var font0=(stylesXml.match(/<font[^>]*>[\s\S]*?<\/font>/)||[])[0]||'<font><sz val="11"/><color theme="1"/><name val="Calibri"/><family val="2"/><scheme val="minor"/></font>';
+  /* 1. Font bold: clonar primer <font> (<font seguido de espacio o >, nunca <fonts), quitar <b> previo y anteponer uno solo */
+  var font0=(stylesXml.match(/<font(?=[\s>])[^>]*>[\s\S]*?<\/font>/)||[])[0]||'<font><sz val="11"/><color theme="1"/><name val="Calibri"/><family val="2"/><scheme val="minor"/></font>';
   font0=font0.replace(/<b[^>]*\/?>/g,'');
-  var fontBoldEntry=font0.replace(/<font[^>]*>/,'$&<b/>');
+  var fontBoldEntry=font0.replace(/<font(?=[\s>])[^>]*>/,'$&<b/>');
   r=_xmlAppendStyleEntry(stylesXml,'fonts',fontBoldEntry);
   stylesXml=r.xml;if(r.id>=0)ids.fontBold=r.id;
   /* 2. Fill gris claro sólido */
@@ -8307,10 +8315,11 @@ function _xmlEnsureStyles(stylesXml){
   stylesXml=r.xml;if(r.id>=0)ids.xfGrayNum=r.id;
   return{xml:stylesXml,ids:ids};
 }
-/* Pone el atributo s en una celda existente dentro de un row-inner (string). Si no existe la celda, no hace nada. */
+/* Pone el atributo s en una celda existente dentro de un row-inner (string). Si no existe la celda, no hace nada.
+   Tolera cualquier orden de atributos (r puede no ser el primero). */
 function _xmlSetCellStyle(rowInner,ref,sIdx){
-  var re=new RegExp('(<c\\s+r="'+ref+'"[^>]*?)(/?>)');
-  return rowInner.replace(re,function(m,head,tail){
+  var re=new RegExp('(<c(?=[^>]*\\sr="'+ref+'"([\\s/>]))[^>]*?)(/?>)');
+  return rowInner.replace(re,function(m,head,delim,tail){
     var h=head.replace(/\s+s="\d+"/,'');
     return h+' s="'+sIdx+'"'+tail;
   });
@@ -8342,6 +8351,7 @@ var exportarFormularioLlenoGlobal=async function(pres,calcItemVal,setPendientesF
       var stylesXml=await stylesFile.async('string');
       var stRes=_xmlEnsureStyles(stylesXml);
       if(stRes.xml.indexOf('</cellXfs>')===-1)throw new Error('styles sin cellXfs');
+      if(!_xmlIsWellFormed(stRes.xml))throw new Error('styles XML malformado');
       zip.file('xl/styles.xml',stRes.xml);
       stIds=stRes.ids;
     }else{sinEstilos=true}
@@ -8356,9 +8366,10 @@ var exportarFormularioLlenoGlobal=async function(pres,calcItemVal,setPendientesF
 
   /* ── 5. Helpers string-based ── */
   /* Reemplaza o agrega un <c> dentro de un bloque <row r="N">...</row>.
-     Cubre <c r="REF">...</c>, <c r="REF"></c> y self-closing <c r="REF"/> */
+     Cubre <c r="REF">...</c>, <c r="REF"></c> y self-closing <c r="REF"/>.
+     Tolera cualquier orden de atributos. */
   function xmlPatchCell(rowXml,cellRef,cellXml){
-    var cellRegex=new RegExp('<c\\s+r="'+cellRef+'"[^>]*(?:/>|>.*?</c>)','s');
+    var cellRegex=new RegExp('<c(?=[^>]*\\sr="'+cellRef+'"([\\s/>]))[^>]*(?:/>|>.*?</c>)','s');
     if(cellRegex.test(rowXml)){
       return rowXml.replace(cellRegex,cellXml);
     }
@@ -8381,9 +8392,9 @@ var exportarFormularioLlenoGlobal=async function(pres,calcItemVal,setPendientesF
     var sAttr=sIdx>0?' s="'+sIdx+'"':'';
     return '<c r="'+ref+'" t="inlineStr"'+sAttr+'><is><t>'+_xmlEscapeText(text)+'</t></is></c>';
   }
-  /* Busca el bloque <row r="N">...</row> en el string XML */
+  /* Busca el bloque <row r="N">...</row> en el string XML (tolera orden de atributos) */
   function xmlFindRowBlock(rNum){
-    var regex=new RegExp('(<row\\s+r="'+rNum+'"\\s*[^>]*>)(.*?)(</row>)','s');
+    var regex=new RegExp('(<row(?=[^>]*\\sr="'+rNum+'"([\\s>]))[^>]*>)(.*?)(</row>)','s');
     var match=xml.match(regex);
     return match?{full:match[0],open:match[1],inner:match[2],close:match[3],index:match.index}:null;
   }
@@ -8474,8 +8485,16 @@ var exportarFormularioLlenoGlobal=async function(pres,calcItemVal,setPendientesF
     row+='</row>';
     return row;
   }
+  /* Fila máxima presente en sheetData (evita colisiones al agregar filas) */
+  function xmlMaxRow(){
+    var re=/<row(?=[^>]*\sr="(\d+)"([\s>]))[^>]*>/g;
+    var m,mx=0;
+    while((m=re.exec(xml))!==null){var n=parseInt(m[1]);if(n>mx)mx=n}
+    return mx;
+  }
   if(hasAiu){
-    var rowCD=maxFila+2,rowAdm=maxFila+3,rowImp=maxFila+4,rowUti=maxFila+5,rowCT=maxFila+6;
+    var baseRow=Math.max(maxFila,xmlMaxRow());
+    var rowCD=baseRow+2,rowAdm=baseRow+3,rowImp=baseRow+4,rowUti=baseRow+5,rowCT=baseRow+6;
     var admV=r2(cdTotal*aiuConfig.pctA/100),impV=r2(cdTotal*aiuConfig.pctI/100),utiV=r2(cdTotal*aiuConfig.pctU/100);
     var ctV=r2(cdTotal+admV+impV+utiV);
     var newRows='';
@@ -8489,13 +8508,21 @@ var exportarFormularioLlenoGlobal=async function(pres,calcItemVal,setPendientesF
     lastRow=rowCT;
   }
 
-  /* ── 9. Actualizar <dimension ref="..."> ── */
+  /* ── 9. Actualizar <dimension ref="..."> (nunca reducir) ── */
   xml=xml.replace(/(<dimension\s+ref=")([^"]*?)(")/,function(m,pref,ref,suf){
-    var startCell=ref.split(':')[0];
-    return pref+startCell+':'+colT+lastRow+suf;
+    var parts=ref.split(':');
+    var startCell=parts[0];
+    var endRow=0,endCol='';
+    if(parts[1]){var em=parts[1].match(/^([A-Z]+)(\d+)$/);if(em){endCol=em[1];endRow=parseInt(em[2])}}
+    var newLastRow=Math.max(endRow,lastRow);
+    var newEndCol=endCol;
+    if(!newEndCol||colT.length>newEndCol.length||(colT.length===newEndCol.length&&colT>newEndCol))newEndCol=colT;
+    return pref+startCell+':'+newEndCol+newLastRow+suf;
   });
 
-  /* ── 10. Escribir de vuelta y descargar ── */
+  /* ── 10. Validar hoja y escribir de vuelta ── */
+  /* Si la hoja quedó malformada, NO descargar archivo corrupto */
+  if(!_xmlIsWellFormed(xml)){showToast('Error al exportar: la hoja generada es inválida, no se descargó nada',{type:'err',dur:8000});return}
   zip.file('xl/worksheets/sheet1.xml',xml);
   var base=(fo.nombre_archivo||'formulario').replace(/\.xlsx?$/i,'');
   var nombreFinal=base+'_PRECIOS_'+pres.codigo+'.xlsx';

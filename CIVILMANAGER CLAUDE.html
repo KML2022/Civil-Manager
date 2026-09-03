@@ -8176,7 +8176,9 @@ var MAPEO_CAMPOS=[
   {key:'col_vr_unitario',label:'Vr. Unitario (a llenar)',requerido:true},
   {key:'col_vr_total',label:'Vr. Total (a llenar)',requerido:true}
 ];
-function colLetter(i){return i<26?String.fromCharCode(65+i):'A'+String.fromCharCode(65+i-26)}
+function colLetter(i){i=Number(i);if(!isFinite(i)||i<0||Math.floor(i)!==i)return'';return i<26?String.fromCharCode(65+i):'A'+String.fromCharCode(65+i-26)}
+/* Índice de columna válido para mapeo (0-based entero >=0) */
+function _xmlColIdxOk(c){return c!=null&&isFinite(Number(c))&&Number(c)>=0&&Math.floor(Number(c))===Number(c)}
 function arrayBufferToBase64(buf){var bytes=new Uint8Array(buf);var s='';var CH=32768;for(var i=0;i<bytes.length;i+=CH){s+=String.fromCharCode.apply(null,bytes.subarray(i,i+CH))}return btoa(s)}
 function mapeoVacio(){return{fila_inicio:0,col_item:null,col_codigo_1:null,col_codigo_2:null,col_codigo_apu:null,col_descripcion:null,col_unidad:null,col_cantidad:null,col_vr_unitario:null,col_vr_total:null,nombre_mapeo:''}}
 
@@ -8357,8 +8359,9 @@ var exportarFormularioLlenoGlobal=async function(pres,calcItemVal,setPendientesF
     }else{sinEstilos=true}
   }catch(eSt){sinEstilos=true;stIds={fontBold:0,fillGray:1,borderThin:0,xfBorder:0,xfNumBorder:0,xfGray:0,xfGrayNum:0}}
 
-  /* ── 4. Mapeo de columnas ── */
+  /* ── 4. Mapeo de columnas (validado: evita XML roto por mapeo incompleto) ── */
   var mapeoF=fo.mapeo;
+  if(!mapeoF||!_xmlColIdxOk(mapeoF.col_vr_unitario)||!_xmlColIdxOk(mapeoF.col_vr_total)||!_xmlColIdxOk(mapeoF.col_descripcion)||!isFinite(Number(mapeoF.fila_inicio))||(mapeoF.col_cantidad!=null&&!_xmlColIdxOk(mapeoF.col_cantidad))){showToast('Error al exportar: mapeo de columnas incompleto, vuelve a importar el formulario',{type:'err',dur:8000});return}
   var colU=colLetter(mapeoF.col_vr_unitario);
   var colT=colLetter(mapeoF.col_vr_total);
   var colC=mapeoF.col_cantidad!=null?colLetter(mapeoF.col_cantidad):null;
@@ -8414,6 +8417,10 @@ var exportarFormularioLlenoGlobal=async function(pres,calcItemVal,setPendientesF
     xml=xml.substring(0,insertAt)+newRowXml+xml.substring(insertAt);
     return xmlFindRowBlock(rNum);
   }
+  /* Valida well-formed tras cada etapa; al fallar nombra etapa/fila (diagnóstico) */
+  function xmlCheckStage(stage){
+    if(!_xmlIsWellFormed(xml))throw new Error('hoja inválida en etapa: '+stage);
+  }
   /* ── 6. Estilo base tabla completa: header + capítulos en gris ── */
   var colMaxIdx=mapeoF.col_vr_total;
   function xmlStyleRowCells(rNum,sIdx){
@@ -8433,6 +8440,7 @@ var exportarFormularioLlenoGlobal=async function(pres,calcItemVal,setPendientesF
     if(!esCapituloFinal(it)||it.fila_original==null)return;
     xmlStyleRowCells(it.fila_original+1,stIds.xfGray);
   });
+  xmlCheckStage('estilos header/capítulos');
 
   /* ── 7. Modificar filas de items (Vr.Unit + Vr.Total con valor caché) ── */
   var itemsArr=(pres.items||[]).filter(function(it){return !esCapituloFinal(it)});
@@ -8462,6 +8470,7 @@ var exportarFormularioLlenoGlobal=async function(pres,calcItemVal,setPendientesF
       newInner=xmlPatchCell(newInner,addrT,xmlNumCell(addrT,cv.vr_total,stIds.xfNumBorder));
     }
     xml=xml.substring(0,rowBlock.index)+rowBlock.open+newInner+rowBlock.close+xml.substring(rowBlock.index+rowBlock.full.length);
+    xmlCheckStage('items fila '+rowNum);
   });
   if(minFila===Infinity)minFila=mapeoF.fila_inicio+1;
 
@@ -8507,6 +8516,7 @@ var exportarFormularioLlenoGlobal=async function(pres,calcItemVal,setPendientesF
     xml=xml.replace('</sheetData>',newRows+'</sheetData>');
     lastRow=rowCT;
   }
+  xmlCheckStage('filas CD/AIU/CT');
 
   /* ── 9. Actualizar <dimension ref="..."> (nunca reducir) ── */
   xml=xml.replace(/(<dimension\s+ref=")([^"]*?)(")/,function(m,pref,ref,suf){
@@ -8519,6 +8529,7 @@ var exportarFormularioLlenoGlobal=async function(pres,calcItemVal,setPendientesF
     if(!newEndCol||colT.length>newEndCol.length||(colT.length===newEndCol.length&&colT>newEndCol))newEndCol=colT;
     return pref+startCell+':'+newEndCol+newLastRow+suf;
   });
+  xmlCheckStage('dimensión');
 
   /* ── 10. Validar hoja y escribir de vuelta ── */
   /* Si la hoja quedó malformada, NO descargar archivo corrupto */

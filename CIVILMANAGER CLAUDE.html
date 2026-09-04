@@ -643,12 +643,17 @@ function getMergeSpan(r,c,merges){
 function validarExportacionFormulario(pres){
   var itemsReales=(pres.items||[]).filter(function(it){return !esCapituloFinal(it)});
   var sinRecurso=itemsReales.filter(function(it){
-    if(it.tipoPrecio==='entidad')return!it.precioEntidad||it.precioEntidad<=0;
+    if(it.tipoPrecio==='entidad')return!it.precioEntidad||Number(it.precioEntidad)<=0;
     return !it.tiene_apu||!it.apu_id;
   });
   return{
     valido:sinRecurso.length===0,
-    pendientes:sinRecurso.map(function(it){return(it.num_item||'')+' — '+(it.descripcion||'Sin descripcion')})
+    pendientes:sinRecurso.map(function(it){
+      var prefijo=(it.num_item||'');
+      var desc=(it.descripcion||'Sin descripcion');
+      var razon=(it.tipoPrecio==='entidad')?'sin precio entidad':'sin APU asignado';
+      return prefijo+' — '+desc+' ('+razon+')';
+    })
   };
 }
 
@@ -8354,6 +8359,7 @@ var exportarFormularioLlenoGlobal=async function(pres,calcItemVal,setPendientesF
       var stRes=_xmlEnsureStyles(stylesXml);
       if(stRes.xml.indexOf('</cellXfs>')===-1)throw new Error('styles sin cellXfs');
       if(!_xmlIsWellFormed(stRes.xml))throw new Error('styles XML malformado');
+      if(stRes.ids.xfBorder<0||stRes.ids.xfNumBorder<0||stRes.ids.xfGray<0||stRes.ids.xfGrayNum<0)throw new Error('estilos incompletos: faltan secciones en styles.xml');
       zip.file('xl/styles.xml',stRes.xml);
       stIds=stRes.ids;
     }else{sinEstilos=true}
@@ -8372,23 +8378,36 @@ var exportarFormularioLlenoGlobal=async function(pres,calcItemVal,setPendientesF
      Cubre <c r="REF">...</c>, <c r="REF"></c> y self-closing <c r="REF"/>.
      Tolera cualquier orden de atributos. */
   function xmlPatchCell(rowXml,cellRef,cellXml){
-    var cellRegex=new RegExp('<c(?=[^>]*\\sr="'+cellRef+'"([\\s/>]))[^>]*(?:/>|>.*?</c>)','s');
+    var cellRegex=new RegExp('<c(?=[^>]*\\sr="'+cellRef+'"([\\s/>]))[^>/]*(?:/>|>.*?</c>)','s');
     if(cellRegex.test(rowXml)){
       return rowXml.replace(cellRegex,cellXml);
     }
-    /* No existe: insertar antes de </row> */
-    return rowXml.replace('</row>',cellXml+'</row>');
+    /* No existe: insertar en orden de columna dentro del row inner */
+    /* rowXml es inner (sin </row>), no usar replace sobre </row> */
+    var cellCol=cellRef.replace(/\d+$/,'');
+    var cellRowNum=cellRef.replace(/^[A-Z]+/,'');
+    /* Buscar la primera celda con columna MAYOR a cellCol en la misma fila → insertar antes */
+    var cellTags=rowXml.match(/<c\s[^>]*r="[A-Z]+\d+"[^>]*>/g)||[];
+    for(var i=0;i<cellTags.length;i++){
+      var tm=cellTags[i].match(/r="([A-Z]+)(\d+)"/);
+      if(tm&&tm[2]===cellRowNum&&tm[1]>cellCol){
+        var insertIdx=rowXml.indexOf(cellTags[i]);
+        return rowXml.substring(0,insertIdx)+cellXml+rowXml.substring(insertIdx);
+      }
+    }
+    /* No encontró columna mayor → append al final */
+    return rowXml+cellXml;
   }
   /* Construye XML de celda numérica (valor sanitizado) */
   function xmlNumCell(ref,val,sIdx){
     var sAttr=sIdx>0?' s="'+sIdx+'"':'';
-    return '<c r="'+ref+'"'+sAttr+'><v>'+_xmlEscapeAttr(_xmlNum(val))+'</v></c>';
+    return '<c r="'+ref+'" t="n"'+sAttr+'><v>'+_xmlEscapeAttr(_xmlNum(val))+'</v></c>';
   }
   /* Construye XML de celda con fórmula + valor caché sanitizado (para ver valor sin recalcular) */
   function xmlFormulaCell(ref,formula,sIdx,cached){
     var sAttr=sIdx>0?' s="'+sIdx+'"':'';
     var vText=(cached==null||cached==='')?'':_xmlEscapeAttr(_xmlNum(cached));
-    return '<c r="'+ref+'"'+sAttr+'><f>'+_xmlEscapeText(formula)+'</f><v>'+vText+'</v></c>';
+    return '<c r="'+ref+'" t="n"'+sAttr+'><f>'+_xmlEscapeText(formula)+'</f><v>'+vText+'</v></c>';
   }
   /* Construye XML de celda inlineStr (texto) */
   function xmlStrCell(ref,text,sIdx){
@@ -8397,7 +8416,7 @@ var exportarFormularioLlenoGlobal=async function(pres,calcItemVal,setPendientesF
   }
   /* Busca el bloque <row r="N">...</row> en el string XML (tolera orden de atributos) */
   function xmlFindRowBlock(rNum){
-    var regex=new RegExp('(<row(?=[^>]*\\sr="'+rNum+'"([\\s>]))[^>]*>)(.*?)(</row>)','s');
+    var regex=new RegExp('(<row\\s+r="'+rNum+'"\\s*[^>]*>)(.*?)(</row>)','s');
     var match=xml.match(regex);
     return match?{full:match[0],open:match[1],inner:match[2],close:match[3],index:match.index}:null;
   }
@@ -11156,22 +11175,22 @@ function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,i
   }
 
   async function toggleEstado(idx){
-    if(idx===null||idx===undefined||!presupuestos[idx])return;
+    if(idx===null||idx===undefined||!presupuestos[idx])return{ok:false,error:'Índice de proyecto inválido.'};
     var n=presupuestos.slice();
     var p=n[idx];
     var next=p.estado==='borrador'?'en_revision':p.estado==='en_revision'?'cerrado':'borrador';
     if(p.estado==='borrador'){
       var v=validarExportacionFormulario(p);
       if(!v.valido){
-        return{ok:false,error:'No se puede avanzar: '+v.pendientes.length+' ítem(s) sin APU asignado.'};
+        return{ok:false,error:'No se puede avanzar: '+v.pendientes.length+' ítem(s) sin precio o APU asignado.',texto:'No se puede avanzar: '+v.pendientes.length+' ítem(s) pendiente(s).'};
       }
     }
     if(p.estado==='cerrado'){
-      if(!(await askConfirm('Este presupuesto está cerrado. ¿Desea reabrirlo y volver a permitir cambios?')))return{ok:false};
+      if(!(await askConfirm('Este presupuesto está cerrado. ¿Desea reabrirlo y volver a permitir cambios?')))return{ok:false,texto:''};
     }
     n=presupuestos.slice();
     p=n[idx];
-    if(!p)return{ok:false};
+    if(!p)return{ok:false,error:'Proyecto no encontrado al confirmar.'};
     n[idx]=Object.assign({},p,{estado:next,fecha_cierre:next==='cerrado'?new Date().toISOString().slice(0,10):null});
     onChange(Object.assign({},data,{presupuestos:n}));
     return{ok:true,texto:'Estado: '+estadoLabel(next)};

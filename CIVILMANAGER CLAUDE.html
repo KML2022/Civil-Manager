@@ -8452,7 +8452,10 @@ var exportarFormularioLlenoGlobal=async function(pres,calcItemVal,setPendientesF
   function xmlCheckStage(stage){
     if(!_xmlIsWellFormed(xml))throw new Error('hoja inválida en etapa: '+stage);
   }
-  /* ── 6. Estilo base tabla completa: header + capítulos en gris ── */
+  /* ── 6. Estilo base tabla completa ── */
+  /* xmlStyleRowCells conservada para uso interno pero NO se aplica al header
+     ni a capítulos del formulario original — esos tienen formatos propios
+     (fondos negros, colores institucionales) que no deben pisarse. */
   var colMaxIdx=mapeoF.col_vr_total;
   function xmlStyleRowCells(rNum,sIdx){
     var rb=xmlFindRowBlock(rNum);
@@ -8463,19 +8466,17 @@ var exportarFormularioLlenoGlobal=async function(pres,calcItemVal,setPendientesF
     }
     xml=xml.substring(0,rb.index)+rb.open+newInner+rb.close+xml.substring(rb.index+rb.full.length);
   }
-  /* Header: NO se pisa el estilo original del formulario de la entidad.
-     El sistema solo marca las celdas de Vr.Unitario y Vr.Total con borde. */
-  /* Capítulos: solo se aplica gris a las celdas de precio, no a toda la fila */
+  /* Solo marcar con borde las celdas Vr.Unitario y Vr.Total en capítulos —
+     sin tocar el resto de la fila para preservar fondos del formulario original */
   (pres.items||[]).forEach(function(it){
     if(!esCapituloFinal(it)||it.fila_original==null)return;
     var capRow=it.fila_original+1;
-    var newInner2=(xmlFindRowBlock(capRow)||{inner:''}).inner;
-    if(!newInner2)return;
-    /* Solo marcar las columnas que el sistema toca: Vr.Unitario y Vr.Total */
-    newInner2=_xmlSetCellStyle(newInner2,colU+capRow,stIds.xfGray);
-    newInner2=_xmlSetCellStyle(newInner2,colT+capRow,stIds.xfGray);
-    var rb2=xmlFindRowBlock(capRow);
-    if(rb2)xml=xml.substring(0,rb2.index)+rb2.open+newInner2+rb2.close+xml.substring(rb2.index+rb2.full.length);
+    var rb=xmlFindRowBlock(capRow);
+    if(!rb)return;
+    var newInner=rb.inner;
+    newInner=_xmlSetCellStyle(newInner,colU+capRow,stIds.xfGray);
+    newInner=_xmlSetCellStyle(newInner,colT+capRow,stIds.xfGray);
+    xml=xml.substring(0,rb.index)+rb.open+newInner+rb.close+xml.substring(rb.index+rb.full.length);
   });
   xmlCheckStage('estilos capítulos');
 

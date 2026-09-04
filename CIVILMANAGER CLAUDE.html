@@ -7611,7 +7611,7 @@ function PresProyectosPanel({presupuestos,selPresIdx,setSelPresIdx,data,onChange
     var padre=p.parent_id?presupuestos.find(function(x){return x.id===p.parent_id}):null;
     return[p.codigo||'',p.nombre||'',p.fecha_creacion||'',p.estado||'borrador',p.elaborado_por||'',p.entidad||'',p.con_sub_proyectos?'Si':'No',p.tipo_proyecto||'',p.observaciones||'',padre?padre.codigo:''];
   },parseRow:function(r){return[String(r[0]||'').trim(),String(r[1]||'').trim(),String(r[2]||'').trim(),String(r[3]||'borrador').trim(),String(r[4]||'').trim(),String(r[5]||'').trim(),String(r[6]||'No').trim(),String(r[7]||'').trim(),String(r[8]||'').trim(),String(r[9]||'').trim()]},buildItem:function(r,idx,existing,genCode){
-    var base=idx>=0?existing[idx]:{id:uid(),fecha_cierre:null,items:[],aiu_override:{activo:false,pct_a:0,pct_i:0,pct_u:0,iva_pct:19,vr_resumido:false,usar_en_cada_apu:true},factores_snap:(data.factoresPrestaciones||[]).map(function(f){return Object.assign({},f)}),cargos_snap:[],insumos_snap:[],equipos_snap:[],cuadrillas_snap:[],apus_snap:[],activo:false,contrato:'',objeto:'',plazo:0,ciudad:'',departamento:'',parent_id:null,perfil_pais_snap:Object.assign({},getPaisData(config.pais,data.config_listas&&data.config_listas.perfiles_pais))};
+    var base=idx>=0?existing[idx]:{id:uid(),fecha_cierre:null,items:[],aiu_override:{activo:false,pct_a:0,pct_i:0,pct_u:0,tiene_iva:false,iva_base:'utilidad',iva_pct:19,vr_resumido:false,usar_en_cada_apu:true},factores_snap:(data.factoresPrestaciones||[]).map(function(f){return Object.assign({},f)}),cargos_snap:[],insumos_snap:[],equipos_snap:[],cuadrillas_snap:[],apus_snap:[],activo:false,contrato:'',objeto:'',plazo:0,ciudad:'',departamento:'',parent_id:null,perfil_pais_snap:Object.assign({},getPaisData(config.pais,data.config_listas&&data.config_listas.perfiles_pais))};
     var codigoPadre=String(r[9]||'').trim();
     var padreObj=codigoPadre?existing.find(function(e){return(e.codigo||'').toLowerCase()===codigoPadre.toLowerCase()}):null;
     return Object.assign({},base,{codigo:idx>=0?existing[idx].codigo:(r[0]||genCode()),nombre:r[1]||'',fecha_creacion:r[2]||base.fecha_creacion||new Date().toISOString().slice(0,10),estado:r[3]||'borrador',elaborado_por:r[4]||'',entidad:r[5]||'',con_sub_proyectos:(r[6]||'').toLowerCase()==='si',tipo_proyecto:r[7]||'',observaciones:r[8]||'',parent_id:codigoPadre?(padreObj?padreObj.id:base.parent_id||null):null});
@@ -7835,7 +7835,7 @@ function PresResumenPanel({pres,presupuestos,selPresIdx,data,onChange,calcResume
               <tr><td style={{padding:'6px 10px',borderBottom:'1px solid var(--bdr)'}}>Imprevistos ({r.pctI.toFixed(2)}%)</td><td style={{textAlign:'right',padding:'6px 10px',borderBottom:'1px solid var(--bdr)'}}>{fmt(r.imp)}</td><td style={{padding:'6px 10px',borderBottom:'1px solid var(--bdr)'}}/></tr>
               <tr><td style={{padding:'6px 10px',borderBottom:'1px solid var(--bdr)'}}>Utilidad ({r.pctU.toFixed(2)}%)</td><td style={{textAlign:'right',padding:'6px 10px',borderBottom:'1px solid var(--bdr)'}}>{fmt(r.uti)}</td><td style={{padding:'6px 10px',borderBottom:'1px solid var(--bdr)'}}/></tr>
               <tr style={{background:'var(--bg2)'}}><td style={{padding:'6px 10px',borderBottom:'1px solid var(--bdr)',fontWeight:700}}>AIU Total ({r.aiuPct.toFixed(2)}%)</td><td style={{textAlign:'right',padding:'6px 10px',borderBottom:'1px solid var(--bdr)',fontWeight:700,color:r.aiuWarn?'var(--warn)':'var(--ok)'}}>{fmt(r.aiuTotal)}</td><td style={{padding:'6px 10px',borderBottom:'1px solid var(--bdr)'}}/></tr>
-              <tr><td style={{padding:'6px 10px',borderBottom:'1px solid var(--bdr)'}}>IVA sobre Utilidad ({r.ivaPct}%)</td><td style={{textAlign:'right',padding:'6px 10px',borderBottom:'1px solid var(--bdr)'}}>{fmt(r.ivaUtilidad)}</td><td style={{padding:'6px 10px',borderBottom:'1px solid var(--bdr)'}}/></tr>
+              {r.tieneIva&&<tr><td style={{padding:'6px 10px',borderBottom:'1px solid var(--bdr)'}}>{r.ivaBase==='cd'?'IVA sobre CD':'IVA sobre Utilidad'} ({r.ivaPct}%)</td><td style={{textAlign:'right',padding:'6px 10px',borderBottom:'1px solid var(--bdr)'}}>{fmt(r.ivaUtilidad)}</td><td style={{padding:'6px 10px',borderBottom:'1px solid var(--bdr)'}}/></tr>}
               <tr style={{background:'var(--bg3)'}}><td style={{padding:'8px 10px',fontWeight:700,fontSize:13,color:'var(--ac)'}}>VALOR TOTAL CONTRATO</td><td style={{textAlign:'right',padding:'8px 10px',fontWeight:700,fontSize:13,color:'var(--ok)'}}>{fmt(r.valorTotal)}</td><td style={{padding:'8px 10px'}}/></tr>
             </tbody>
           </table>
@@ -7851,6 +7851,25 @@ function PresResumenPanel({pres,presupuestos,selPresIdx,data,onChange,calcResume
                 <div><label style={{color:'var(--tx2)',display:'block',marginBottom:2}}>Admin %</label><NumInput step=".5" inputMode="decimal" value={r.pctA} onChange={function(v){updOv('pct_a',v)}} disabled={readOnly} style={{width:'100%',fontSize:10,textAlign:'right'}} decimals={2}/></div>
                 <div><label style={{color:'var(--tx2)',display:'block',marginBottom:2}}>Impr %</label><NumInput step=".5" inputMode="decimal" value={r.pctI} onChange={function(v){updOv('pct_i',v)}} disabled={readOnly} style={{width:'100%',fontSize:10,textAlign:'right'}} decimals={2}/></div>
                 <div><label style={{color:'var(--tx2)',display:'block',marginBottom:2}}>Util %</label><NumInput step=".5" inputMode="decimal" value={r.pctU} onChange={function(v){updOv('pct_u',v)}} disabled={readOnly} style={{width:'100%',fontSize:10,textAlign:'right'}} decimals={2}/></div>
+                <div style={{gridColumn:'1 / 4',borderTop:'1px solid var(--bdr)',paddingTop:6,marginTop:2,display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+                  <label style={{display:'inline-flex',alignItems:'center',gap:4,fontSize:10,cursor:'pointer',fontWeight:600,color:'var(--warn)'}}>
+                    <input type="checkbox" checked={!!(pres.aiu_override&&pres.aiu_override.tiene_iva)} onChange={function(e){updOv('tiene_iva',e.target.checked)}} disabled={readOnly}/>
+                    El presupuesto tiene IVA
+                  </label>
+                  {!!(pres.aiu_override&&pres.aiu_override.tiene_iva)&&(
+                    <React.Fragment>
+                      <select className="ni" value={(pres.aiu_override&&pres.aiu_override.iva_base)||'utilidad'} onChange={function(e){updOv('iva_base',e.target.value)}} disabled={readOnly} style={{fontSize:10,height:20,border:'1px solid var(--bd)',borderRadius:4,padding:'0 4px'}}>
+                        <option value="utilidad">IVA sobre Utilidad</option>
+                        <option value="cd">IVA sobre CD</option>
+                      </select>
+                      <div style={{display:'flex',alignItems:'center',gap:4}}>
+                        <span style={{fontSize:10,color:'var(--tx2)'}}>Tarifa:</span>
+                        <NumInput step=".5" inputMode="decimal" value={safeFloat((pres.aiu_override&&pres.aiu_override.iva_pct)||19)} onChange={function(v){updOv('iva_pct',v)}} disabled={readOnly} style={{width:50,fontSize:10,textAlign:'right'}} decimals={2}/>
+                        <span style={{fontSize:10,color:'var(--tx2)'}}>%</span>
+                      </div>
+                    </React.Fragment>
+                  )}
+                </div>
                 <div style={{gridColumn:'1 / 4',marginTop:6,padding:'4px 6px',borderRadius:3,background:r.aiuWarn?'rgba(248,113,113,.1)':(r.cdTotal>0?'rgba(74,222,128,.06)':'var(--bg3)')}}>
                   {r.aiuPct>=5&&r.aiuPct<=50&&<span style={{fontSize:10,color:'var(--ok)',fontWeight:600}}>AIU {r.aiuPct.toFixed(2)}% OK</span>}
                   {r.aiuPct<5&&r.aiuWarn&&<span style={{fontSize:10,color:'var(--warn)',fontWeight:600}}>AIU {r.aiuPct.toFixed(2)}% - bajo 5%</span>}
@@ -8125,7 +8144,7 @@ function PresEntregablesPanel({pres,presupuestos,calcResumenPres,calcItemVal,cal
                 {sinArchivo&&<div style={{fontSize:10,color:'var(--warn)',padding:'4px 6px',borderRadius:3,background:'rgba(232,168,48,.08)',border:'1px solid var(--warn)'}}>⚠ El archivo original supera 4MB y no fue adjuntado — la exportación no está disponible. Vuelve a importar el formulario en este dispositivo.</div>}
                 {!sinArchivo&&hayPendientes&&<div style={{fontSize:10,color:'var(--warn)',padding:'4px 6px',borderRadius:3,background:'rgba(232,168,48,.08)',border:'1px solid var(--warn)'}}>{vForm.pendientes.length} ítem(s) sin precio o APU asignado — asígnalos antes de exportar.</div>}
                 {!sinArchivo&&!hayPendientes&&hayManuales&&<div style={{fontSize:10,color:'var(--tx2)',padding:'4px 6px',borderRadius:3,background:'var(--bg3)',border:'1px solid var(--bdr)'}}>ℹ {vForm.sinFilaOriginal.length} ítem(s) agregado(s) manualmente no aparecerán en el formulario exportado (no tienen fila en el Excel original).</div>}
-                <button className="btn" onClick={function(){if(!bloqueado)exportarFormularioLlenoGlobal(pres,calcItemVal,setPendientes,{pctA:r.pctA||0,pctI:r.pctI||0,pctU:r.pctU||0})}} disabled={bloqueado} style={{fontSize:11,padding:'6px 12px',border:'1px solid '+(bloqueado?'var(--bdr)':'var(--ok)'),borderRadius:4,background:bloqueado?'transparent':'rgba(74,222,128,.08)',color:bloqueado?'var(--tx3)':'var(--ok)',cursor:bloqueado?'not-allowed':'pointer',display:'inline-flex',alignItems:'center',gap:6,justifyContent:'center',opacity:bloqueado?0.5:1}}><IconExport/> Exportar Formulario con Precios</button>
+                <button className="btn" onClick={function(){if(!bloqueado)exportarFormularioLlenoGlobal(pres,calcItemVal,setPendientes,{pctA:r.pctA||0,pctI:r.pctI||0,pctU:r.pctU||0,tieneIva:r.tieneIva||false,ivaBase:r.ivaBase||'utilidad',ivaPct:r.ivaPct||19})}} disabled={bloqueado} style={{fontSize:11,padding:'6px 12px',border:'1px solid '+(bloqueado?'var(--bdr)':'var(--ok)'),borderRadius:4,background:bloqueado?'transparent':'rgba(74,222,128,.08)',color:bloqueado?'var(--tx3)':'var(--ok)',cursor:bloqueado?'not-allowed':'pointer',display:'inline-flex',alignItems:'center',gap:6,justifyContent:'center',opacity:bloqueado?0.5:1}}><IconExport/> Exportar Formulario con Precios</button>
               </div>
             );
           })()}
@@ -8536,13 +8555,24 @@ var exportarFormularioLlenoGlobal=async function(pres,calcItemVal,setPendientesF
     var baseRow=Math.max(maxFila,xmlMaxRow());
     var rowCD=baseRow+2,rowAdm=baseRow+3,rowImp=baseRow+4,rowUti=baseRow+5,rowCT=baseRow+6;
     var admV=r2(cdTotal*aiuConfig.pctA/100),impV=r2(cdTotal*aiuConfig.pctI/100),utiV=r2(cdTotal*aiuConfig.pctU/100);
-    var ctV=r2(cdTotal+admV+impV+utiV);
+    var tieneIvaExp=!!(aiuConfig.tieneIva);
+    var ivaBaseExp=aiuConfig.ivaBase||'utilidad';
+    var ivaPctExp=safeFloat(aiuConfig.ivaPct)||19;
+    var ivaBaseValExp=ivaBaseExp==='cd'?cdTotal:utiV;
+    var ivaV=tieneIvaExp?r2(ivaBaseValExp*ivaPctExp/100):0;
+    var ctV=r2(cdTotal+admV+impV+utiV+ivaV);
     var newRows='';
     newRows+=xmlSummaryRow(rowCD,'Costo Directo (CD)',true,'SUM('+colT+minFila+':'+colT+maxFila+')',cdTotal);
     newRows+=xmlSummaryRow(rowAdm,'Administración ('+Number(aiuConfig.pctA).toFixed(2)+'%)',false,'ROUND('+colT+rowCD+'*'+aiuConfig.pctA+'/100,2)',admV);
     newRows+=xmlSummaryRow(rowImp,'Imprevistos ('+Number(aiuConfig.pctI).toFixed(2)+'%)',false,'ROUND('+colT+rowCD+'*'+aiuConfig.pctI+'/100,2)',impV);
     newRows+=xmlSummaryRow(rowUti,'Utilidad ('+Number(aiuConfig.pctU).toFixed(2)+'%)',false,'ROUND('+colT+rowCD+'*'+aiuConfig.pctU+'/100,2)',utiV);
-    newRows+=xmlSummaryRow(rowCT,'Costo Total (CT)',true,'ROUND('+colT+rowCD+'+'+colT+rowAdm+'+'+colT+rowImp+'+'+colT+rowUti+',2)',ctV);
+    if(tieneIvaExp){
+      var rowIvaExp=rowCT;rowCT=rowCT+1;
+      var ivaLabelExp=(ivaBaseExp==='cd'?'IVA sobre CD':'IVA sobre Utilidad')+' ('+Number(ivaPctExp).toFixed(2)+'%)';
+      var ivaFormulaExp='ROUND('+colT+(ivaBaseExp==='cd'?rowCD:rowUti)+'*'+ivaPctExp+'/100,2)';
+      newRows+=xmlSummaryRow(rowIvaExp,ivaLabelExp,false,ivaFormulaExp,ivaV);
+    }
+    newRows+=xmlSummaryRow(rowCT,'Costo Total (CT)',true,'ROUND('+colT+rowCD+'+'+colT+rowAdm+'+'+colT+rowImp+'+'+colT+rowUti+(tieneIvaExp?'+'+colT+(rowCT-1):'')+',2)',ctV);
     /* Insertar antes de </sheetData> */
     xml=xml.replace('</sheetData>',newRows+'</sheetData>');
     lastRow=rowCT;
@@ -11127,7 +11157,7 @@ function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,i
       fecha_creacion:new Date().toISOString().slice(0,10),ciudad:'',departamento:'',elaborado_por:'',
       activo:false,con_sub_proyectos:false,tipo_proyecto:'',observaciones:'',parent_id:null,
       estado:'borrador',fecha_cierre:null,items:[],
-      aiu_override:{activo:false,pct_a:0,pct_i:0,pct_u:0,iva_pct:19,vr_resumido:false,usar_en_cada_apu:true},
+      aiu_override:{activo:false,pct_a:0,pct_i:0,pct_u:0,tiene_iva:false,iva_base:'utilidad',iva_pct:19,vr_resumido:false,usar_en_cada_apu:true},
       factores_snap:(data.factoresPrestaciones||[]).map(function(f){return Object.assign({},f)}),
       cargos_snap:[],
       insumos_snap:[],
@@ -11151,7 +11181,7 @@ function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,i
       fecha_creacion:new Date().toISOString().slice(0,10),ciudad:parent.ciudad||'',departamento:parent.departamento||'',
       elaborado_por:parent.elaborado_por||'',tipo_proyecto:'',observaciones:'',
       estado:'borrador',fecha_cierre:null,items:[],
-      aiu_override:{activo:false,pct_a:0,pct_i:0,pct_u:0,iva_pct:19,vr_resumido:false,usar_en_cada_apu:true},
+      aiu_override:{activo:false,pct_a:0,pct_i:0,pct_u:0,tiene_iva:false,iva_base:'utilidad',iva_pct:19,vr_resumido:false,usar_en_cada_apu:true},
       factores_snap:(data.factoresPrestaciones||[]).map(function(f){return Object.assign({},f)}),
       cargos_snap:[],
       insumos_snap:[],
@@ -11334,15 +11364,20 @@ function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,i
     var pctI=useOv?(safeFloat(pres.aiu_override.pct_i)||0):(safeFloat(config.pct_imprevistos)||0);
     var pctU=useOv?(safeFloat(pres.aiu_override.pct_u)||0):(safeFloat(config.pct_utilidad)||0);
     var aiuPct=pctA+pctI+pctU;
+    var tieneIva=useOv&&!!(pres.aiu_override.tiene_iva);
+    var ivaBase=useOv?(pres.aiu_override.iva_base||'utilidad'):'utilidad';
     var ivaPct=useOv?(safeFloat(pres.aiu_override.iva_pct)||19):19;
     var adm=r2(cdTotal*pctA/100),imp=r2(cdTotal*pctI/100),uti=r2(cdTotal*pctU/100);
     var aiuTotal=r2(adm+imp+uti);
-    var ivaUtilidad=r2(uti*ivaPct/100);
-    var valorTotal=r2(cdTotal+aiuTotal+ivaUtilidad);
+    var ivaBase_=ivaBase==='cd'?cdTotal:uti;
+    var ivaCalculado=tieneIva?r2(ivaBase_*ivaPct/100):0;
+    var valorTotal=r2(cdTotal+aiuTotal+ivaCalculado);
+    /* Alias para compatibilidad con código existente que usa ivaUtilidad */
+    var ivaUtilidad=ivaCalculado;
     var catKeys=Object.keys(catDistrib);
     var catRows=catKeys.map(function(k){return{cat:k,val:r2(catDistrib[k]),pct:cdTotal>0?catDistrib[k]/cdTotal*100:0}});
     catRows.sort(function(a,b){return b.val-a.val});
-    return{cdTotal:cdTotal,pctA:pctA,pctI:pctI,pctU:pctU,aiuPct:aiuPct,ivaPct:ivaPct,adm:adm,imp:imp,uti:uti,aiuTotal:aiuTotal,ivaUtilidad:ivaUtilidad,valorTotal:valorTotal,catRows:catRows,aiuWarn:aiuPct>0&&(aiuPct<5||aiuPct>50),itemsArr:itemsArr};
+    return{cdTotal:cdTotal,pctA:pctA,pctI:pctI,pctU:pctU,aiuPct:aiuPct,tieneIva:tieneIva,ivaBase:ivaBase,ivaPct:ivaPct,adm:adm,imp:imp,uti:uti,aiuTotal:aiuTotal,ivaUtilidad:ivaCalculado,valorTotal:valorTotal,catRows:catRows,aiuWarn:aiuPct>0&&(aiuPct<5||aiuPct>50),itemsArr:itemsArr};
   },[pres&&pres.items,pres&&pres.aiu_override,itemValMap,config.pct_administracion,config.pct_imprevistos,config.pct_utilidad]);
 
   function calcResumenPres(){return resumenPres}
@@ -11391,12 +11426,15 @@ function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,i
     var pctA=useOv?(safeFloat(p.aiu_override.pct_a)||0):(safeFloat(config.pct_administracion)||0);
     var pctI=useOv?(safeFloat(p.aiu_override.pct_i)||0):(safeFloat(config.pct_imprevistos)||0);
     var pctU=useOv?(safeFloat(p.aiu_override.pct_u)||0):(safeFloat(config.pct_utilidad)||0);
+    var tieneIvaP=useOv&&!!(p.aiu_override.tiene_iva);
+    var ivaBaseP=useOv?(p.aiu_override.iva_base||'utilidad'):'utilidad';
     var ivaPct=useOv?(safeFloat(p.aiu_override.iva_pct)||19):19;
     var adm=r2(cdTotal*pctA/100),imp=r2(cdTotal*pctI/100),uti=r2(cdTotal*pctU/100);
     var aiuTotal=r2(adm+imp+uti);
-    var ivaUtilidad=r2(uti*ivaPct/100);
-    var valorTotal=r2(cdTotal+aiuTotal+ivaUtilidad);
-    return{cdTotal:cdTotal,pctA:pctA,pctI:pctI,pctU:pctU,ivaPct:ivaPct,adm:adm,imp:imp,uti:uti,aiuTotal:aiuTotal,ivaUtilidad:ivaUtilidad,valorTotal:valorTotal,itemsArr:itemsArrP};
+    var ivaBase_P=ivaBaseP==='cd'?cdTotal:uti;
+    var ivaCalculadoP=tieneIvaP?r2(ivaBase_P*ivaPct/100):0;
+    var valorTotal=r2(cdTotal+aiuTotal+ivaCalculadoP);
+    return{cdTotal:cdTotal,pctA:pctA,pctI:pctI,pctU:pctU,tieneIva:tieneIvaP,ivaBase:ivaBaseP,ivaPct:ivaPct,adm:adm,imp:imp,uti:uti,aiuTotal:aiuTotal,ivaUtilidad:ivaCalculadoP,valorTotal:valorTotal,itemsArr:itemsArrP};
   }
 
   /* ══════════════════ SWITCH ENTRE SUB-PESTAÑAS (delegado a sub-componentes) ══════════════════ */

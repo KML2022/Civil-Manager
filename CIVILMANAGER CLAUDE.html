@@ -8598,6 +8598,18 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
     var n=presupuestos.slice();n[idxPres]=Object.assign({},n[idxPres],Object.assign({items:recalcCapitulos(arr)},extra||{}));
     onChange(Object.assign({},data,{presupuestos:n}));
   };
+  /* Garantiza que las cuadrillas referenciadas en recursos_mo de un APU
+     estén en cuadrillas_snap. Las cuadrillas usan cargo_id='CU-'+cuadrilla.id.
+     Muta cuadrillasSnapArr in-place, igual que asegurarEnSnapshot. */
+  var asegurarCuadrillasEnSnapshot=function(cuadrillasSnapArr,recursosMo){
+    (recursosMo||[]).forEach(function(r){
+      if(!r.cargo_id||r.cargo_id.indexOf('CU-')!==0)return;
+      var idReal=r.cargo_id.slice(3);
+      if(cuadrillasSnapArr.some(function(q){return q.id===idReal}))return;
+      var enGlobal=(data.cuadrillas||[]).find(function(q){return q.id===idReal});
+      if(enGlobal)cuadrillasSnapArr.push(Object.assign({},enGlobal));
+    });
+  };
   var addCapitulo=function(){
     if(readOnly)return;
     var arr=pres.items.slice();
@@ -8687,13 +8699,15 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
       var insumosSnapA=(pres.insumos_snap||[]).slice();
       var equiposSnapA=(pres.equipos_snap||[]).slice();
       var cargosSnapA=(pres.cargos_snap||[]).slice();
+      var cuadrillasSnapA=(pres.cuadrillas_snap||[]).slice();
       asegurarEnSnapshot(insumosSnapA,data.insumos||[],'insumo_id',apuSnap.recursos_ins);
       asegurarEnSnapshot(equiposSnapA,data.equipos||[],'equipo_id',apuSnap.recursos_eq);
       asegurarEnSnapshot(equiposSnapA,data.equipos||[],'equipo_id',apuSnap.recursos_transporte);
       asegurarEnSnapshot(cargosSnapA,data.cargos||[],'cargo_id',apuSnap.recursos_mo);
+      asegurarCuadrillasEnSnapshot(cuadrillasSnapA,apuSnap.recursos_mo);
       var arr=pres.items.slice();
       arr[i]=Object.assign({},arr[i],{apu_id:apuSnap.id,tiene_apu:true,alerta_sin_apu:false});
-      saveItems(arr,{insumos_snap:insumosSnapA,equipos_snap:equiposSnapA,cargos_snap:cargosSnapA});
+      saveItems(arr,{insumos_snap:insumosSnapA,equipos_snap:equiposSnapA,cargos_snap:cargosSnapA,cuadrillas_snap:cuadrillasSnapA});
       setApuModal(Object.assign({},apuModal,{open:false}));
       return;
     }
@@ -8710,13 +8724,15 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
     var insumosSnap=(pres.insumos_snap||[]).slice();
     var equiposSnap=(pres.equipos_snap||[]).slice();
     var cargosSnap=(pres.cargos_snap||[]).slice();
+    var cuadrillasSnap=(pres.cuadrillas_snap||[]).slice();
     asegurarEnSnapshot(insumosSnap,data.insumos||[],'insumo_id',clon.recursos_ins);
     asegurarEnSnapshot(equiposSnap,data.equipos||[],'equipo_id',clon.recursos_eq);
     asegurarEnSnapshot(equiposSnap,data.equipos||[],'equipo_id',clon.recursos_transporte);
     asegurarEnSnapshot(cargosSnap,data.cargos||[],'cargo_id',clon.recursos_mo);
+    asegurarCuadrillasEnSnapshot(cuadrillasSnap,clon.recursos_mo);
     var arr=pres.items.slice();
     arr[i]=Object.assign({},arr[i],{apu_id:clon.id,tiene_apu:true,alerta_sin_apu:false});
-    saveItems(arr,{apus_snap:snap,insumos_snap:insumosSnap,equipos_snap:equiposSnap,cargos_snap:cargosSnap});
+    saveItems(arr,{apus_snap:snap,insumos_snap:insumosSnap,equipos_snap:equiposSnap,cargos_snap:cargosSnap,cuadrillas_snap:cuadrillasSnap});
     closeApuModal();
     showToast('APU asignado',{type:'ok',dur:2000});
   };
@@ -9461,6 +9477,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
           var insumosSnap=(pres.insumos_snap||[]).slice();
           var equiposSnap=(pres.equipos_snap||[]).slice();
           var cargosSnap=(pres.cargos_snap||[]).slice();
+          var cuadrillasSnap=(pres.cuadrillas_snap||[]).slice();
           for(var idx=0;idx<arr.length;idx++){
             var it=arr[idx];if(it.es_capitulo_manual||it.tiene_apu)continue;
             var u=(it.unidad||'').toLowerCase().trim();
@@ -9474,15 +9491,21 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
                 asegurarEnSnapshot(equiposSnap,data.equipos||[],'equipo_id',clon.recursos_eq);
                 asegurarEnSnapshot(equiposSnap,data.equipos||[],'equipo_id',clon.recursos_transporte);
                 asegurarEnSnapshot(cargosSnap,data.cargos||[],'cargo_id',clon.recursos_mo);
+                asegurarCuadrillasEnSnapshot(cuadrillasSnap,clon.recursos_mo);
                 arr[idx]=Object.assign({},it,{apu_id:clon.id,tiene_apu:true,alerta_sin_apu:false});
               }else{
+                asegurarEnSnapshot(insumosSnap,data.insumos||[],'insumo_id',apuEnSnap.recursos_ins);
+                asegurarEnSnapshot(equiposSnap,data.equipos||[],'equipo_id',apuEnSnap.recursos_eq);
+                asegurarEnSnapshot(equiposSnap,data.equipos||[],'equipo_id',apuEnSnap.recursos_transporte);
+                asegurarEnSnapshot(cargosSnap,data.cargos||[],'cargo_id',apuEnSnap.recursos_mo);
+                asegurarCuadrillasEnSnapshot(cuadrillasSnap,apuEnSnap.recursos_mo);
                 arr[idx]=Object.assign({},it,{apu_id:apuEnSnap.id,tiene_apu:true,alerta_sin_apu:false});
               }
               asignados++;
             }
           }
           if(asignados>0){
-            saveItems(arr,{apus_snap:snapApus,insumos_snap:insumosSnap,equipos_snap:equiposSnap,cargos_snap:cargosSnap});
+            saveItems(arr,{apus_snap:snapApus,insumos_snap:insumosSnap,equipos_snap:equiposSnap,cargos_snap:cargosSnap,cuadrillas_snap:cuadrillasSnap});
           }
           showToast(asignados+' items asignados con APU. '+resultado.manual+' items con múltiples opciones (asignar manualmente).',{type:asignados>0?'ok':'warn',dur:5000});
           setShowAsignarApuTodos(false);

@@ -10204,7 +10204,20 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
     onChange(Object.assign({},_data,{presupuestos:n}));
   };
   var actualizarAiuOverride=function(campo,valor){
-    var override=Object.assign({activo:false,pct_a:0,pct_i:0,pct_u:0,iva_pct:0},pres.aiu_override||{},{[campo]:valor});
+    /* Al editar en el catálogo, activar override y pre-cargar con valores
+       efectivos actuales (globales si no había override activo) para que
+       resumen y catálogo queden inmediatamente sincronizados. */
+    var configAiu=data.config||{};
+    var baseGlobal={
+      pct_a:safeFloat(configAiu.pct_administracion)||0,
+      pct_i:safeFloat(configAiu.pct_imprevistos)||0,
+      pct_u:safeFloat(configAiu.pct_utilidad)||0,
+      iva_pct:19
+    };
+    var baseOverride=(pres.aiu_override&&pres.aiu_override.activo)
+      ?pres.aiu_override
+      :Object.assign({},baseGlobal,{vr_resumido:false,usar_en_cada_apu:true});
+    var override=Object.assign({},baseOverride,{activo:true},{[campo]:valor});
     var n=presupuestos.slice();
     n[selPresIdx]=Object.assign({},pres,{aiu_override:override});
     onChange(Object.assign({},data,{presupuestos:n}));
@@ -10521,7 +10534,10 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
                     </td></tr>
 
                     {[{label:'Administración',campo:'pct_a',com:'Esta asociado a los gastos de Administracion del proyecto'},{label:'Imprevistos',campo:'pct_i',com:'Es un valor establecido segun los riesgos de cada proyecto'},{label:'Utilidad',campo:'pct_u',com:'Establece un porcentaje de Utilidad estimado para el proyecto'},{label:'IVA',campo:'iva_pct',com:'IVA aplicado sobre la Utilidad'}].map(function(item){
-                      var val=(pres.aiu_override&&pres.aiu_override[item.campo]!==undefined)?Number(pres.aiu_override[item.campo]):0;
+                      var useOvCat=pres.aiu_override&&pres.aiu_override.activo;
+                      var configAiuDisp=data.config||{};
+                      var globalAiuMap={pct_a:safeFloat(configAiuDisp.pct_administracion),pct_i:safeFloat(configAiuDisp.pct_imprevistos),pct_u:safeFloat(configAiuDisp.pct_utilidad),iva_pct:19};
+                      var val=useOvCat?(pres.aiu_override[item.campo]!==undefined?Number(pres.aiu_override[item.campo]):0):(globalAiuMap[item.campo]!==undefined?globalAiuMap[item.campo]:0);
                       return(<tr key={item.campo}>
                         <td style={{padding:'2px 8px',borderBottom:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',color:'var(--tx2)',fontSize:10}}>{item.label}</td>
                         <td style={{padding:'2px 8px',borderBottom:'1px solid var(--bdr)',textAlign:'center',borderRight:'1px solid var(--bdr)'}}>

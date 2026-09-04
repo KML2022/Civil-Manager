@@ -646,6 +646,11 @@ function validarExportacionFormulario(pres){
     if(it.tipoPrecio==='entidad')return!it.precioEntidad||Number(it.precioEntidad)<=0;
     return !it.tiene_apu||!it.apu_id;
   });
+  /* Ítems agregados manualmente (sin fila_original) no aparecen en el formulario
+     exportado — se informa por separado para no bloquear la exportación */
+  var sinFilaOriginal=itemsReales.filter(function(it){
+    return it.fila_original==null&&(it.tiene_apu||it.tipoPrecio==='entidad');
+  });
   return{
     valido:sinRecurso.length===0,
     pendientes:sinRecurso.map(function(it){
@@ -653,6 +658,9 @@ function validarExportacionFormulario(pres){
       var desc=(it.descripcion||'Sin descripcion');
       var razon=(it.tipoPrecio==='entidad')?'sin precio entidad':'sin APU asignado';
       return prefijo+' — '+desc+' ('+razon+')';
+    }),
+    sinFilaOriginal:sinFilaOriginal.map(function(it){
+      return (it.num_item||'')+(it.descripcion?' — '+it.descripcion:'');
     })
   };
 }
@@ -8107,12 +8115,17 @@ function PresEntregablesPanel({pres,presupuestos,calcResumenPres,calcItemVal,cal
           {pres.formulario_original&&(function(){
             var vForm=validarExportacionFormulario(pres);
             var hayPendientes=!vForm.valido;
+            var sinArchivo=!pres.formulario_original.archivo_adjunto||!pres.formulario_original.archivo_b64;
+            var bloqueado=hayPendientes||sinArchivo;
+            var hayManuales=vForm.sinFilaOriginal&&vForm.sinFilaOriginal.length>0;
             return(
               <div style={{border:'1px solid var(--bdr)',borderRadius:4,padding:14,display:'flex',flexDirection:'column',gap:8}}>
                 <div style={{fontSize:12,fontWeight:700,color:'var(--ac)'}}>FORMULARIO ORIGINAL</div>
                 <div style={{fontSize:10,color:'var(--tx2)',lineHeight:1.4}}>Devuelve el mismo Excel de la entidad ({pres.formulario_original.nombre_archivo}) con las columnas de Vr. Unitario y Vr. Total llenas.</div>
-                {hayPendientes&&<div style={{fontSize:10,color:'var(--warn)',padding:'4px 6px',borderRadius:3,background:'rgba(232,168,48,.08)',border:'1px solid var(--warn)'}}>{vForm.pendientes.length} ítem(s) sin precio o APU asignado — asígnalos antes de exportar.</div>}
-                <button className="btn" onClick={function(){if(!hayPendientes)exportarFormularioLlenoGlobal(pres,calcItemVal,setPendientes,{pctA:r.pctA||0,pctI:r.pctI||0,pctU:r.pctU||0})}} disabled={hayPendientes} style={{fontSize:11,padding:'6px 12px',border:'1px solid '+(hayPendientes?'var(--bdr)':'var(--ok)'),borderRadius:4,background:hayPendientes?'transparent':'rgba(74,222,128,.08)',color:hayPendientes?'var(--tx3)':'var(--ok)',cursor:hayPendientes?'not-allowed':'pointer',display:'inline-flex',alignItems:'center',gap:6,justifyContent:'center',opacity:hayPendientes?0.5:1}}><IconExport/> Exportar Formulario con Precios</button>
+                {sinArchivo&&<div style={{fontSize:10,color:'var(--warn)',padding:'4px 6px',borderRadius:3,background:'rgba(232,168,48,.08)',border:'1px solid var(--warn)'}}>⚠ El archivo original supera 4MB y no fue adjuntado — la exportación no está disponible. Vuelve a importar el formulario en este dispositivo.</div>}
+                {!sinArchivo&&hayPendientes&&<div style={{fontSize:10,color:'var(--warn)',padding:'4px 6px',borderRadius:3,background:'rgba(232,168,48,.08)',border:'1px solid var(--warn)'}}>{vForm.pendientes.length} ítem(s) sin precio o APU asignado — asígnalos antes de exportar.</div>}
+                {!sinArchivo&&!hayPendientes&&hayManuales&&<div style={{fontSize:10,color:'var(--tx2)',padding:'4px 6px',borderRadius:3,background:'var(--bg3)',border:'1px solid var(--bdr)'}}>ℹ {vForm.sinFilaOriginal.length} ítem(s) agregado(s) manualmente no aparecerán en el formulario exportado (no tienen fila en el Excel original).</div>}
+                <button className="btn" onClick={function(){if(!bloqueado)exportarFormularioLlenoGlobal(pres,calcItemVal,setPendientes,{pctA:r.pctA||0,pctI:r.pctI||0,pctU:r.pctU||0})}} disabled={bloqueado} style={{fontSize:11,padding:'6px 12px',border:'1px solid '+(bloqueado?'var(--bdr)':'var(--ok)'),borderRadius:4,background:bloqueado?'transparent':'rgba(74,222,128,.08)',color:bloqueado?'var(--tx3)':'var(--ok)',cursor:bloqueado?'not-allowed':'pointer',display:'inline-flex',alignItems:'center',gap:6,justifyContent:'center',opacity:bloqueado?0.5:1}}><IconExport/> Exportar Formulario con Precios</button>
               </div>
             );
           })()}
@@ -8325,9 +8338,26 @@ var exportarFormularioLlenoGlobal=async function(pres,calcItemVal,setPendientesF
   /* ── 1. Cargar ZIP original ── */
   var zip=await JSZip.loadAsync(fo.archivo_b64,{base64:true});
 
-  /* ── 2. Leer sheet1.xml como string puro ── */
-  var sheetFile=zip.file('xl/worksheets/sheet1.xml');
-  if(!sheetFile){showToast('No se encontro sheet1.xml',{type:'err',dur:5000});return}
+  /* ── 2. Resolver nombre real del archivo de la primera hoja ──
+     El nombre físico (sheet1.xml, sheet2.xml…) puede diferir si el Excel
+     tuvo hojas eliminadas. Se lee workbook.xml.rels para resolver el Target. */
+  var sheetPath='xl/worksheets/sheet1.xml'; /* default */
+  try{
+    var relsFile=zip.file('xl/_rels/workbook.xml.rels');
+    if(relsFile){
+      var relsXml=await relsFile.async('string');
+      /* Buscar el primer Relationship de tipo worksheet */
+      var relMatch=relsXml.match(/Type="[^"]*\/worksheet"[^>]*Target="([^"]+)"/);
+      if(!relMatch)relMatch=relsXml.match(/Target="([^"]+)"[^>]*Type="[^"]*\/worksheet"/);
+      if(relMatch){
+        var target=relMatch[1];
+        /* Target puede ser relativo ("worksheets/sheet2.xml") o absoluto */
+        sheetPath=target.indexOf('/')===0?target.slice(1):('xl/'+target);
+      }
+    }
+  }catch(eRels){ /* si falla, usar el default sheet1.xml */ }
+  var sheetFile=zip.file(sheetPath);
+  if(!sheetFile){showToast('No se encontró la hoja principal del formulario ('+sheetPath+')',{type:'err',dur:5000});return}
   var xml=await sheetFile.async('string');
 
   /* ── 3. Asegurar estilos propios en styles.xml (gris, bold, bordes, numFmt) ── */
@@ -8433,15 +8463,21 @@ var exportarFormularioLlenoGlobal=async function(pres,calcItemVal,setPendientesF
     }
     xml=xml.substring(0,rb.index)+rb.open+newInner+rb.close+xml.substring(rb.index+rb.full.length);
   }
-  /* Header (fila Excel = fila_inicio) */
-  var headerRow=mapeoF.fila_inicio;
-  if(headerRow>=1)xmlStyleRowCells(headerRow,stIds.xfGray);
-  /* Capítulos en gris */
+  /* Header: NO se pisa el estilo original del formulario de la entidad.
+     El sistema solo marca las celdas de Vr.Unitario y Vr.Total con borde. */
+  /* Capítulos: solo se aplica gris a las celdas de precio, no a toda la fila */
   (pres.items||[]).forEach(function(it){
     if(!esCapituloFinal(it)||it.fila_original==null)return;
-    xmlStyleRowCells(it.fila_original+1,stIds.xfGray);
+    var capRow=it.fila_original+1;
+    var newInner2=(xmlFindRowBlock(capRow)||{inner:''}).inner;
+    if(!newInner2)return;
+    /* Solo marcar las columnas que el sistema toca: Vr.Unitario y Vr.Total */
+    newInner2=_xmlSetCellStyle(newInner2,colU+capRow,stIds.xfGray);
+    newInner2=_xmlSetCellStyle(newInner2,colT+capRow,stIds.xfGray);
+    var rb2=xmlFindRowBlock(capRow);
+    if(rb2)xml=xml.substring(0,rb2.index)+rb2.open+newInner2+rb2.close+xml.substring(rb2.index+rb2.full.length);
   });
-  xmlCheckStage('estilos header/capítulos');
+  xmlCheckStage('estilos capítulos');
 
   /* ── 7. Modificar filas de items (Vr.Unit + Vr.Total con valor caché) ── */
   var itemsArr=(pres.items||[]).filter(function(it){return !esCapituloFinal(it)});
@@ -8535,7 +8571,7 @@ var exportarFormularioLlenoGlobal=async function(pres,calcItemVal,setPendientesF
   /* ── 10. Validar hoja y escribir de vuelta ── */
   /* Si la hoja quedó malformada, NO descargar archivo corrupto */
   if(!_xmlIsWellFormed(xml)){showToast('Error al exportar: la hoja generada es inválida, no se descargó nada',{type:'err',dur:8000});return}
-  zip.file('xl/worksheets/sheet1.xml',xml);
+  zip.file(sheetPath,xml);
   var base=(fo.nombre_archivo||'formulario').replace(/\.xlsx?$/i,'');
   var nombreFinal=base+'_PRECIOS_'+pres.codigo+'.xlsx';
   var blob=await zip.generateAsync({type:'blob'});

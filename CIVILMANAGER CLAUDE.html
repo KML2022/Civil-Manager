@@ -8679,16 +8679,25 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
   var assignApu=function(aid){
     if(apuModal.itemIdx===null||aid===undefined)return;
     var i=apuModal.itemIdx;
-    // Buscar en snapshot del proyecto primero
+    // Caso A: el APU ya está en el snapshot del proyecto
     var apuSnap=(pres.apus_snap||[]).find(function(a){return a.id===aid});
     if(apuSnap){
+      // Garantizar que los recursos del APU estén en los snaps de insumos/equipos/cargos.
+      // Puede faltar si el APU llegó al snap por importación o clonación sin pasar por assignApu.
+      var insumosSnapA=(pres.insumos_snap||[]).slice();
+      var equiposSnapA=(pres.equipos_snap||[]).slice();
+      var cargosSnapA=(pres.cargos_snap||[]).slice();
+      asegurarEnSnapshot(insumosSnapA,data.insumos||[],'insumo_id',apuSnap.recursos_ins);
+      asegurarEnSnapshot(equiposSnapA,data.equipos||[],'equipo_id',apuSnap.recursos_eq);
+      asegurarEnSnapshot(equiposSnapA,data.equipos||[],'equipo_id',apuSnap.recursos_transporte);
+      asegurarEnSnapshot(cargosSnapA,data.cargos||[],'cargo_id',apuSnap.recursos_mo);
       var arr=pres.items.slice();
       arr[i]=Object.assign({},arr[i],{apu_id:apuSnap.id,tiene_apu:true,alerta_sin_apu:false});
-      saveItems(arr,pres);
+      saveItems(arr,{insumos_snap:insumosSnapA,equipos_snap:equiposSnapA,cargos_snap:cargosSnapA});
       setApuModal(Object.assign({},apuModal,{open:false}));
       return;
     }
-    // Si no, buscar en catálogo general y clonar al snapshot
+    // Caso B: el APU viene del catálogo general — clonar al snapshot del proyecto
     var apuOrig=null;
     for(var k=0;k<apus.length;k++){if(apus[k].id===aid){apuOrig=apus[k];break}}
     if(!apuOrig)return;

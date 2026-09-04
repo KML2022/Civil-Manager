@@ -8304,7 +8304,7 @@ function _xmlEnsureStyles(stylesXml){
   r=_xmlAppendStyleEntry(stylesXml,'fills','<fill><patternFill patternType="solid"><fgColor rgb="FFD9D9D9"/><bgColor indexed="64"/></patternFill></fill>');
   stylesXml=r.xml;if(r.id>=0)ids.fillGray=r.id;
   /* 3. Borde thin negro en 4 lados */
-  r=_xmlAppendStyleEntry(stylesXml,'borders','<border><left style="thin"><color rgb="FF000000"/></left><right style="thin"><color rgb="FF000000"/></right><top style="thin"><color rgb="FF000000"/></top><bottom style="thin"><color rgb="FF000000"/></bottom><diagonal/></border>');
+  r=_xmlAppendStyleEntry(stylesXml,'borders','<border><left style="thin"><color rgb="FFBFBFBF"/></left><right style="thin"><color rgb="FFBFBFBF"/></right><top style="thin"><color rgb="FFBFBFBF"/></top><bottom style="thin"><color rgb="FFBFBFBF"/></bottom><diagonal/></border>');
   stylesXml=r.xml;if(r.id>=0)ids.borderThin=r.id;
   /* 4. xfs combinados (numFmtId 4 builtin = #,##0.00) */
   r=_xmlAppendStyleEntry(stylesXml,'cellXfs','<xf numFmtId="0" fontId="0" fillId="0" borderId="'+ids.borderThin+'" xfId="0" applyNumberFormat="0" applyFont="0" applyFill="0" applyBorder="1"/>');
@@ -8452,10 +8452,9 @@ var exportarFormularioLlenoGlobal=async function(pres,calcItemVal,setPendientesF
   function xmlCheckStage(stage){
     if(!_xmlIsWellFormed(xml))throw new Error('hoja inválida en etapa: '+stage);
   }
-  /* ── 6. Estilo base tabla completa ── */
-  /* xmlStyleRowCells conservada para uso interno pero NO se aplica al header
-     ni a capítulos del formulario original — esos tienen formatos propios
-     (fondos negros, colores institucionales) que no deben pisarse. */
+  /* ── 6. Estilo base tabla completa: header + capítulos en gris claro uniforme ──
+     Se pisa el color institucional original (negro/navy/azul/verde de cada entidad)
+     a propósito: tema gris estándar de CivilManager en toda exportación. */
   var colMaxIdx=mapeoF.col_vr_total;
   function xmlStyleRowCells(rNum,sIdx){
     var rb=xmlFindRowBlock(rNum);
@@ -8466,19 +8465,13 @@ var exportarFormularioLlenoGlobal=async function(pres,calcItemVal,setPendientesF
     }
     xml=xml.substring(0,rb.index)+rb.open+newInner+rb.close+xml.substring(rb.index+rb.full.length);
   }
-  /* Solo marcar con borde las celdas Vr.Unitario y Vr.Total en capítulos —
-     sin tocar el resto de la fila para preservar fondos del formulario original */
+  var headerRow=mapeoF.fila_inicio;
+  if(headerRow>=1)xmlStyleRowCells(headerRow,stIds.xfGray);
   (pres.items||[]).forEach(function(it){
     if(!esCapituloFinal(it)||it.fila_original==null)return;
-    var capRow=it.fila_original+1;
-    var rb=xmlFindRowBlock(capRow);
-    if(!rb)return;
-    var newInner=rb.inner;
-    newInner=_xmlSetCellStyle(newInner,colU+capRow,stIds.xfGray);
-    newInner=_xmlSetCellStyle(newInner,colT+capRow,stIds.xfGray);
-    xml=xml.substring(0,rb.index)+rb.open+newInner+rb.close+xml.substring(rb.index+rb.full.length);
+    xmlStyleRowCells(it.fila_original+1,stIds.xfGray);
   });
-  xmlCheckStage('estilos capítulos');
+  xmlCheckStage('estilos header/capítulos');
 
   /* ── 7. Modificar filas de items (Vr.Unit + Vr.Total con valor caché) ── */
   var itemsArr=(pres.items||[]).filter(function(it){return !esCapituloFinal(it)});

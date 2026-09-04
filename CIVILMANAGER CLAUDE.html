@@ -7803,6 +7803,19 @@ function PresResumenPanel({pres,presupuestos,selPresIdx,data,onChange,calcResume
         <button className="btn" onClick={function(){setTab(10)}} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--bdr)',borderRadius:4,background:'none',color:'var(--tx2)',cursor:'pointer'}}>{'< Items'}</button>
         <button className="btn" onClick={function(){setTab(13)}} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--ac)',borderRadius:4,background:'rgba(77,143,247,.06)',color:'var(--ac)',cursor:'pointer'}}>{'Entregables >'}</button>
       </div>
+      {(function(){
+        var sinPrecioEntidad=(pres.items||[]).filter(function(it){
+          return !esCapituloFinal(it)&&it.tipoPrecio==='entidad'&&(!it.precioEntidad||Number(it.precioEntidad)<=0);
+        });
+        if(sinPrecioEntidad.length===0)return null;
+        return(
+          <div style={{padding:'6px 10px',fontSize:10,color:'var(--warn)',background:'rgba(232,168,48,.08)',border:'1px solid var(--warn)',borderRadius:4,lineHeight:1.5}}>
+            <span style={{fontWeight:700}}>⚠ {sinPrecioEntidad.length} ítem(s) con precio entidad en cero</span>
+            {' — estos ítems no suman al Costo Directo. '}
+            <span style={{textDecoration:'underline',cursor:'pointer'}} onClick={function(){setTab(10)}}>Ir a Ítems para corregirlos.</span>
+          </div>
+        );
+      })()}
       <div style={{display:'flex',gap:16,alignItems:'flex-start'}}>
         <div style={{width:480,border:'1px solid var(--bdr)',borderRadius:4}}>
           <div style={{padding:'6px 10px',background:'var(--bg3)',borderBottom:'1px solid var(--bdr)',fontSize:12,fontWeight:700,color:'var(--ac)'}}>RESUMEN ECONOMICO</div>
@@ -8091,13 +8104,18 @@ function PresEntregablesPanel({pres,presupuestos,calcResumenPres,calcItemVal,cal
           </div>
           {!esConsolidado&&itemsArr.length===0&&<div style={{fontSize:10,color:'var(--warn)',padding:'8px 10px',border:'1px solid var(--warn)',borderRadius:4}}>Este presupuesto no tiene items. Ve a "Items" para agregarlos antes de exportar.</div>}
           {esConsolidado&&<div style={{fontSize:10,color:'var(--tx2)',padding:'8px 10px',border:'1px solid var(--bdr)',borderRadius:4}}>Proyecto principal con {hijos.length} sub-proyecto(s). El PDF solo exporta este nivel; usa Excel para el consolidado completo.</div>}
-          {pres.formulario_original&&
-            <div style={{border:'1px solid var(--bdr)',borderRadius:4,padding:14,display:'flex',flexDirection:'column',gap:8}}>
-              <div style={{fontSize:12,fontWeight:700,color:'var(--ac)'}}>FORMULARIO ORIGINAL</div>
-              <div style={{fontSize:10,color:'var(--tx2)',lineHeight:1.4}}>Devuelve el mismo Excel de la entidad ({pres.formulario_original.nombre_archivo}) con las columnas de Vr. Unitario y Vr. Total llenas.</div>
-              <button className="btn" onClick={function(){exportarFormularioLlenoGlobal(pres,calcItemVal,setPendientes,{pctA:r.pctA||0,pctI:r.pctI||0,pctU:r.pctU||0})}} style={{fontSize:11,padding:'6px 12px',border:'1px solid var(--ok)',borderRadius:4,background:'rgba(74,222,128,.08)',color:'var(--ok)',cursor:'pointer',display:'inline-flex',alignItems:'center',gap:6,justifyContent:'center'}}><IconExport/> Exportar Formulario con Precios</button>
-            </div>
-          }
+          {pres.formulario_original&&(function(){
+            var vForm=validarExportacionFormulario(pres);
+            var hayPendientes=!vForm.valido;
+            return(
+              <div style={{border:'1px solid var(--bdr)',borderRadius:4,padding:14,display:'flex',flexDirection:'column',gap:8}}>
+                <div style={{fontSize:12,fontWeight:700,color:'var(--ac)'}}>FORMULARIO ORIGINAL</div>
+                <div style={{fontSize:10,color:'var(--tx2)',lineHeight:1.4}}>Devuelve el mismo Excel de la entidad ({pres.formulario_original.nombre_archivo}) con las columnas de Vr. Unitario y Vr. Total llenas.</div>
+                {hayPendientes&&<div style={{fontSize:10,color:'var(--warn)',padding:'4px 6px',borderRadius:3,background:'rgba(232,168,48,.08)',border:'1px solid var(--warn)'}}>{vForm.pendientes.length} ítem(s) sin precio o APU asignado — asígnalos antes de exportar.</div>}
+                <button className="btn" onClick={function(){if(!hayPendientes)exportarFormularioLlenoGlobal(pres,calcItemVal,setPendientes,{pctA:r.pctA||0,pctI:r.pctI||0,pctU:r.pctU||0})}} disabled={hayPendientes} style={{fontSize:11,padding:'6px 12px',border:'1px solid '+(hayPendientes?'var(--bdr)':'var(--ok)'),borderRadius:4,background:hayPendientes?'transparent':'rgba(74,222,128,.08)',color:hayPendientes?'var(--tx3)':'var(--ok)',cursor:hayPendientes?'not-allowed':'pointer',display:'inline-flex',alignItems:'center',gap:6,justifyContent:'center',opacity:hayPendientes?0.5:1}}><IconExport/> Exportar Formulario con Precios</button>
+              </div>
+            );
+          })()}
         </div>
         <div style={{flex:1,border:'1px solid var(--bdr)',borderRadius:4}}>
           <div style={{padding:'6px 10px',background:'var(--bg3)',borderBottom:'1px solid var(--bdr)',fontSize:12,fontWeight:700,color:'var(--ac)'}}>VISTA PREVIA</div>
@@ -11311,10 +11329,13 @@ function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,i
     {tab:13,label:'4. ENTREGABLES'},
     {tab:14,label:'5. RECURSOS DEL PROYECTO'}
   ];
-  var presContent=tab===10?<PresFormularioPanel pres={pres} presupuestos={presupuestos} selPresIdx={selFinal} data={data} onChange={onChange} apuModal={apuModal} setApuModal={setApuModal} apus={apus} categorias_apu={categorias_apu} calcItemVal={calcItemVal} setTab={setTab} estadoLabel={estadoLabel} estadoColor={estadoColor} cargosCalc={cargosCalc} cargosCalcSnap={cargosCalcSnap} personMap={personMap} esHora={esHora} eqMap={eqMap} insMap={insMap} factorPrest={factorPrest} factorPrestSnap={factorPrestSnap} usarFpEnApu={usarFpEnApu} equipos={equipos} insumos={insumos} apusBasico={apusBasico}/>
-    :tab===12?<PresResumenPanel pres={pres} presupuestos={presupuestos} selPresIdx={selFinal} data={data} onChange={onChange} calcResumenPres={calcResumenPres} setTab={setTab} estadoLabel={estadoLabel} estadoColor={estadoColor}/>
-    :tab===13?<PresEntregablesPanel pres={pres} presupuestos={presupuestos} calcResumenPres={calcResumenPres} calcItemVal={calcItemVal} calcResumenFor={calcResumenFor} calcItemValFor={calcItemValFor} buildSnapCtx={buildSnapCtx} setTab={setTab} estadoLabel={estadoLabel} estadoColor={estadoColor}/>
-    :tab===14?<PresCatalogoProyectoPanel pres={pres} presupuestos={presupuestos} selPresIdx={selFinal} data={data} onChange={onChange} cargosCalcSnap={cargosCalcSnap} cuadrillasCalcSnap={cuadrillasCalcSnap} equiposSnapEfectivo={equiposSnapEfectivo} insumosSnapEfectivo={insumosSnapEfectivo} factorPrestSnap={factorPrestSnap} personMapSnap={personMapSnap} eqMapSnap={eqMapSnap} insMapSnap={insMapSnap} herrPct={herrPct} usarFpEnApu={usarFpEnApu} esHora={esHora} abCalcList={abCalcList} apusBasico={apusBasico} provMap={provMap} _unidades={_unidades} cambiarPerfilPais={cambiarPerfilPais} estadoLabel={estadoLabel} estadoColor={estadoColor} setTab={setTab}/>
+  /* Tab 11 reservado — no existe en PRES_NAV pero puede llegar desde IDB
+     antiguo o estado guardado. Se redirige a tab 9 (Catálogo de Proyectos). */
+  var tabEfectivo=(tab===11)?9:tab;
+  var presContent=tabEfectivo===10?<PresFormularioPanel pres={pres} presupuestos={presupuestos} selPresIdx={selFinal} data={data} onChange={onChange} apuModal={apuModal} setApuModal={setApuModal} apus={apus} categorias_apu={categorias_apu} calcItemVal={calcItemVal} setTab={setTab} estadoLabel={estadoLabel} estadoColor={estadoColor} cargosCalc={cargosCalc} cargosCalcSnap={cargosCalcSnap} personMap={personMap} esHora={esHora} eqMap={eqMap} insMap={insMap} factorPrest={factorPrest} factorPrestSnap={factorPrestSnap} usarFpEnApu={usarFpEnApu} equipos={equipos} insumos={insumos} apusBasico={apusBasico}/>
+    :tabEfectivo===12?<PresResumenPanel pres={pres} presupuestos={presupuestos} selPresIdx={selFinal} data={data} onChange={onChange} calcResumenPres={calcResumenPres} setTab={setTab} estadoLabel={estadoLabel} estadoColor={estadoColor}/>
+    :tabEfectivo===13?<PresEntregablesPanel pres={pres} presupuestos={presupuestos} calcResumenPres={calcResumenPres} calcItemVal={calcItemVal} calcResumenFor={calcResumenFor} calcItemValFor={calcItemValFor} buildSnapCtx={buildSnapCtx} setTab={setTab} estadoLabel={estadoLabel} estadoColor={estadoColor}/>
+    :tabEfectivo===14?<PresCatalogoProyectoPanel pres={pres} presupuestos={presupuestos} selPresIdx={selFinal} data={data} onChange={onChange} cargosCalcSnap={cargosCalcSnap} cuadrillasCalcSnap={cuadrillasCalcSnap} equiposSnapEfectivo={equiposSnapEfectivo} insumosSnapEfectivo={insumosSnapEfectivo} factorPrestSnap={factorPrestSnap} personMapSnap={personMapSnap} eqMapSnap={eqMapSnap} insMapSnap={insMapSnap} herrPct={herrPct} usarFpEnApu={usarFpEnApu} esHora={esHora} abCalcList={abCalcList} apusBasico={apusBasico} provMap={provMap} _unidades={_unidades} cambiarPerfilPais={cambiarPerfilPais} estadoLabel={estadoLabel} estadoColor={estadoColor} setTab={setTab}/>
     :<PresProyectosPanel presupuestos={presupuestos} selPresIdx={selPresIdx} setSelPresIdx={setSelPresIdx} data={data} onChange={onChange} estadoColor={estadoColor} estadoLabel={estadoLabel} addPresupuesto={addPresupuesto} addSubProyecto={addSubProyecto} toggleEstado={toggleEstado} cambiarPerfilPais={cambiarPerfilPais} delPresupuesto={delPresupuesto} clonarPresupuesto={clonarPresupuesto} setTab={setTab}/>;
 
   return(

@@ -7871,9 +7871,15 @@ function PresEntregablesPanel({pres,presupuestos,calcResumenPres,calcItemVal,cal
 
   var ceCons=function(rr,cc){return XLSX.utils.encode_cell({r:rr,c:cc})};
 
-  var generarHojaPresupuesto=function(p){
+  /* generarHojaPresupuesto(p, calcFnItem, resumenObj)
+     calcFnItem(item) → {vr_unit, vr_total, apu}
+     resumenObj       → {pctA, pctI, pctU, ivaPct} (ya calculado afuera)
+     Usado tanto para sub-proyectos (calcItemValFor) como para el proyecto
+     principal simple (calcItemVal), eliminando el bloque duplicado. */
+  var generarHojaPresupuesto=function(p,calcFnItem,resumenObj){
     var itemsArrP=p.items||[];
-    var rp=calcResumenFor(p);
+    var rp=resumenObj||calcResumenFor(p);
+    var ce2=function(rr,cc){return XLSX.utils.encode_cell({r:rr,c:cc})};
     var rows=[];
     rows.push(['PRESUPUESTO: '+(p.nombre||p.codigo)]);
     rows.push(['Codigo',p.codigo,'','Entidad contratante',p.entidad||'-']);
@@ -7886,20 +7892,20 @@ function PresEntregablesPanel({pres,presupuestos,calcResumenPres,calcItemVal,cal
     var rFirstItem=rows.length;
     var snapCtxP=buildSnapCtx(p);
     itemsArrP.forEach(function(it,i){
-      var cv=calcItemValFor(it,p,snapCtxP);
+      var cv=calcFnItem?calcFnItem(it):calcItemValFor(it,p,snapCtxP);
       var rIdx=rows.length;
       rows.push([i+1,it.num_item,it.capitulo,it.descripcion,it.unidad,safeFloat(it.cantidad),cv.apu?cv.apu.codigo:'-',cv.vr_unit,'']);
-      rows[rIdx][8]='=ROUND('+ceCons(rIdx,7)+'*'+ceCons(rIdx,5)+',2)';
+      rows[rIdx][8]='=ROUND('+ce2(rIdx,7)+'*'+ce2(rIdx,5)+',2)';
     });
     var rLastItem=rows.length-1;
     var sumStartIdx=rows.length+1;
     rows.push([]);
-    var rCd=rows.length;rows.push(['','','','','','','','Costo Directo Total',itemsArrP.length?'=ROUND(SUM('+ceCons(rFirstItem,8)+':'+ceCons(rLastItem,8)+'),2)':0]);
-    var rAdm=rows.length;rows.push(['','','','','','','','Administracion ('+rp.pctA.toFixed(2)+'%)','=ROUND('+ceCons(rCd,8)+'*'+rp.pctA+'/100,2)']);
-    var rImp=rows.length;rows.push(['','','','','','','','Imprevistos ('+rp.pctI.toFixed(2)+'%)','=ROUND('+ceCons(rCd,8)+'*'+rp.pctI+'/100,2)']);
-    var rUti=rows.length;rows.push(['','','','','','','','Utilidad ('+rp.pctU.toFixed(2)+'%)','=ROUND('+ceCons(rCd,8)+'*'+rp.pctU+'/100,2)']);
-    var rIva=rows.length;rows.push(['','','','','','','','IVA sobre Utilidad ('+rp.ivaPct+'%)','=ROUND('+ceCons(rUti,8)+'*'+rp.ivaPct+'/100,2)']);
-    rows.push(['','','','','','','','VALOR TOTAL CONTRATO','=ROUND('+ceCons(rCd,8)+'+'+ceCons(rAdm,8)+'+'+ceCons(rImp,8)+'+'+ceCons(rUti,8)+'+'+ceCons(rIva,8)+',2)']);
+    var rCd=rows.length;rows.push(['','','','','','','','Costo Directo Total',itemsArrP.length?'=ROUND(SUM('+ce2(rFirstItem,8)+':'+ce2(rLastItem,8)+'),2)':0]);
+    var rAdm=rows.length;rows.push(['','','','','','','','Administracion ('+rp.pctA.toFixed(2)+'%)','=ROUND('+ce2(rCd,8)+'*'+rp.pctA+'/100,2)']);
+    var rImp=rows.length;rows.push(['','','','','','','','Imprevistos ('+rp.pctI.toFixed(2)+'%)','=ROUND('+ce2(rCd,8)+'*'+rp.pctI+'/100,2)']);
+    var rUti=rows.length;rows.push(['','','','','','','','Utilidad ('+rp.pctU.toFixed(2)+'%)','=ROUND('+ce2(rCd,8)+'*'+rp.pctU+'/100,2)']);
+    var rIva=rows.length;rows.push(['','','','','','','','IVA sobre Utilidad ('+rp.ivaPct+'%)','=ROUND('+ce2(rUti,8)+'*'+rp.ivaPct+'/100,2)']);
+    rows.push(['','','','','','','','VALOR TOTAL CONTRATO','=ROUND('+ce2(rCd,8)+'+'+ce2(rAdm,8)+'+'+ce2(rImp,8)+'+'+ce2(rUti,8)+'+'+ce2(rIva,8)+',2)']);
     var ws=XLSX.utils.aoa_to_sheet(rows);
     convertirFormulasApuExcel(ws);
     ws['!cols']=[{wch:4},{wch:10},{wch:12},{wch:38},{wch:6},{wch:11},{wch:10},{wch:15},{wch:15}];
@@ -7970,51 +7976,9 @@ function PresEntregablesPanel({pres,presupuestos,calcResumenPres,calcItemVal,cal
     if(esConsolidado){exportExcelConsolidado();return}
     if(itemsArr.length===0){showToast('El presupuesto no tiene items',{type:'err',dur:2500});return}
     var wb=XLSX.utils.book_new();
-    var ce=function(rr,cc){return XLSX.utils.encode_cell({r:rr,c:cc})};
-    var rows=[];
-    rows.push(['PRESUPUESTO: '+(pres.nombre||pres.codigo)]);
-    rows.push(['Codigo',pres.codigo,'','Entidad contratante',pres.entidad||'-']);
-    rows.push(['No. Contrato',pres.contrato||'-','','Ciudad',(pres.ciudad||'-')+(pres.departamento?(' / '+pres.departamento):'')]);
-    rows.push(['Objeto',pres.objeto||'-']);
-    rows.push(['Elaborado por',pres.elaborado_por||'-','','Fecha',pres.fecha_creacion||'-']);
-    rows.push([]);
-    var hdrRowIdx=rows.length;
-    rows.push(['#','Item','Capitulo','Descripcion','UN','Cantidad','APU','Vr.Unitario','Vr.Total']);
-    var rFirstItem=rows.length;
-    itemsArr.forEach(function(it,i){
-      var cv=calcItemVal(it);
-      var rIdx=rows.length;
-      rows.push([i+1,it.num_item,it.capitulo,it.descripcion,it.unidad,safeFloat(it.cantidad),cv.apu?cv.apu.codigo:'-',cv.vr_unit,'']);
-      rows[rIdx][8]='=ROUND('+ce(rIdx,7)+'*'+ce(rIdx,5)+',2)';
-    });
-    var rLastItem=rows.length-1;
-    var sumStartIdx=rows.length+1;
-    rows.push([]);
-    var rCd=rows.length;rows.push(['','','','','','','','Costo Directo Total','=ROUND(SUM('+ce(rFirstItem,8)+':'+ce(rLastItem,8)+'),2)']);
-    var rAdm=rows.length;rows.push(['','','','','','','','Administracion ('+r.pctA.toFixed(2)+'%)','=ROUND('+ce(rCd,8)+'*'+r.pctA+'/100,2)']);
-    var rImp=rows.length;rows.push(['','','','','','','','Imprevistos ('+r.pctI.toFixed(2)+'%)','=ROUND('+ce(rCd,8)+'*'+r.pctI+'/100,2)']);
-    var rUti=rows.length;rows.push(['','','','','','','','Utilidad ('+r.pctU.toFixed(2)+'%)','=ROUND('+ce(rCd,8)+'*'+r.pctU+'/100,2)']);
-    var rIva=rows.length;rows.push(['','','','','','','','IVA sobre Utilidad ('+r.ivaPct+'%)','=ROUND('+ce(rUti,8)+'*'+r.ivaPct+'/100,2)']);
-    rows.push(['','','','','','','','VALOR TOTAL CONTRATO','=ROUND('+ce(rCd,8)+'+'+ce(rAdm,8)+'+'+ce(rImp,8)+'+'+ce(rUti,8)+'+'+ce(rIva,8)+',2)']);
-    var ws=XLSX.utils.aoa_to_sheet(rows);
-    convertirFormulasApuExcel(ws);
-    ws['!cols']=[{wch:4},{wch:10},{wch:12},{wch:38},{wch:6},{wch:11},{wch:10},{wch:15},{wch:15}];
-    ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:8}},{s:{r:3,c:1},e:{r:3,c:8}}];
-    if(ws['A1'])ws['A1'].s={font:{bold:true,sz:14,color:{rgb:'1A2438'}}};
-    for(var rr=1;rr<=4;rr++){
-      ['A','D'].forEach(function(col){var k=col+(rr+1);if(ws[k])ws[k].s={font:{bold:true,sz:9,color:{rgb:'4D8FF7'}}}});
-    }
-    ['A','B','C','D','E','F','G','H','I'].forEach(function(col){var k=col+(hdrRowIdx+1);if(ws[k])ws[k].s={font:XLS_HDR_FONT,fill:XLS_HDR_FILL,alignment:{horizontal:'center'}}});
-    for(var ri2=hdrRowIdx+1;ri2<hdrRowIdx+1+itemsArr.length;ri2++){
-      ['H','I'].forEach(function(col){var k=col+(ri2+1);if(ws[k]){if(ws[k].t!=='f')ws[k].t='n';ws[k].z=XLS_NUM_FMT;ws[k].s={alignment:{horizontal:'right'}}}});
-    }
-    for(var rs=sumStartIdx;rs<sumStartIdx+6;rs++){
-      var kh=String.fromCharCode(72)+(rs+1),ki=String.fromCharCode(73)+(rs+1);
-      if(ws[kh])ws[kh].s={font:{bold:true,sz:9}};
-      if(ws[ki]){if(ws[ki].t!=='f')ws[ki].t='n';ws[ki].z=XLS_NUM_FMT;ws[ki].s={font:{bold:true,sz:9},alignment:{horizontal:'right'}}}
-    }
-    var lastRow=sumStartIdx+5;
-    ['H','I'].forEach(function(col){var k=col+(lastRow+1);if(ws[k])ws[k].s={font:{bold:true,sz:10,color:{rgb:'FFFFFF'}},fill:{fgColor:{rgb:'1A7A34'}},alignment:{horizontal:col==='I'?'right':'left'}}});
+    /* Usa generarHojaPresupuesto pasando calcItemVal (presupuesto activo)
+       y el resumen r ya calculado — elimina ~50 líneas duplicadas. */
+    var ws=generarHojaPresupuesto(pres,calcItemVal,r);
     XLSX.utils.book_append_sheet(wb,ws,'Presupuesto');
 
     var rows2=[['Item','APU','Nombre','Categoria','Mano de Obra','Equipos','Insumos','Transporte','Costo Directo Unit.','Cantidad','Vr.Total']];

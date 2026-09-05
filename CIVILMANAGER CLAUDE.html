@@ -10555,7 +10555,7 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
                       )}
                     </td></tr>
 
-                    {[{label:'Administración',campo:'pct_a',com:'Esta asociado a los gastos de Administracion del proyecto'},{label:'Imprevistos',campo:'pct_i',com:'Es un valor establecido segun los riesgos de cada proyecto'},{label:'Utilidad',campo:'pct_u',com:'Establece un porcentaje de Utilidad estimado para el proyecto'},{label:'IVA',campo:'iva_pct',com:'IVA aplicado sobre la Utilidad'}].map(function(item){
+                    {[{label:'Administración',campo:'pct_a',com:'Esta asociado a los gastos de Administracion del proyecto'},{label:'Imprevistos',campo:'pct_i',com:'Es un valor establecido segun los riesgos de cada proyecto'},{label:'Utilidad',campo:'pct_u',com:'Establece un porcentaje de Utilidad estimado para el proyecto'}].map(function(item){
                       var useOvCat=pres.aiu_override&&pres.aiu_override.activo;
                       var configAiuDisp=data.config||{};
                       var globalAiuMap={pct_a:safeFloat(configAiuDisp.pct_administracion),pct_i:safeFloat(configAiuDisp.pct_imprevistos),pct_u:safeFloat(configAiuDisp.pct_utilidad),iva_pct:19};

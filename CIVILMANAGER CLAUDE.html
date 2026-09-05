@@ -9133,6 +9133,166 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
 
   var sel=function(props){return <select className="ni sel" style={{fontSize:10,padding:'2px 4px'}} {...props}/>};
 
+  /* ═══════════════════ VISTA PROYECTO CONTENEDOR (padre con subproyectos) — va ANTES de fase==='inicio' para que no muestre pantalla de carga Excel ═══════════════════ */
+  if(esContenedor){
+    var resHijos=hijos.map(function(h){return{hijo:h,res:calcResumenFor(h)}});
+    var totCD=0,totAIU=0,totIVA=0,totVT=0;
+    resHijos.forEach(function(r){totCD+=r.res.cdTotal;totAIU+=r.res.aiuTotal;totIVA+=r.res.ivaUtilidad;totVT+=r.res.valorTotal});
+    var merged=mergeItemsDeHijos(hijos,buildSnapCtx,calcItemValFor);
+
+    var toggleBtn=function(label,mode){
+      var activo=vistaPadre===mode;
+      return <button key={mode} onClick={function(){setVistaPadre(mode)}} style={{padding:'4px 12px',fontSize:10,border:'1px solid '+(activo?'var(--ok)':'var(--bdr)'),borderRadius:4,background:activo?'rgba(74,222,128,.1)':'transparent',color:activo?'var(--ok)':'var(--tx2)',cursor:'pointer',fontWeight:activo?700:400}}>{label}</button>;
+    };
+
+    return(
+      <div style={{display:'flex',flexDirection:'row',gap:12,height:'calc(100vh - 150px)',minHeight:0,minWidth:0,alignItems:'flex-start'}}>
+      <div style={{maxWidth:FORM_TABLE_MAXW,flex:'1 1 0',display:'flex',flexDirection:'column',gap:8,height:'100%',minHeight:0,minWidth:0}}>
+        <div style={{flexShrink:0,display:'flex',flexDirection:'column',gap:8}}>
+          <TituloSubTab pres={pres} presupuestos={presupuestos} tituloSubTab="Formulario Consolidado" extra={<span style={{fontSize:9,padding:'2px 8px',borderRadius:3,border:'1px solid var(--ac)',background:'rgba(77,143,247,.08)',color:'var(--ac)',fontWeight:700}}>{hijos.length} sub-proyecto(s)</span>}/>
+          <div style={{display:'flex',gap:6,alignItems:'center'}}>
+            {toggleBtn('📋 Vista por Subproyecto','subproyectos')}
+            {toggleBtn('📊 Vista Matriz','matriz')}
+          </div>
+        </div>
+
+        {/* ── OPCIÓN 1: Vista por Subproyecto ── */}
+        {vistaPadre==='subproyectos'&&<div className="xl-scroll" style={{flex:1,overflowY:'auto',display:'flex',flexDirection:'column',gap:10}}>
+          {resHijos.map(function(r){
+            var h=r.hijo,resH=r.res;
+            var hItems=(h.items||[]).filter(function(it){return !esCapituloFinal(it)});
+            return(
+              <div key={h.id} style={{border:'1px solid var(--bdr)',borderRadius:4,overflow:'hidden'}}>
+                <div style={{padding:'6px 10px',background:'var(--bg3)',borderBottom:'1px solid var(--bdr)',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                  <span style={{fontSize:11,fontWeight:700,color:'var(--tx)',display:'flex',alignItems:'center',gap:6}}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--ok)" strokeWidth="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                    {h.codigo} — {h.nombre||'(sin nombre)'}
+                  </span>
+                  <span style={{fontSize:9,color:'var(--tx2)'}}>{hItems.length} items · {fmt(resH.cdTotal)}</span>
+                </div>
+                <div style={{overflowX:'auto'}}>
+                  <table style={{width:'100%',fontSize:10,tableLayout:'fixed',borderCollapse:'collapse'}}>
+                    <colgroup><col style={{width:40}}/><col style={{width:80}}/><col style={{width:'auto'}}/><col style={{width:60}}/><col style={{width:80}}/><col style={{width:90}}/><col style={{width:100}}/></colgroup>
+                    <thead><tr style={{background:'var(--bg2)'}}>
+                      {['#','Item','Descripción','UN','Cant.','Vr. Unit','Vr. Total'].map(function(h2){return <th key={h2} style={{padding:'3px 6px',borderBottom:'1px solid var(--bdr)',fontWeight:700,color:'var(--tx2)',textAlign:h2==='Descripción'?'left':'center',fontSize:9,position:'sticky',top:0,zIndex:2,background:'var(--bg2)'}}>{h2}</th>})}
+                    </tr></thead>
+                    <tbody>
+                      {(h.items||[]).map(function(it,idx){
+                        if(esCapituloFinal(it)){
+                          return <tr key={it.id}><td colSpan={7} style={{padding:'3px 8px',background:'#1E3A5F',color:'#fff',fontWeight:700,fontSize:10}}>{it.descripcion}</td></tr>;
+                        }
+                        var cv=calcItemValFor(it,h,buildSnapCtx(h));
+                        return(
+                          <tr key={it.id} style={{borderBottom:'1px solid var(--bdr)'}}>
+                            <td style={{padding:'2px 6px',textAlign:'center',color:'var(--tx3)'}}>{idx+1}</td>
+                            <td style={{padding:'2px 6px',textAlign:'center',color:'var(--ac)',fontWeight:600}}>{it.num_item||''}</td>
+                            <td style={{padding:'2px 6px',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{it.descripcion||''}</td>
+                            <td style={{padding:'2px 6px',textAlign:'center'}}>{it.unidad||''}</td>
+                            <td style={{padding:'2px 6px',textAlign:'right'}}>{Number(it.cantidad)||0}</td>
+                            <td style={{padding:'2px 6px',textAlign:'right'}}>{fmt(cv.vr_unit)}</td>
+                            <td style={{padding:'2px 6px',textAlign:'right',fontWeight:600}}>{fmt(cv.vr_total)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                <div style={{padding:'4px 10px',background:'var(--bg2)',borderTop:'1px solid var(--bdr)',display:'flex',gap:16,fontSize:10}}>
+                  <span>CD: <b>{fmt(resH.cdTotal)}</b></span>
+                  <span>AIU: <b>{fmt(resH.aiuTotal)}</b></span>
+                  {resH.tieneIva&&<span>IVA: <b>{fmt(resH.ivaUtilidad)}</b></span>}
+                  <span style={{color:'var(--ok)',fontWeight:700}}>Total: {fmt(resH.valorTotal)}</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>}
+
+        {/* ── OPCIÓN 2: Vista Matriz ── */}
+        {vistaPadre==='matriz'&&<div className="xl-scroll" style={{flex:1,overflow:'auto'}}>
+          {(function(){
+            var matrixCols=[];hijos.forEach(function(h){matrixCols.push(<col key={'mc'+h.id} style={{width:60}}/>);matrixCols.push(<col key={'mv'+h.id} style={{width:80}}/>)});
+            return(
+              <table style={{width:'100%',fontSize:10,tableLayout:'fixed',borderCollapse:'collapse',border:'1px solid var(--bdr)'}}>
+                <colgroup>
+                  <col style={{width:40}}/><col style={{width:80}}/><col style={{width:260}}/><col style={{width:50}}/><col style={{width:70}}/>
+                  {matrixCols}
+                </colgroup>
+            <thead>
+              <tr style={{background:'var(--bg2)'}}>
+                <th colSpan={5} style={{padding:'4px 6px',borderBottom:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',fontWeight:700,color:'var(--tx)',textAlign:'center',fontSize:11}}>Item</th>
+                {hijos.map(function(h){return <th key={h.id} colSpan={2} style={{padding:'4px 6px',borderBottom:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',fontWeight:700,color:'var(--ac)',textAlign:'center',fontSize:10}}>{h.codigo}</th>})}
+              </tr>
+              <tr style={{background:'var(--bg3)'}}>
+                {['#','Item','Descripción','UN','Vr.Unit'].map(function(h2){return <th key={h2} style={{padding:'2px 6px',borderBottom:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',fontWeight:600,color:'var(--tx2)',textAlign:'center',fontSize:9,position:'sticky',top:0,zIndex:2,background:'var(--bg3)'}}>{h2}</th>})}
+                {hijos.map(function(h){return [<th key={'c'+h.id} style={{padding:'2px 4px',borderBottom:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',fontWeight:600,color:'var(--tx2)',textAlign:'center',fontSize:9,position:'sticky',top:0,zIndex:2,background:'var(--bg3)'}}>Cant</th>,<th key={'v'+h.id} style={{padding:'2px 4px',borderBottom:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',fontWeight:600,color:'var(--tx2)',textAlign:'center',fontSize:9,position:'sticky',top:0,zIndex:2,background:'var(--bg3)'}}>Vr Parc</th>]})}
+              </tr>
+            </thead>
+            <tbody>
+              {merged.capitulos.map(function(cap){
+                return(
+                  <React.Fragment key={cap.capitulo}>
+                    <tr><td colSpan={5+hijos.length*2} style={{padding:'3px 8px',background:'#1E3A5F',color:'#fff',fontWeight:700,fontSize:10}}>{cap.capitulo||'(Sin capítulo)'}</td></tr>
+                    {cap.items.map(function(fila){
+                      var primerHijoId=hijos[0]&&hijos[0].id;
+                      var vrUnit=fila.vr_unitarios[primerHijoId]||0;
+                      return(
+                        <tr key={fila.num_item} style={{borderBottom:'1px solid var(--bdr)'}}>
+                          <td style={{padding:'2px 4px',textAlign:'center',color:'var(--tx3)'}}>{fila.num_item}</td>
+                          <td style={{padding:'2px 4px',textAlign:'center',color:'var(--ac)',fontWeight:600,fontSize:9}}>{fila.num_item}</td>
+                          <td style={{padding:'2px 4px',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}} title={fila.descripcion}>{fila.descripcion||''}</td>
+                          <td style={{padding:'2px 4px',textAlign:'center'}}>{fila.unidad||''}</td>
+                          <td style={{padding:'2px 4px',textAlign:'right'}}>{fmt(vrUnit)}</td>
+                          {hijos.map(function(h){
+                            var cant=fila.cantidades[h.id]||0;
+                            var vr=fila.vr_unitarios[h.id]||0;
+                            return[
+                              <td key={'c'+h.id+fila.num_item} style={{padding:'2px 4px',textAlign:'right',color:cant===0?'var(--tx3)':'var(--tx)'}}>{cant}</td>,
+                              <td key={'v'+h.id+fila.num_item} style={{padding:'2px 4px',textAlign:'right',fontWeight:600,color:cant===0?'var(--tx3)':'var(--tx)'}}>{cant?fmt(vr*cant):'—'}</td>
+                            ];
+                          })}
+                        </tr>
+                      );
+                    })}
+                  </React.Fragment>
+                );
+              })}
+            </tbody>
+            <tfoot>
+              <tr style={{background:'var(--bg2)',fontWeight:700}}>
+                <td colSpan={5} style={{padding:'4px 8px',borderTop:'2px solid var(--bdr)',textAlign:'right',fontSize:10}}>TOTAL por sub-proyecto:</td>
+                {hijos.map(function(h){
+                  var rh=calcResumenFor(h);
+                  return[
+                    <td key={'tc'+h.id} style={{padding:'4px 6px',borderTop:'2px solid var(--bdr)',textAlign:'right',fontSize:10}}/>,
+                    <td key={'tv'+h.id} style={{padding:'4px 6px',borderTop:'2px solid var(--bdr)',textAlign:'right',fontSize:10,color:'var(--ok)',fontWeight:700}}>{fmt(rh.valorTotal)}</td>
+                  ];
+                })}
+              </tr>
+            </tfoot>
+          </table>
+            );
+          })()}
+        </div>}
+
+        {/* Totales consolidados */}
+        <div style={{flexShrink:0,padding:'6px 10px',background:'var(--bg3)',border:'1px solid var(--bdr)',borderRadius:4,display:'flex',gap:16,fontSize:10,alignItems:'center'}}>
+          <span style={{fontWeight:700,color:'var(--ac)',fontSize:11}}>CONSOLIDADO:</span>
+          <span>CD: <b style={{color:'var(--tx)'}}>{fmt(totCD)}</b></span>
+          <span>AIU: <b style={{color:'var(--tx)'}}>{fmt(totAIU)}</b></span>
+          <span>IVA: <b style={{color:'var(--tx)'}}>{fmt(totIVA)}</b></span>
+          <span style={{color:'var(--ok)',fontWeight:700,fontSize:12}}>Total: {fmt(totVT)}</span>
+        </div>
+      </div>
+
+      {/* Resumen lateral consolidado */}
+      <div style={{width:300,flexShrink:0}}>
+        <ResumenConsolidadoHijos hijos={hijos} resHijos={resHijos} totCD={totCD} totAIU={totAIU} totIVA={totIVA} totVT={totVT}/>
+      </div>
+      </div>
+    );
+  }
+
   if(fase==='inicio'){
     return(
       <div style={{display:'flex',flexDirection:'column',gap:8}}>
@@ -9394,166 +9554,6 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
 
         </div>
 
-      </div>
-    );
-  }
-
-  /* ═══════════════════ VISTA PROYECTO CONTENEDOR (padre con subproyectos) ═══════════════════ */
-  if(esContenedor){
-    var resHijos=hijos.map(function(h){return{hijo:h,res:calcResumenFor(h)}});
-    var totCD=0,totAIU=0,totIVA=0,totVT=0;
-    resHijos.forEach(function(r){totCD+=r.res.cdTotal;totAIU+=r.res.aiuTotal;totIVA+=r.res.ivaUtilidad;totVT+=r.res.valorTotal});
-    var merged=mergeItemsDeHijos(hijos,buildSnapCtx,calcItemValFor);
-
-    var toggleBtn=function(label,mode){
-      var activo=vistaPadre===mode;
-      return <button key={mode} onClick={function(){setVistaPadre(mode)}} style={{padding:'4px 12px',fontSize:10,border:'1px solid '+(activo?'var(--ok)':'var(--bdr)'),borderRadius:4,background:activo?'rgba(74,222,128,.1)':'transparent',color:activo?'var(--ok)':'var(--tx2)',cursor:'pointer',fontWeight:activo?700:400}}>{label}</button>;
-    };
-
-    return(
-      <div style={{display:'flex',flexDirection:'row',gap:12,height:'calc(100vh - 150px)',minHeight:0,minWidth:0,alignItems:'flex-start'}}>
-      <div style={{maxWidth:FORM_TABLE_MAXW,flex:'1 1 0',display:'flex',flexDirection:'column',gap:8,height:'100%',minHeight:0,minWidth:0}}>
-        <div style={{flexShrink:0,display:'flex',flexDirection:'column',gap:8}}>
-          <TituloSubTab pres={pres} presupuestos={presupuestos} tituloSubTab="Formulario Consolidado" extra={<span style={{fontSize:9,padding:'2px 8px',borderRadius:3,border:'1px solid var(--ac)',background:'rgba(77,143,247,.08)',color:'var(--ac)',fontWeight:700}}>{hijos.length} sub-proyecto(s)</span>}/>
-          <div style={{display:'flex',gap:6,alignItems:'center'}}>
-            {toggleBtn('📋 Vista por Subproyecto','subproyectos')}
-            {toggleBtn('📊 Vista Matriz','matriz')}
-          </div>
-        </div>
-
-        {/* ── OPCIÓN 1: Vista por Subproyecto ── */}
-        {vistaPadre==='subproyectos'&&<div className="xl-scroll" style={{flex:1,overflowY:'auto',display:'flex',flexDirection:'column',gap:10}}>
-          {resHijos.map(function(r){
-            var h=r.hijo,resH=r.res;
-            var hItems=(h.items||[]).filter(function(it){return !esCapituloFinal(it)});
-            return(
-              <div key={h.id} style={{border:'1px solid var(--bdr)',borderRadius:4,overflow:'hidden'}}>
-                <div style={{padding:'6px 10px',background:'var(--bg3)',borderBottom:'1px solid var(--bdr)',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-                  <span style={{fontSize:11,fontWeight:700,color:'var(--tx)',display:'flex',alignItems:'center',gap:6}}>
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--ok)" strokeWidth="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-                    {h.codigo} — {h.nombre||'(sin nombre)'}
-                  </span>
-                  <span style={{fontSize:9,color:'var(--tx2)'}}>{hItems.length} items · {fmt(resH.cdTotal)}</span>
-                </div>
-                <div style={{overflowX:'auto'}}>
-                  <table style={{width:'100%',fontSize:10,tableLayout:'fixed',borderCollapse:'collapse'}}>
-                    <colgroup><col style={{width:40}}/><col style={{width:80}}/><col style={{width:'auto'}}/><col style={{width:60}}/><col style={{width:80}}/><col style={{width:90}}/><col style={{width:100}}/></colgroup>
-                    <thead><tr style={{background:'var(--bg2)'}}>
-                      {['#','Item','Descripción','UN','Cant.','Vr. Unit','Vr. Total'].map(function(h2){return <th key={h2} style={{padding:'3px 6px',borderBottom:'1px solid var(--bdr)',fontWeight:700,color:'var(--tx2)',textAlign:h2==='Descripción'?'left':'center',fontSize:9,position:'sticky',top:0,zIndex:2,background:'var(--bg2)'}}>{h2}</th>})}
-                    </tr></thead>
-                    <tbody>
-                      {(h.items||[]).map(function(it,idx){
-                        if(esCapituloFinal(it)){
-                          return <tr key={it.id}><td colSpan={7} style={{padding:'3px 8px',background:'#1E3A5F',color:'#fff',fontWeight:700,fontSize:10}}>{it.descripcion}</td></tr>;
-                        }
-                        var cv=calcItemValFor(it,h,buildSnapCtx(h));
-                        return(
-                          <tr key={it.id} style={{borderBottom:'1px solid var(--bdr)'}}>
-                            <td style={{padding:'2px 6px',textAlign:'center',color:'var(--tx3)'}}>{idx+1}</td>
-                            <td style={{padding:'2px 6px',textAlign:'center',color:'var(--ac)',fontWeight:600}}>{it.num_item||''}</td>
-                            <td style={{padding:'2px 6px',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{it.descripcion||''}</td>
-                            <td style={{padding:'2px 6px',textAlign:'center'}}>{it.unidad||''}</td>
-                            <td style={{padding:'2px 6px',textAlign:'right'}}>{Number(it.cantidad)||0}</td>
-                            <td style={{padding:'2px 6px',textAlign:'right'}}>{fmt(cv.vr_unit)}</td>
-                            <td style={{padding:'2px 6px',textAlign:'right',fontWeight:600}}>{fmt(cv.vr_total)}</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-                <div style={{padding:'4px 10px',background:'var(--bg2)',borderTop:'1px solid var(--bdr)',display:'flex',gap:16,fontSize:10}}>
-                  <span>CD: <b>{fmt(resH.cdTotal)}</b></span>
-                  <span>AIU: <b>{fmt(resH.aiuTotal)}</b></span>
-                  {resH.tieneIva&&<span>IVA: <b>{fmt(resH.ivaUtilidad)}</b></span>}
-                  <span style={{color:'var(--ok)',fontWeight:700}}>Total: {fmt(resH.valorTotal)}</span>
-                </div>
-              </div>
-            );
-          })}
-        </div>}
-
-        {/* ── OPCIÓN 2: Vista Matriz ── */}
-        {vistaPadre==='matriz'&&<div className="xl-scroll" style={{flex:1,overflow:'auto'}}>
-          {(function(){
-            var matrixCols=[];hijos.forEach(function(h){matrixCols.push(<col key={'mc'+h.id} style={{width:60}}/>);matrixCols.push(<col key={'mv'+h.id} style={{width:80}}/>)});
-            return(
-              <table style={{width:'100%',fontSize:10,tableLayout:'fixed',borderCollapse:'collapse',border:'1px solid var(--bdr)'}}>
-                <colgroup>
-                  <col style={{width:40}}/><col style={{width:80}}/><col style={{width:260}}/><col style={{width:50}}/><col style={{width:70}}/>
-                  {matrixCols}
-                </colgroup>
-            <thead>
-              <tr style={{background:'var(--bg2)'}}>
-                <th colSpan={5} style={{padding:'4px 6px',borderBottom:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',fontWeight:700,color:'var(--tx)',textAlign:'center',fontSize:11}}>Item</th>
-                {hijos.map(function(h){return <th key={h.id} colSpan={2} style={{padding:'4px 6px',borderBottom:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',fontWeight:700,color:'var(--ac)',textAlign:'center',fontSize:10}}>{h.codigo}</th>})}
-              </tr>
-              <tr style={{background:'var(--bg3)'}}>
-                {['#','Item','Descripción','UN','Vr.Unit'].map(function(h2){return <th key={h2} style={{padding:'2px 6px',borderBottom:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',fontWeight:600,color:'var(--tx2)',textAlign:'center',fontSize:9,position:'sticky',top:0,zIndex:2,background:'var(--bg3)'}}>{h2}</th>})}
-                {hijos.map(function(h){return [<th key={'c'+h.id} style={{padding:'2px 4px',borderBottom:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',fontWeight:600,color:'var(--tx2)',textAlign:'center',fontSize:9,position:'sticky',top:0,zIndex:2,background:'var(--bg3)'}}>Cant</th>,<th key={'v'+h.id} style={{padding:'2px 4px',borderBottom:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',fontWeight:600,color:'var(--tx2)',textAlign:'center',fontSize:9,position:'sticky',top:0,zIndex:2,background:'var(--bg3)'}}>Vr Parc</th>]})}
-              </tr>
-            </thead>
-            <tbody>
-              {merged.capitulos.map(function(cap){
-                return(
-                  <React.Fragment key={cap.capitulo}>
-                    <tr><td colSpan={5+hijos.length*2} style={{padding:'3px 8px',background:'#1E3A5F',color:'#fff',fontWeight:700,fontSize:10}}>{cap.capitulo||'(Sin capítulo)'}</td></tr>
-                    {cap.items.map(function(fila){
-                      var primerHijoId=hijos[0]&&hijos[0].id;
-                      var vrUnit=fila.vr_unitarios[primerHijoId]||0;
-                      return(
-                        <tr key={fila.num_item} style={{borderBottom:'1px solid var(--bdr)'}}>
-                          <td style={{padding:'2px 4px',textAlign:'center',color:'var(--tx3)'}}>{fila.num_item}</td>
-                          <td style={{padding:'2px 4px',textAlign:'center',color:'var(--ac)',fontWeight:600,fontSize:9}}>{fila.num_item}</td>
-                          <td style={{padding:'2px 4px',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}} title={fila.descripcion}>{fila.descripcion||''}</td>
-                          <td style={{padding:'2px 4px',textAlign:'center'}}>{fila.unidad||''}</td>
-                          <td style={{padding:'2px 4px',textAlign:'right'}}>{fmt(vrUnit)}</td>
-                          {hijos.map(function(h){
-                            var cant=fila.cantidades[h.id]||0;
-                            var vr=fila.vr_unitarios[h.id]||0;
-                            return[
-                              <td key={'c'+h.id+fila.num_item} style={{padding:'2px 4px',textAlign:'right',color:cant===0?'var(--tx3)':'var(--tx)'}}>{cant}</td>,
-                              <td key={'v'+h.id+fila.num_item} style={{padding:'2px 4px',textAlign:'right',fontWeight:600,color:cant===0?'var(--tx3)':'var(--tx)'}}>{cant?fmt(vr*cant):'—'}</td>
-                            ];
-                          })}
-                        </tr>
-                      );
-                    })}
-                  </React.Fragment>
-                );
-              })}
-            </tbody>
-            <tfoot>
-              <tr style={{background:'var(--bg2)',fontWeight:700}}>
-                <td colSpan={5} style={{padding:'4px 8px',borderTop:'2px solid var(--bdr)',textAlign:'right',fontSize:10}}>TOTAL por sub-proyecto:</td>
-                {hijos.map(function(h){
-                  var rh=calcResumenFor(h);
-                  return[
-                    <td key={'tc'+h.id} style={{padding:'4px 6px',borderTop:'2px solid var(--bdr)',textAlign:'right',fontSize:10}}/>,
-                    <td key={'tv'+h.id} style={{padding:'4px 6px',borderTop:'2px solid var(--bdr)',textAlign:'right',fontSize:10,color:'var(--ok)',fontWeight:700}}>{fmt(rh.valorTotal)}</td>
-                  ];
-                })}
-              </tr>
-            </tfoot>
-          </table>
-            );
-          })()}
-        </div>}
-
-        {/* Totales consolidados */}
-        <div style={{flexShrink:0,padding:'6px 10px',background:'var(--bg3)',border:'1px solid var(--bdr)',borderRadius:4,display:'flex',gap:16,fontSize:10,alignItems:'center'}}>
-          <span style={{fontWeight:700,color:'var(--ac)',fontSize:11}}>CONSOLIDADO:</span>
-          <span>CD: <b style={{color:'var(--tx)'}}>{fmt(totCD)}</b></span>
-          <span>AIU: <b style={{color:'var(--tx)'}}>{fmt(totAIU)}</b></span>
-          <span>IVA: <b style={{color:'var(--tx)'}}>{fmt(totIVA)}</b></span>
-          <span style={{color:'var(--ok)',fontWeight:700,fontSize:12}}>Total: {fmt(totVT)}</span>
-        </div>
-      </div>
-
-      {/* Resumen lateral consolidado */}
-      <div style={{width:300,flexShrink:0}}>
-        <ResumenConsolidadoHijos hijos={hijos} resHijos={resHijos} totCD={totCD} totAIU={totAIU} totIVA={totIVA} totVT={totVT}/>
-      </div>
       </div>
     );
   }

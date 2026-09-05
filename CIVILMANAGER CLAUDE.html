@@ -9335,7 +9335,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
     <div style={{display:'flex',flexDirection:'row',gap:12,height:'calc(100vh - 150px)',minHeight:0,minWidth:0,alignItems:'flex-start'}}>
     <div style={{maxWidth:FORM_TABLE_MAXW,flex:'1 1 0',display:'flex',flexDirection:'column',gap:8,height:'100%',minHeight:0,minWidth:0}}>
       <div style={{flexShrink:0,display:'flex',flexDirection:'column',gap:8}}>
-        <TituloSubTab pres={pres} presupuestos={presupuestos} tituloSubTab="Formulario de Cantidades y Precios" extra={<span style={{fontSize:14,fontWeight:700,color:'var(--tx)',textAlign:'right'}}>CD: {fmt(cdTotal)}</span>}/>
+        <TituloSubTab pres={pres} presupuestos={presupuestos} tituloSubTab="Formulario de Cantidades y Precios"/>
         <BannerEstadoProyecto pres={pres} estadoLabel={estadoLabel} estadoColor={estadoColor}/>
         <div style={{display:'flex',gap:6,alignItems:'center'}}>
           {!readOnly&&<button className="btn" onClick={addCapitulo} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--ok)',borderRadius:4,background:'rgba(74,222,128,.06)',color:'var(--ok)',cursor:'pointer'}}>+ Capitulo</button>}

@@ -8105,7 +8105,7 @@ function TituloSubTab({pres,presupuestos,tituloSubTab,extra,width,stacked}){
         {extra&&<div style={{display:'flex',alignItems:'center',gap:10,marginTop:6}}>
           {extra}
         </div>}
-        {padre&&<div style={{fontSize:10,color:'var(--tx3)',marginTop:2}}>Subproyecto de: {padre.codigo} {padre.nombre||''}</div>}
+        {padre&&<div style={{fontSize:11,fontWeight:600,color:'var(--tx2)',marginTop:2}}>Subproyecto de: <span style={{color:'var(--warn)',fontWeight:700}}>{padre.codigo} {padre.nombre||''}</span></div>}
       </div>
     );
   }
@@ -8117,7 +8117,7 @@ function TituloSubTab({pres,presupuestos,tituloSubTab,extra,width,stacked}){
           {extra}
         </div>
       </div>
-      {padre&&<div style={{fontSize:10,color:'var(--tx3)',marginTop:2}}>Subproyecto de: {padre.codigo} {padre.nombre||''}</div>}
+      {padre&&<div style={{fontSize:11,fontWeight:600,color:'var(--tx2)',marginTop:2}}>Subproyecto de: <span style={{color:'var(--warn)',fontWeight:700}}>{padre.codigo} {padre.nombre||''}</span></div>}
     </div>
   );
 }
@@ -8134,7 +8134,7 @@ function PresBannerProyecto({pres,presupuestos,setTab}){
           <span style={{fontSize:11,fontWeight:700,color:'var(--ok)',marginRight:8}}>{pres.codigo}</span>
           <span style={{fontSize:11,color:'var(--tx)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{pres.nombre||'Sin nombre'}</span>
           {padre&&(
-            <span style={{fontSize:10,color:'var(--tx3)',marginLeft:10}}>Subproyecto de: <span style={{color:'var(--tx)'}}>{padre.codigo} {padre.nombre||''}</span></span>
+            <span style={{fontSize:11,fontWeight:600,color:'var(--tx2)',marginLeft:10}}>Subproyecto de: <span style={{color:'var(--warn)',fontWeight:700}}>{padre.codigo} {padre.nombre||''}</span></span>
           )}
         </div>
         <span style={{fontSize:10,color:'var(--tx3)',flexShrink:0}}>Trabajando sobre este proyecto</span>

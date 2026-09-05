@@ -9299,11 +9299,13 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
                   <React.Fragment key={cap.capitulo}>
                     <tr><td colSpan={totalColSpan} style={{padding:'3px 8px',background:'#1E3A5F',color:'#fff',fontWeight:700,fontSize:10}}>{cap.capitulo||'(Sin capítulo)'}</td></tr>
                     {cap.items.map(function(fila){
-                      var primerHijoId=visHijos[0]&&visHijos[0].id;
-                      var vrUnit=fila.vr_unitarios[primerHijoId]||0;
+                      var preciosHijos={};visHijos.forEach(function(h){preciosHijos[h.id]=fila.vr_unitarios[h.id]||0});
+                      var preciosArr=visHijos.map(function(h){return preciosHijos[h.id]}).filter(function(v){return v>0});
+                      var preciosDifieren=preciosArr.length>1&&!preciosArr.every(function(v){return v===preciosArr[0]});
+                      var vrUnit=0;for(var vi=0;vi<visHijos.length;vi++){var vp=fila.vr_unitarios[visHijos[vi].id];if(vp&&vp>0){vrUnit=vp;break}}
                       var totCantFila=0,totVrFila=0;
                       hijos.forEach(function(h){var c=fila.cantidades[h.id]||0;var v=fila.vr_unitarios[h.id]||0;totCantFila+=c;totVrFila+=c*v});
-                      return(
+                      return[
                         <tr key={fila.num_item} style={{borderBottom:'1px solid var(--bdr)'}}>
                           <td style={{padding:'2px 4px',textAlign:'center',color:'var(--tx3)'}}>{fila.num_item}</td>
                           <td style={{padding:'2px 4px',textAlign:'center',color:'var(--ac)',fontWeight:600,fontSize:9}}>{fila.num_item}</td>
@@ -9320,8 +9322,17 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
                           })}
                           <td style={{padding:'2px 4px',textAlign:'right',fontWeight:600,color:'var(--warn)'}}>{totCantFila?fmt(totCantFila):''}</td>
                           <td style={{padding:'2px 4px',textAlign:'right',fontWeight:700,color:'var(--warn)'}}>{totVrFila?fmt(totVrFila):''}</td>
+                        </tr>,
+                        preciosDifieren&&<tr key={fila.num_item+'_pv'} style={{borderBottom:'1px solid var(--bdr)',background:'rgba(255,200,50,.04)'}}>
+                          <td/><td/><td/><td/>
+                          <td style={{padding:'2px 4px',textAlign:'right',fontSize:9,color:'var(--warn)',fontWeight:600,fontStyle:'italic'}}>Vr.Unit:</td>
+                          {visHijos.map(function(h){
+                            var vp=preciosHijos[h.id];
+                            return[<td key={'pc'+h.id+fila.num_item}/>,<td key={'pv'+h.id+fila.num_item} style={{padding:'2px 4px',textAlign:'right',fontSize:9,color:vp?'var(--warn)':'var(--tx3)',fontWeight:600}}>{vp?fmt(vp):'—'}</td>];
+                          })}
+                          <td/><td/>
                         </tr>
-                      );
+                      ];
                     })}
                   </React.Fragment>
                 );

@@ -9302,7 +9302,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
                       var primerHijoId=visHijos[0]&&visHijos[0].id;
                       var vrUnit=fila.vr_unitarios[primerHijoId]||0;
                       var totCantFila=0,totVrFila=0;
-                      visHijos.forEach(function(h){var c=fila.cantidades[h.id]||0;var v=fila.vr_unitarios[h.id]||0;totCantFila+=c;totVrFila+=c*v});
+                      hijos.forEach(function(h){var c=fila.cantidades[h.id]||0;var v=fila.vr_unitarios[h.id]||0;totCantFila+=c;totVrFila+=c*v});
                       return(
                         <tr key={fila.num_item} style={{borderBottom:'1px solid var(--bdr)'}}>
                           <td style={{padding:'2px 4px',textAlign:'center',color:'var(--tx3)'}}>{fila.num_item}</td>

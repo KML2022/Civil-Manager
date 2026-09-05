@@ -8544,39 +8544,54 @@ var FORM_TABLE_INNERW=FORM_TABLE_MAXW-2-SCROLLBAR_W; /* xl-wrap tiene border 1px
 
 /* Resumen Económico consolidado para proyecto contenedor (padre con subproyectos) */
 function ResumenConsolidadoHijos({hijos,resHijos,totCD,totAIU,totIVA,totVT}){
+  var totItems=0,totAdm=0,totImp=0,totUti=0;
+  resHijos.forEach(function(r){totItems+=r.nItems;totAdm+=r.res.adm;totImp+=r.res.imp;totUti+=r.res.uti});
   return(
     <div style={{border:'1px solid var(--bdr)',borderRadius:4,overflow:'hidden'}}>
       <div style={{padding:'6px 10px',background:'var(--bg3)',borderBottom:'1px solid var(--bdr)',fontSize:11,fontWeight:700,color:'var(--ac)',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
         <span>RESUMEN CONSOLIDADO</span>
+        <span style={{fontSize:9,color:'var(--tx2)',fontWeight:400}}>{hijos.length} sub(s) · {totItems} items</span>
       </div>
       <div style={{overflowY:'auto',maxHeight:'calc(100vh - 320px)'}}>
-        <table style={{width:'100%',fontSize:10,tableLayout:'fixed',borderCollapse:'collapse'}}>
-          <colgroup><col style={{width:'45%'}}/><col style={{width:'20%'}}/><col style={{width:'20%'}}/><col style={{width:'15%'}}/></colgroup>
+        <table style={{width:'100%',fontSize:9,tableLayout:'fixed',borderCollapse:'collapse'}}>
+          <colgroup><col style={{width:'28%'}}/><col style={{width:'8%'}}/><col style={{width:'14%'}}/><col style={{width:'12%'}}/><col style={{width:'12%'}}/><col style={{width:'12%'}}/><col style={{width:'10%'}}/><col style={{width:'14%'}}/></colgroup>
           <thead><tr style={{background:'var(--bg2)'}}>
-            <th style={{padding:'3px 6px',borderBottom:'1px solid var(--bdr)',fontWeight:600,color:'var(--tx2)',textAlign:'left',fontSize:9}}>Sub-proyecto</th>
-            <th style={{padding:'3px 6px',borderBottom:'1px solid var(--bdr)',fontWeight:600,color:'var(--tx2)',textAlign:'right',fontSize:9}}>CD</th>
-            <th style={{padding:'3px 6px',borderBottom:'1px solid var(--bdr)',fontWeight:600,color:'var(--tx2)',textAlign:'right',fontSize:9}}>AIU</th>
-            <th style={{padding:'3px 6px',borderBottom:'1px solid var(--bdr)',fontWeight:600,color:'var(--tx2)',textAlign:'right',fontSize:9}}>Total</th>
+            <th style={{padding:'3px 4px',borderBottom:'1px solid var(--bdr)',fontWeight:600,color:'var(--tx2)',textAlign:'left',fontSize:8}}>Sub-proyecto</th>
+            <th style={{padding:'3px 4px',borderBottom:'1px solid var(--bdr)',fontWeight:600,color:'var(--tx2)',textAlign:'center',fontSize:8}}>Items</th>
+            <th style={{padding:'3px 4px',borderBottom:'1px solid var(--bdr)',fontWeight:600,color:'var(--tx2)',textAlign:'right',fontSize:8}}>CD</th>
+            <th style={{padding:'3px 4px',borderBottom:'1px solid var(--bdr)',fontWeight:600,color:'var(--tx2)',textAlign:'right',fontSize:8}}>Adm</th>
+            <th style={{padding:'3px 4px',borderBottom:'1px solid var(--bdr)',fontWeight:600,color:'var(--tx2)',textAlign:'right',fontSize:8}}>Imp</th>
+            <th style={{padding:'3px 4px',borderBottom:'1px solid var(--bdr)',fontWeight:600,color:'var(--tx2)',textAlign:'right',fontSize:8}}>Uti</th>
+            <th style={{padding:'3px 4px',borderBottom:'1px solid var(--bdr)',fontWeight:600,color:'var(--tx2)',textAlign:'right',fontSize:8}}>IVA</th>
+            <th style={{padding:'3px 4px',borderBottom:'1px solid var(--bdr)',fontWeight:700,color:'var(--ac)',textAlign:'right',fontSize:8}}>Total</th>
           </tr></thead>
           <tbody>
             {resHijos.map(function(r){
               return(
                 <tr key={r.hijo.id} style={{borderBottom:'1px solid var(--bdr)'}}>
-                  <td style={{padding:'4px 6px',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',fontWeight:600}} title={r.hijo.codigo+' — '+r.hijo.nombre}>
-                    <span style={{color:'var(--ac)'}}>{r.hijo.codigo}</span> {r.hijo.nombre||'—'}
+                  <td style={{padding:'3px 4px',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',fontWeight:600}} title={r.hijo.codigo+' — '+r.hijo.nombre}>
+                    <span style={{color:'var(--ac)'}}>{r.hijo.codigo}</span> <span style={{color:'var(--tx2)'}}>{r.hijo.nombre||'—'}</span>
                   </td>
-                  <td style={{padding:'4px 6px',textAlign:'right'}}>{fmt(r.res.cdTotal)}</td>
-                  <td style={{padding:'4px 6px',textAlign:'right'}}>{fmt(r.res.aiuTotal)}</td>
-                  <td style={{padding:'4px 6px',textAlign:'right',fontWeight:700,color:'var(--ok)'}}>{fmt(r.res.valorTotal)}</td>
+                  <td style={{padding:'3px 4px',textAlign:'center',color:'var(--tx2)'}}>{r.nItems}</td>
+                  <td style={{padding:'3px 4px',textAlign:'right'}}>{fmt(r.res.cdTotal)}</td>
+                  <td style={{padding:'3px 4px',textAlign:'right',color:'var(--tx3)'}}>{fmt(r.res.adm)}</td>
+                  <td style={{padding:'3px 4px',textAlign:'right',color:'var(--tx3)'}}>{fmt(r.res.imp)}</td>
+                  <td style={{padding:'3px 4px',textAlign:'right',color:'var(--tx3)'}}>{fmt(r.res.uti)}</td>
+                  <td style={{padding:'3px 4px',textAlign:'right',color:'var(--tx3)'}}>{r.res.tieneIva?fmt(r.res.ivaUtilidad):'—'}</td>
+                  <td style={{padding:'3px 4px',textAlign:'right',fontWeight:700,color:'var(--ok)'}}>{fmt(r.res.valorTotal)}</td>
                 </tr>
               );
             })}
           </tbody>
           <tfoot><tr style={{background:'var(--bg3)',fontWeight:700}}>
-            <td style={{padding:'5px 6px',borderTop:'2px solid var(--bdr)',fontSize:10}}>TOTAL CONSOLIDADO</td>
-            <td style={{padding:'5px 6px',borderTop:'2px solid var(--bdr)',textAlign:'right',fontSize:10}}>{fmt(totCD)}</td>
-            <td style={{padding:'5px 6px',borderTop:'2px solid var(--bdr)',textAlign:'right',fontSize:10}}>{fmt(totAIU)}</td>
-            <td style={{padding:'5px 6px',borderTop:'2px solid var(--bdr)',textAlign:'right',fontSize:11,color:'var(--ok)'}}>{fmt(totVT)}</td>
+            <td style={{padding:'4px 4px',borderTop:'2px solid var(--bdr)',fontSize:9}}>TOTAL</td>
+            <td style={{padding:'4px 4px',borderTop:'2px solid var(--bdr)',textAlign:'center',fontSize:9}}>{totItems}</td>
+            <td style={{padding:'4px 4px',borderTop:'2px solid var(--bdr)',textAlign:'right',fontSize:9}}>{fmt(totCD)}</td>
+            <td style={{padding:'4px 4px',borderTop:'2px solid var(--bdr)',textAlign:'right',fontSize:9}}>{fmt(totAdm)}</td>
+            <td style={{padding:'4px 4px',borderTop:'2px solid var(--bdr)',textAlign:'right',fontSize:9}}>{fmt(totImp)}</td>
+            <td style={{padding:'4px 4px',borderTop:'2px solid var(--bdr)',textAlign:'right',fontSize:9}}>{fmt(totUti)}</td>
+            <td style={{padding:'4px 4px',borderTop:'2px solid var(--bdr)',textAlign:'right',fontSize:9}}>{fmt(totIVA)}</td>
+            <td style={{padding:'4px 4px',borderTop:'2px solid var(--bdr)',textAlign:'right',fontSize:10,color:'var(--ok)'}}>{fmt(totVT)}</td>
           </tr></tfoot>
         </table>
       </div>
@@ -8713,6 +8728,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
   var hijos=(presupuestos||[]).filter(function(p){return p.parent_id===pres.id});
   var esContenedor=hijos.length>0;
   var vistaPadreState=useState('subproyectos');var vistaPadre=vistaPadreState[0],setVistaPadre=vistaPadreState[1]; /* 'subproyectos' | 'matriz' */
+  var[colapsados,setColapsados]=useState({}); /* {hijo_id:true} = colapsado */
 
   useEffect(function(){
     setFase(pres&&(pres.formulario_original||(pres.items||[]).length>0)?'revision':'inicio');
@@ -9135,7 +9151,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
 
   /* ═══════════════════ VISTA PROYECTO CONTENEDOR (padre con subproyectos) — va ANTES de fase==='inicio' para que no muestre pantalla de carga Excel ═══════════════════ */
   if(esContenedor){
-    var resHijos=hijos.map(function(h){return{hijo:h,res:calcResumenFor(h)}});
+    var resHijos=hijos.map(function(h){return{hijo:h,res:calcResumenFor(h),nItems:(h.items||[]).filter(function(it){return !esCapituloFinal(it)}).length}});
     var totCD=0,totAIU=0,totIVA=0,totVT=0;
     resHijos.forEach(function(r){totCD+=r.res.cdTotal;totAIU+=r.res.aiuTotal;totIVA+=r.res.ivaUtilidad;totVT+=r.res.valorTotal});
     var merged=mergeItemsDeHijos(hijos,buildSnapCtx,calcItemValFor);
@@ -9153,6 +9169,9 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
           <div style={{display:'flex',gap:6,alignItems:'center'}}>
             {toggleBtn('📋 Vista por Subproyecto','subproyectos')}
             {toggleBtn('📊 Vista Matriz','matriz')}
+            <span style={{width:1,height:16,background:'var(--bdr)',margin:'0 4px'}}/>
+            <button onClick={function(){var n={};hijos.forEach(function(h){n[h.id]=false});setColapsados(n)}} style={{fontSize:9,padding:'3px 8px',border:'1px solid var(--bdr)',borderRadius:4,background:'transparent',color:'var(--tx2)',cursor:'pointer'}}>▼ Expandir todo</button>
+            <button onClick={function(){var n={};hijos.forEach(function(h){n[h.id]=true});setColapsados(n)}} style={{fontSize:9,padding:'3px 8px',border:'1px solid var(--bdr)',borderRadius:4,background:'transparent',color:'var(--tx2)',cursor:'pointer'}}>▶ Colapsar todo</button>
           </div>
         </div>
 
@@ -9161,16 +9180,23 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
           {resHijos.map(function(r){
             var h=r.hijo,resH=r.res;
             var hItems=(h.items||[]).filter(function(it){return !esCapituloFinal(it)});
+            var colapsado=!!colapsados[h.id];
             return(
               <div key={h.id} style={{border:'1px solid var(--bdr)',borderRadius:4,overflow:'hidden'}}>
-                <div style={{padding:'6px 10px',background:'var(--bg3)',borderBottom:'1px solid var(--bdr)',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                <div onClick={function(){setColapsados(function(prev){var n=Object.assign({},prev);n[h.id]=!n[h.id];return n})}} style={{padding:'6px 10px',background:'var(--bg3)',borderBottom:colapsado?'none':'1px solid var(--bdr)',display:'flex',alignItems:'center',justifyContent:'space-between',cursor:'pointer',userSelect:'none'}}>
                   <span style={{fontSize:11,fontWeight:700,color:'var(--tx)',display:'flex',alignItems:'center',gap:6}}>
+                    <span style={{fontSize:9,color:'var(--tx2)',width:14,textAlign:'center',transition:'transform .15s',display:'inline-block',transform:colapsado?'rotate(-90deg)':'rotate(0deg)'}}>▼</span>
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--ok)" strokeWidth="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
                     {h.codigo} — {h.nombre||'(sin nombre)'}
                   </span>
-                  <span style={{fontSize:9,color:'var(--tx2)'}}>{hItems.length} items · {fmt(resH.cdTotal)}</span>
+                  <span style={{fontSize:9,color:'var(--tx2)',display:'flex',alignItems:'center',gap:10}}>
+                    <span>{hItems.length} items</span>
+                    <span style={{color:'var(--tx3)'}}>CD: {fmt(resH.cdTotal)}</span>
+                    <span style={{color:'var(--tx3)'}}>AIU: {fmt(resH.aiuTotal)}</span>
+                    <span style={{color:'var(--ok)',fontWeight:700}}>Total: {fmt(resH.valorTotal)}</span>
+                  </span>
                 </div>
-                <div style={{overflowX:'auto'}}>
+                {!colapsado&&<div style={{overflowX:'auto'}}>
                   <table style={{width:'100%',fontSize:10,tableLayout:'fixed',borderCollapse:'collapse'}}>
                     <colgroup><col style={{width:40}}/><col style={{width:80}}/><col style={{width:'auto'}}/><col style={{width:60}}/><col style={{width:80}}/><col style={{width:90}}/><col style={{width:100}}/></colgroup>
                     <thead><tr style={{background:'var(--bg2)'}}>
@@ -9196,13 +9222,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
                       })}
                     </tbody>
                   </table>
-                </div>
-                <div style={{padding:'4px 10px',background:'var(--bg2)',borderTop:'1px solid var(--bdr)',display:'flex',gap:16,fontSize:10}}>
-                  <span>CD: <b>{fmt(resH.cdTotal)}</b></span>
-                  <span>AIU: <b>{fmt(resH.aiuTotal)}</b></span>
-                  {resH.tieneIva&&<span>IVA: <b>{fmt(resH.ivaUtilidad)}</b></span>}
-                  <span style={{color:'var(--ok)',fontWeight:700}}>Total: {fmt(resH.valorTotal)}</span>
-                </div>
+                </div>}
               </div>
             );
           })}

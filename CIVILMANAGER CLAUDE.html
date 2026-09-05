@@ -10291,7 +10291,7 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
          este div no hay overflow:hidden ni altura definida en la cadena de ancestros (PresupuestosTab
          usa alignItems:'flex-start' sin recortar), asi que sin este wrapper el scroll termina cayendo
          en la ventana completa del navegador en vez de quedar contenido aqui. */}
-      <div className="visor-catalogo-embed" style={{width:'fit-content',maxWidth:'100%',display:'flex',flexDirection:'column',gap:6}}>
+      <div className="visor-catalogo-embed" style={{width:'fit-content',maxWidth:'100%',display:'flex',flexDirection:'column',gap:6,overflow:'auto',maxHeight:'calc(100vh - 180px)'}}>
       <TituloSubTab pres={pres} presupuestos={presupuestos} tituloSubTab="Recursos del Proyecto" width={anchoTitulo} stacked extra={esEditable&&(function(){
         var nActualizar=analisis.porId.length+analisis.porCodigo.length;
         var nReparar=pendientesReparar;
@@ -10386,8 +10386,8 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
 
         {tipo==='parametros'&&(
           <React.Fragment>
-          <div style={{padding:'0',maxWidth:1600,display:'grid',gridTemplateColumns:'1fr 1.3fr 0.9fr',gap:16,alignItems:'start'}}>
-            <div style={{display:'flex',flexDirection:'column',gap:16}}>
+          <div style={{padding:'0',maxWidth:1600,display:'grid',gridTemplateColumns:'1fr 1.3fr 0.9fr',gridTemplateRows:'1fr',gap:16,flex:1,minHeight:0,overflow:'hidden'}}>
+            <div style={{display:'flex',flexDirection:'column',gap:16,minHeight:0}}>
               <div style={{background:'var(--bg2)',border:'1px solid var(--bdr)',borderRadius:6,padding:'8px 12px'}}>
                 <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',borderBottom:'1px solid var(--bdr)',paddingBottom:4,marginBottom:6}}>
                   <span style={{fontSize:12,fontWeight:700,color:'var(--ac)'}}>🌍 SELECCIONE EL PERFIL DEL PAÍS</span>
@@ -10491,7 +10491,7 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
                 )}
               </div>
 
-              <div style={{border:'1px solid var(--bdr)',borderRadius:4,maxHeight:'calc(100vh - 230px)',overflowY:'auto'}}>
+              <div style={{border:'1px solid var(--bdr)',borderRadius:4,flex:1,overflowY:'auto'}}>
                 <table style={{width:'100%',borderCollapse:'separate',borderSpacing:0,fontSize:11,tableLayout:'fixed'}}>
                   <colgroup><col style={{width:'34%'}}/><col style={{width:'18%'}}/><col style={{width:'48%'}}/></colgroup>
                   <thead>
@@ -10617,7 +10617,7 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
               </div>
             </div>
 
-            <div style={{background:'var(--bg2)',border:'1px solid var(--bdr)',borderRadius:6,padding:'12px 14px'}}>
+            <div style={{background:'var(--bg2)',border:'1px solid var(--bdr)',borderRadius:6,padding:'12px 14px',display:'flex',flexDirection:'column',overflow:'hidden',minHeight:0}}>
               <div style={{fontSize:12,fontWeight:700,color:'var(--ac)',borderBottom:'1px solid var(--bdr)',paddingBottom:6,marginBottom:10}}>📋 Factor prestacional</div>
               {(!pres.factores_snap||pres.factores_snap.length===0)?(
                 <div style={{fontSize:11,color:'var(--tx3)'}}>
@@ -10630,7 +10630,7 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
                     <button className="btn" onClick={restaurarFpDesdeGlobal} title="Restaurar los valores del catálogo general de FP" style={{fontSize:11,borderRadius:4,display:'inline-flex',alignItems:'center',gap:4,border:'1px solid var(--warn)',background:'none',color:'var(--warn)',cursor:'pointer',whiteSpace:'nowrap'}}>↺ Restaurar</button>
                   </CrudFooter>}
                   <ExcelPreviewModal excel={fpParamsExcel}/>
-                  <div style={{maxHeight:'calc(100vh - 230px)',overflowY:'auto',border:'1px solid var(--bdr)',borderRadius:4,marginTop:8}}>
+                  <div style={{flex:1,overflowY:'auto',border:'1px solid var(--bdr)',borderRadius:4,marginTop:8}}>
                   <table style={{width:'100%',borderCollapse:'separate',borderSpacing:0,fontSize:11,tableLayout:'fixed'}}>
                     <colgroup><col style={{width:'7%'}}/><col style={{width:'11%'}}/><col style={{width:'36%'}}/><col style={{width:'16%'}}/><col style={{width:'15%'}}/><col style={{width:'15%'}}/></colgroup>
                     <thead><tr>
@@ -10685,7 +10685,7 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
               )}
             </div>
 
-            <div style={{background:'var(--bg2)',border:'1px solid var(--bdr)',borderRadius:6,display:'flex',flexDirection:'column',maxHeight:'calc(100vh - 230px)',overflowY:'auto'}}>
+            <div style={{background:'var(--bg2)',border:'1px solid var(--bdr)',borderRadius:6,display:'flex',flexDirection:'column',overflowY:'auto',minHeight:0}}>
               <div style={{padding:'12px 14px 10px',borderBottom:'1px solid var(--bdr)',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
                 <span style={{fontSize:12,fontWeight:700,color:'var(--ac)'}}>Clasificación Factor Prestacional</span>
                 {esEditable&&(!fpCatEditParams?<button className="btn-edit" onClick={function(){setFpCatEditParams(true)}} title="Editar clasificación" style={{background:'none',border:'none',cursor:'pointer',verticalAlign:'middle'}}><IconEdit/></button>:<button className="btn" onClick={function(){setFpCatEditParams(false)}} style={{fontSize:9,padding:'1px 6px',border:'1px solid var(--ok)',borderRadius:3,background:'none',color:'var(--ok)',cursor:'pointer',verticalAlign:'middle'}}>Listo</button>)}

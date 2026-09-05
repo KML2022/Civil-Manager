@@ -9329,18 +9329,18 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
             </tbody>
             <tfoot>
               <tr style={{background:'var(--bg2)',fontWeight:700}}>
-                <td colSpan={5} style={{padding:'4px 8px',borderTop:'2px solid var(--bdr)',textAlign:'right',fontSize:10}}>TOTAL por sub-proyecto:</td>
+                <td colSpan={5} style={{padding:'4px 8px',borderTop:'2px solid var(--bdr)',textAlign:'right',fontSize:10}}>SUBTOTAL CD:</td>
                 {visHijos.map(function(h){
                   var rh=calcResumenFor(h);
                   var hItems=(h.items||[]).filter(function(it){return !esCapituloFinal(it)});
                   var hCant=0;hItems.forEach(function(it){hCant+=Number(it.cantidad)||0});
                   return[
                     <td key={'tc'+h.id} style={{padding:'4px 6px',borderTop:'2px solid var(--bdr)',textAlign:'right',fontSize:9,color:'var(--tx2)'}}>{hCant||''}</td>,
-                    <td key={'tv'+h.id} style={{padding:'4px 6px',borderTop:'2px solid var(--bdr)',textAlign:'right',fontSize:10,color:'var(--ok)',fontWeight:700}}>{fmt(rh.valorTotal)}</td>
+                    <td key={'tv'+h.id} style={{padding:'4px 6px',borderTop:'2px solid var(--bdr)',textAlign:'right',fontSize:10,color:'var(--ok)',fontWeight:700}}>{fmt(rh.cdTotal)}</td>
                   ];
                 })}
                 <td style={{padding:'4px 6px',borderTop:'2px solid var(--bdr)',textAlign:'right',fontSize:9,color:'var(--warn)'}}>{totItems||''}</td>
-                <td style={{padding:'4px 6px',borderTop:'2px solid var(--bdr)',textAlign:'right',fontSize:10,color:'var(--warn)',fontWeight:700}}>{fmt(totVT)}</td>
+                <td style={{padding:'4px 6px',borderTop:'2px solid var(--bdr)',textAlign:'right',fontSize:10,color:'var(--warn)',fontWeight:700}}>{fmt(totCD)}</td>
               </tr>
             </tfoot>
           </table>

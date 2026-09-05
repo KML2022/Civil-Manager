@@ -9475,11 +9475,14 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
 
         {/* ── OPCIÓN 2: Vista Matriz ── */}
         {vistaPadre==='matriz'&&<div className="xl-scroll" style={{flex:1,overflow:'auto'}}>
-          <table style={{width:'100%',fontSize:10,tableLayout:'fixed',borderCollapse:'collapse',border:'1px solid var(--bdr)'}}>
-            <colgroup>
-              <col style={{width:40}}/><col style={{width:80}}/><col style={{width:260}}/><col style={{width:50}}/><col style={{width:70}}/>
-              {hijos.map(function(){return [<col key="c" style={{width:60}}/>,<col key="v" style={{width:80}}>]})}
-            </colgroup>
+          {(function(){
+            var matrixCols=[];hijos.forEach(function(h){matrixCols.push(<col key={'mc'+h.id} style={{width:60}}/>);matrixCols.push(<col key={'mv'+h.id} style={{width:80}}/>)});
+            return(
+              <table style={{width:'100%',fontSize:10,tableLayout:'fixed',borderCollapse:'collapse',border:'1px solid var(--bdr)'}}>
+                <colgroup>
+                  <col style={{width:40}}/><col style={{width:80}}/><col style={{width:260}}/><col style={{width:50}}/><col style={{width:70}}/>
+                  {matrixCols}
+                </colgroup>
             <thead>
               <tr style={{background:'var(--bg2)'}}>
                 <th colSpan={5} style={{padding:'4px 6px',borderBottom:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',fontWeight:700,color:'var(--tx)',textAlign:'center',fontSize:11}}>Item</th>
@@ -9533,6 +9536,8 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
               </tr>
             </tfoot>
           </table>
+            );
+          })()}
         </div>}
 
         {/* Totales consolidados */}

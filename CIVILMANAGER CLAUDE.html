@@ -8100,7 +8100,7 @@ function TituloSubTab({pres,presupuestos,tituloSubTab,extra,width,stacked}){
   );
   if(stacked){
     return(
-      <div className="sec-hdr" style={{border:'1px solid var(--bdr)',borderRadius:4,padding:'6px 10px',flexDirection:'column',alignItems:'stretch',width:width,marginBottom:0}}>
+      <div className="sec-hdr" style={{border:'1px solid var(--bdr)',borderRadius:4,padding:'6px 10px',flexDirection:'column',alignItems:'stretch',width:width,marginBottom:0,position:'sticky',top:0,zIndex:10,background:'var(--bg)'}}>
         {titulo}
         {extra&&<div style={{display:'flex',alignItems:'center',gap:10,marginTop:6}}>
           {extra}
@@ -10323,7 +10323,9 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
           </div>
         );
       })()}/>
+      <div style={{position:'sticky',top:0,zIndex:9,background:'var(--bg)'}}>
       <BannerEstadoProyecto pres={pres} estadoLabel={estadoLabel} estadoColor={estadoColor} width={anchoTitulo}/>
+      </div>
       {mensajeActualizacion&&(
         <div style={{display:'flex',alignItems:'flex-start',gap:10,padding:'8px 14px',marginTop:8,borderRadius:4,fontSize:11,lineHeight:1.6,flex:'0 0 auto',
           background:mensajeActualizacion.tipo==='ok'?'rgba(74,222,128,.08)':mensajeActualizacion.tipo==='warn'?'rgba(251,191,36,.08)':'rgba(248,113,113,.08)',
@@ -10343,7 +10345,7 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
           </div>
         );
       })()}
-      <div style={{display:'flex',gap:6,flex:'0 0 auto',padding:'0'}}>
+      <div style={{display:'flex',gap:6,flex:'0 0 auto',padding:'0',position:'sticky',top:0,zIndex:8,background:'var(--bg)',paddingTop:4}}>
         {TABS_PROYECTO.map(function(t){
           return(
             <button key={t.tipo} onClick={function(){cambiarTipo(t.tipo)}} style={{fontSize:11,padding:'5px 12px',border:'1px solid '+(tipo===t.tipo?'var(--ok)':'var(--bdr)'),borderRadius:4,background:tipo===t.tipo?'rgba(74,222,128,.1)':'transparent',color:tipo===t.tipo?'var(--ok)':'var(--tx2)',cursor:'pointer'}}>

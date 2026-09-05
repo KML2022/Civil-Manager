@@ -638,7 +638,8 @@ function mergeItemsDeHijos(hijos,buildSnapCtx,calcItemValFor){
       }
     });
   });
-  return{filaMap:filaMap,capitulos:capOrder.map(function(c){return{capitulo:c,items:capMap.get(c)||[]}})};
+  capOrder.sort(function(a,b){var na=parseInt(a)||9999;var nb=parseInt(b)||9999;return na-nb||a.localeCompare(b)});
+  return{filaMap:filaMap,capitulos:capOrder.map(function(c){return{capitulo:c,items:capMap.get(c)||[]}}).filter(function(cap){return cap.items.length>0})};
 }
 
 function autoDetectarFilaInicio(filas){

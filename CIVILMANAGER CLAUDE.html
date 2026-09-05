@@ -11439,10 +11439,10 @@ function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,i
 
   /* ══════════════════ SWITCH ENTRE SUB-PESTAÑAS (delegado a sub-componentes) ══════════════════ */
   var PRES_NAV=[
-    {tab:9,label:'1. CATALOGO DE PROYECTOS'},
-    {tab:10,label:'2. FORMULARIO DE CANTIDADES Y PRECIOS'},
-    {tab:13,label:'3. ENTREGABLES'},
-    {tab:14,label:'4. RECURSOS DEL PROYECTO'}
+    {tab:9,label:'1. Catálogo de Proyectos'},
+    {tab:10,label:'2. Formulario de Cantidades y Precios'},
+    {tab:14,label:'3. Recursos del Proyecto'},
+    {tab:13,label:'4. Entregables'}
   ];
   /* Tab 11 reservado — no existe en PRES_NAV pero puede llegar desde IDB
      antiguo o estado guardado. Se redirige a tab 9 (Catálogo de Proyectos). */
@@ -11453,13 +11453,13 @@ function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,i
     :<PresProyectosPanel presupuestos={presupuestos} selPresIdx={selPresIdx} setSelPresIdx={setSelPresIdx} data={data} onChange={onChange} estadoColor={estadoColor} estadoLabel={estadoLabel} addPresupuesto={addPresupuesto} addSubProyecto={addSubProyecto} toggleEstado={toggleEstado} cambiarPerfilPais={cambiarPerfilPais} delPresupuesto={delPresupuesto} clonarPresupuesto={clonarPresupuesto} setTab={setTab}/>;
 
   return(
-    <div style={{display:'flex',gap:16,alignItems:'flex-start'}}>
-      <div style={{width:260,display:'flex',flexDirection:'column',gap:4,flexShrink:0}}>
+    <div style={{display:'flex',flexDirection:'column',gap:8}}>
+      <div style={{display:'flex',flexDirection:'row',flexWrap:'wrap',gap:6,paddingBottom:8,borderBottom:'1px solid var(--bdr)'}}>
         {PRES_NAV.map(function(nav){
           var activo=tab===nav.tab||(nav.tab===9&&tab<9);
           return(
-            <button key={nav.tab} onClick={function(){setTab(nav.tab)}} style={{textAlign:'left',padding:'6px 10px',fontSize:10.5,border:activo?'1px solid var(--ok)':'1px solid var(--bdr)',borderRadius:4,background:activo?'rgba(74,222,128,.1)':'transparent',color:activo?'var(--ok)':'var(--tx3)',fontWeight:activo?700:400,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'space-between',gap:6,width:'100%'}}>
-              <span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{nav.label}</span>
+            <button key={nav.tab} onClick={function(){setTab(nav.tab)}} style={{padding:'5px 14px',fontSize:10,border:'none',borderRadius:20,background:activo?'var(--ok)':'var(--bg3)',color:activo?'#fff':'var(--tx3)',fontWeight:activo?700:400,cursor:'pointer',display:'flex',alignItems:'center',gap:6,flexShrink:0}}>
+              <span style={{whiteSpace:'nowrap'}}>{nav.label}</span>
               {nav.conEstado&&pres&&(
                 <span style={{flexShrink:0,fontSize:8,padding:'1px 5px',borderRadius:3,border:'1px solid '+estadoColor(pres.estado),color:estadoColor(pres.estado),fontWeight:700,lineHeight:'14px',whiteSpace:'nowrap'}}>
                   {estadoLabel(pres.estado)}
@@ -11469,7 +11469,7 @@ function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,i
           );
         })}
       </div>
-      <div style={{flex:1,minWidth:0}}>
+      <div style={{flex:1,minWidth:0,width:'100%'}}>
         {presContent}
       </div>
     </div>

@@ -8752,6 +8752,8 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
   var vistaPadreState=useState('subproyectos');var vistaPadre=vistaPadreState[0],setVistaPadre=vistaPadreState[1]; /* 'subproyectos' | 'matriz' */
   var colapsadosInit={};hijos.forEach(function(h){colapsadosInit[h.id]=true});
   var[colapsados,setColapsados]=useState(colapsadosInit); /* {hijo_id:true} = colapsado */
+  var visColsInit={};hijos.forEach(function(h){visColsInit[h.id]=true});
+  var[visibilidadCols,setVisibilidadCols]=useState(visColsInit); /* {hijo_id:false} = columna oculta */
 
   useEffect(function(){
     setFase(pres&&(pres.formulario_original||(pres.items||[]).length>0)?'revision':'inicio');
@@ -9178,6 +9180,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
     var totCD=0,totAIU=0,totIVA=0,totVT=0;
     resHijos.forEach(function(r){totCD+=r.res.cdTotal;totAIU+=r.res.aiuTotal;totIVA+=r.res.ivaUtilidad;totVT+=r.res.valorTotal});
     var merged=mergeItemsDeHijos(hijos,buildSnapCtx,calcItemValFor);
+    var totItems=0;resHijos.forEach(function(r){totItems+=r.nItems});
 
     var toggleBtn=function(label,mode){
       var activo=vistaPadre===mode;
@@ -9253,32 +9256,53 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
 
         {/* ── OPCIÓN 2: Vista Matriz ── */}
         {vistaPadre==='matriz'&&<div className="xl-scroll" style={{flex:1,overflow:'auto'}}>
+          {/* Toggles de visibilidad de columnas */}
+          <div style={{display:'flex',gap:6,alignItems:'center',marginBottom:6,padding:'4px 8px',background:'var(--bg2)',border:'1px solid var(--bdr)',borderRadius:4}}>
+            <span style={{fontSize:9,color:'var(--tx2)',fontWeight:600}}>Columnas:</span>
+            {hijos.map(function(h){
+              var vis=visibilidadCols[h.id]!==false;
+              return <button key={h.id} onClick={function(){setVisibilidadCols(function(prev){var n=Object.assign({},prev);n[h.id]=!vis;return n})}} style={{fontSize:9,padding:'2px 8px',border:'1px solid '+(vis?'var(--ok)':'var(--bdr)'),borderRadius:4,background:vis?'rgba(74,222,128,.1)':'transparent',color:vis?'var(--ok)':'var(--tx3)',cursor:'pointer',fontWeight:vis?700:400}}>{h.codigo}</button>;
+            })}
+            <span style={{width:1,height:14,background:'var(--bdr)',margin:'0 2px'}}/>
+            <button onClick={function(){var n={};hijos.forEach(function(h){n[h.id]=true});setVisibilidadCols(n)}} style={{fontSize:9,padding:'2px 6px',border:'1px solid var(--bdr)',borderRadius:4,background:'transparent',color:'var(--tx2)',cursor:'pointer'}}>Todas</button>
+            <button onClick={function(){var n={};hijos.forEach(function(h){n[h.id]=false});setVisibilidadCols(n)}} style={{fontSize:9,padding:'2px 6px',border:'1px solid var(--bdr)',borderRadius:4,background:'transparent',color:'var(--tx2)',cursor:'pointer'}}>Ninguna</button>
+          </div>
           {(function(){
-            var matrixCols=[];hijos.forEach(function(h){matrixCols.push(<col key={'mc'+h.id} style={{width:60}}/>);matrixCols.push(<col key={'mv'+h.id} style={{width:80}}/>)});
+            var visHijos=hijos.filter(function(h){return visibilidadCols[h.id]!==false});
+            var nVis=visHijos.length;
+            var totalColSpan=5+nVis*2+2; /* 5 fijas + 2 por hijo visible + 2 totales */
+            var matrixCols=[];
+            visHijos.forEach(function(h){matrixCols.push(<col key={'mc'+h.id} style={{width:60}}/>);matrixCols.push(<col key={'mv'+h.id} style={{width:80}}/>)});
             return(
               <table style={{width:'100%',fontSize:10,tableLayout:'fixed',borderCollapse:'collapse',border:'1px solid var(--bdr)'}}>
                 <colgroup>
                   <col style={{width:40}}/><col style={{width:80}}/><col style={{width:260}}/><col style={{width:50}}/><col style={{width:70}}/>
                   {matrixCols}
+                  <col style={{width:60}}/><col style={{width:80}}/>
                 </colgroup>
             <thead>
               <tr style={{background:'var(--bg2)'}}>
                 <th colSpan={5} style={{padding:'4px 6px',borderBottom:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',fontWeight:700,color:'var(--tx)',textAlign:'center',fontSize:11}}>Item</th>
-                {hijos.map(function(h){return <th key={h.id} colSpan={2} style={{padding:'4px 6px',borderBottom:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',fontWeight:700,color:'var(--ac)',textAlign:'center',fontSize:10}}>{h.codigo}</th>})}
+                {visHijos.map(function(h){return <th key={h.id} colSpan={2} style={{padding:'4px 6px',borderBottom:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',fontWeight:700,color:'var(--ac)',textAlign:'center',fontSize:10}}>{h.codigo}</th>})}
+                <th colSpan={2} style={{padding:'4px 6px',borderBottom:'1px solid var(--bdr)',fontWeight:700,color:'var(--warn)',textAlign:'center',fontSize:10}}>TOTALES</th>
               </tr>
               <tr style={{background:'var(--bg3)'}}>
                 {['#','Item','Descripción','UN','Vr.Unit'].map(function(h2){return <th key={h2} style={{padding:'2px 6px',borderBottom:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',fontWeight:600,color:'var(--tx2)',textAlign:'center',fontSize:9,position:'sticky',top:0,zIndex:2,background:'var(--bg3)'}}>{h2}</th>})}
-                {hijos.map(function(h){return [<th key={'c'+h.id} style={{padding:'2px 4px',borderBottom:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',fontWeight:600,color:'var(--tx2)',textAlign:'center',fontSize:9,position:'sticky',top:0,zIndex:2,background:'var(--bg3)'}}>Cant</th>,<th key={'v'+h.id} style={{padding:'2px 4px',borderBottom:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',fontWeight:600,color:'var(--tx2)',textAlign:'center',fontSize:9,position:'sticky',top:0,zIndex:2,background:'var(--bg3)'}}>Vr Parc</th>]})}
+                {visHijos.map(function(h){return [<th key={'c'+h.id} style={{padding:'2px 4px',borderBottom:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',fontWeight:600,color:'var(--tx2)',textAlign:'center',fontSize:9,position:'sticky',top:0,zIndex:2,background:'var(--bg3)'}}>Cant</th>,<th key={'v'+h.id} style={{padding:'2px 4px',borderBottom:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',fontWeight:600,color:'var(--tx2)',textAlign:'center',fontSize:9,position:'sticky',top:0,zIndex:2,background:'var(--bg3)'}}>Vr Parc</th>]})}
+                <th style={{padding:'2px 4px',borderBottom:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',fontWeight:600,color:'var(--warn)',textAlign:'center',fontSize:9,position:'sticky',top:0,zIndex:2,background:'var(--bg3)'}}>Cant</th>
+                <th style={{padding:'2px 4px',borderBottom:'1px solid var(--bdr)',fontWeight:600,color:'var(--warn)',textAlign:'center',fontSize:9,position:'sticky',top:0,zIndex:2,background:'var(--bg3)'}}>Vr Parc</th>
               </tr>
             </thead>
             <tbody>
               {merged.capitulos.map(function(cap){
                 return(
                   <React.Fragment key={cap.capitulo}>
-                    <tr><td colSpan={5+hijos.length*2} style={{padding:'3px 8px',background:'#1E3A5F',color:'#fff',fontWeight:700,fontSize:10}}>{cap.capitulo||'(Sin capítulo)'}</td></tr>
+                    <tr><td colSpan={totalColSpan} style={{padding:'3px 8px',background:'#1E3A5F',color:'#fff',fontWeight:700,fontSize:10}}>{cap.capitulo||'(Sin capítulo)'}</td></tr>
                     {cap.items.map(function(fila){
-                      var primerHijoId=hijos[0]&&hijos[0].id;
+                      var primerHijoId=visHijos[0]&&visHijos[0].id;
                       var vrUnit=fila.vr_unitarios[primerHijoId]||0;
+                      var totCantFila=0,totVrFila=0;
+                      visHijos.forEach(function(h){var c=fila.cantidades[h.id]||0;var v=fila.vr_unitarios[h.id]||0;totCantFila+=c;totVrFila+=c*v});
                       return(
                         <tr key={fila.num_item} style={{borderBottom:'1px solid var(--bdr)'}}>
                           <td style={{padding:'2px 4px',textAlign:'center',color:'var(--tx3)'}}>{fila.num_item}</td>
@@ -9286,7 +9310,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
                           <td style={{padding:'2px 4px',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}} title={fila.descripcion}>{fila.descripcion||''}</td>
                           <td style={{padding:'2px 4px',textAlign:'center'}}>{fila.unidad||''}</td>
                           <td style={{padding:'2px 4px',textAlign:'right'}}>{fmt(vrUnit)}</td>
-                          {hijos.map(function(h){
+                          {visHijos.map(function(h){
                             var cant=fila.cantidades[h.id]||0;
                             var vr=fila.vr_unitarios[h.id]||0;
                             return[
@@ -9294,6 +9318,8 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
                               <td key={'v'+h.id+fila.num_item} style={{padding:'2px 4px',textAlign:'right',fontWeight:600,color:cant===0?'var(--tx3)':'var(--tx)'}}>{cant?fmt(vr*cant):'—'}</td>
                             ];
                           })}
+                          <td style={{padding:'2px 4px',textAlign:'right',fontWeight:600,color:'var(--warn)'}}>{totCantFila||''}</td>
+                          <td style={{padding:'2px 4px',textAlign:'right',fontWeight:700,color:'var(--warn)'}}>{totVrFila?fmt(totVrFila):''}</td>
                         </tr>
                       );
                     })}
@@ -9304,13 +9330,17 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
             <tfoot>
               <tr style={{background:'var(--bg2)',fontWeight:700}}>
                 <td colSpan={5} style={{padding:'4px 8px',borderTop:'2px solid var(--bdr)',textAlign:'right',fontSize:10}}>TOTAL por sub-proyecto:</td>
-                {hijos.map(function(h){
+                {visHijos.map(function(h){
                   var rh=calcResumenFor(h);
+                  var hItems=(h.items||[]).filter(function(it){return !esCapituloFinal(it)});
+                  var hCant=0;hItems.forEach(function(it){hCant+=Number(it.cantidad)||0});
                   return[
-                    <td key={'tc'+h.id} style={{padding:'4px 6px',borderTop:'2px solid var(--bdr)',textAlign:'right',fontSize:10}}/>,
+                    <td key={'tc'+h.id} style={{padding:'4px 6px',borderTop:'2px solid var(--bdr)',textAlign:'right',fontSize:9,color:'var(--tx2)'}}>{hCant||''}</td>,
                     <td key={'tv'+h.id} style={{padding:'4px 6px',borderTop:'2px solid var(--bdr)',textAlign:'right',fontSize:10,color:'var(--ok)',fontWeight:700}}>{fmt(rh.valorTotal)}</td>
                   ];
                 })}
+                <td style={{padding:'4px 6px',borderTop:'2px solid var(--bdr)',textAlign:'right',fontSize:9,color:'var(--warn)'}}>{totItems||''}</td>
+                <td style={{padding:'4px 6px',borderTop:'2px solid var(--bdr)',textAlign:'right',fontSize:10,color:'var(--warn)',fontWeight:700}}>{fmt(totVT)}</td>
               </tr>
             </tfoot>
           </table>

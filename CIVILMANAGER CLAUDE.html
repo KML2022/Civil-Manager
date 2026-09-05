@@ -8572,8 +8572,8 @@ function ResumenLateralFormulario({pres,calcItemVal,data,presupuestos,selPresIdx
           </tr>
         </tbody>
       </table>
-      {/* Configuración IVA — solo en modo edición */}
-      {editandoAIU&&!readOnly&&(
+      {/* Configuración IVA — siempre visible */}
+      {(
         <div style={{padding:'8px',borderTop:'1px solid var(--bdr)',display:'flex',flexDirection:'column',gap:6,background:'var(--bg)'}}>
           <div style={{display:'flex',alignItems:'center',gap:6}}>
             <span style={{fontSize:10,fontWeight:700,color:'var(--tx)',flex:1}}>¿Tiene IVA?</span>

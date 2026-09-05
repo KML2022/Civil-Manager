@@ -8095,7 +8095,7 @@ function TituloSubTab({pres,presupuestos,tituloSubTab,extra,width,stacked}){
   var titulo=(
     <span className="title" style={{fontSize:15,display:'flex',alignItems:'center',gap:6}}>
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--ok)" strokeWidth="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-      {pres.codigo} — {pres.nombre||'(sin nombre)'} &middot; {tituloSubTab}
+      {pres.codigo} — {pres.nombre||'(sin nombre)'} &middot; {tituloSubTab}{padre&&<span style={{fontSize:10,fontWeight:600,color:'var(--tx2)',marginLeft:10}}>Subproyecto de: <span style={{color:'var(--warn)',fontWeight:700}}>{padre.codigo} {padre.nombre||''}</span></span>}
     </span>
   );
   if(stacked){
@@ -8105,7 +8105,6 @@ function TituloSubTab({pres,presupuestos,tituloSubTab,extra,width,stacked}){
         {extra&&<div style={{display:'flex',alignItems:'center',gap:10,marginTop:6}}>
           {extra}
         </div>}
-        {padre&&<div style={{fontSize:11,fontWeight:600,color:'var(--tx2)',marginTop:2}}>Subproyecto de: <span style={{color:'var(--warn)',fontWeight:700}}>{padre.codigo} {padre.nombre||''}</span></div>}
       </div>
     );
   }
@@ -8117,7 +8116,6 @@ function TituloSubTab({pres,presupuestos,tituloSubTab,extra,width,stacked}){
           {extra}
         </div>
       </div>
-      {padre&&<div style={{fontSize:11,fontWeight:600,color:'var(--tx2)',marginTop:2}}>Subproyecto de: <span style={{color:'var(--warn)',fontWeight:700}}>{padre.codigo} {padre.nombre||''}</span></div>}
     </div>
   );
 }
@@ -8560,12 +8558,6 @@ function ResumenLateralFormulario({pres,calcItemVal,data,presupuestos,selPresIdx
             <td style={{padding:'5px 8px',borderBottom:'1px solid var(--bdr)',fontWeight:700}}>AIU ({aiuPct.toFixed(1)}%)</td>
             <td style={{textAlign:'right',padding:'5px 8px',borderBottom:'1px solid var(--bdr)',fontWeight:700,color:aiuWarn?'var(--warn)':'var(--ok)'}} colSpan={2}>{fmt(aiuTotal)}</td>
           </tr>
-          {tieneIva&&(
-            <tr>
-              <td style={{padding:'5px 8px',borderBottom:'1px solid var(--bdr)',color:'var(--tx2)'}}>{ivaBase==='cd'?'IVA/CD':'IVA/Util'} ({ivaPct.toFixed(1)}%)</td>
-              <td style={{textAlign:'right',padding:'5px 8px',borderBottom:'1px solid var(--bdr)'}} colSpan={2}>{fmt(ivaCalculado)}</td>
-            </tr>
-          )}
           <tr style={{background:'var(--bg3)'}}>
             <td style={{padding:'6px 8px',fontWeight:700,fontSize:11,color:'var(--ac)'}}>VALOR TOTAL</td>
             <td style={{textAlign:'right',padding:'6px 8px',fontWeight:700,fontSize:12,color:'var(--ok)'}} colSpan={2}>{fmt(valorTotal)}</td>

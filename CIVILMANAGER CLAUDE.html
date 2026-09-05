@@ -628,11 +628,12 @@ function mergeItemsDeHijos(hijos,buildSnapCtx,calcItemValFor){
       }else{
         var key=it.num_item||it.id;
         if(!filaMap.has(key)){
-          var fila={num_item:it.num_item,descripcion:it.descripcion,unidad:it.unidad,capitulo:currentCap,cantidades:{},vr_unitarios:{}};
+          var fila={num_item:it.num_item,descripcion:it.descripcion,unidad:it.unidad,capitulo:currentCap,cantidades:{},vr_unitarios:{},unidades:{}};
           filaMap.set(key,fila);
           var arr=capMap.get(currentCap);if(arr)arr.push(fila);
         }
         filaMap.get(key).cantidades[h.id]=Number(it.cantidad)||0;
+        filaMap.get(key).unidades[h.id]=it.unidad||'';
         var cv=calcItemValFor(it,h,snapCtx);
         filaMap.get(key).vr_unitarios[h.id]=cv.vr_unit;
       }
@@ -9283,7 +9284,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
                 </colgroup>
             <thead>
               <tr style={{background:'var(--bg2)'}}>
-                <th colSpan={5} style={{padding:'4px 6px',borderBottom:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',fontWeight:700,color:'var(--tx)',textAlign:'center',fontSize:11}}>Item</th>
+                <th colSpan={5} style={{padding:'4px 6px',borderBottom:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',fontWeight:700,color:'var(--tx)',textAlign:'center',fontSize:11}}>Condiciones Generales</th>
                 {visHijos.map(function(h){return <th key={h.id} colSpan={2} style={{padding:'4px 6px',borderBottom:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',fontWeight:700,color:'var(--ac)',textAlign:'center',fontSize:10}}>{h.codigo}</th>})}
                 <th colSpan={2} style={{padding:'4px 6px',borderBottom:'1px solid var(--bdr)',fontWeight:700,color:'var(--warn)',textAlign:'center',fontSize:10}}>TOTALES</th>
               </tr>
@@ -9300,40 +9301,54 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
                   <React.Fragment key={cap.capitulo}>
                     <tr><td colSpan={totalColSpan} style={{padding:'3px 8px',background:'#1E3A5F',color:'#fff',fontWeight:700,fontSize:10}}>{cap.capitulo||'(Sin capítulo)'}</td></tr>
                     {cap.items.map(function(fila){
+                      /* Detectar si precios difieren entre hijos visibles */
                       var preciosHijos={};visHijos.forEach(function(h){preciosHijos[h.id]=fila.vr_unitarios[h.id]||0});
                       var preciosArr=visHijos.map(function(h){return preciosHijos[h.id]}).filter(function(v){return v>0});
                       var preciosDifieren=preciosArr.length>1&&!preciosArr.every(function(v){return v===preciosArr[0]});
-                      var vrUnit=0;for(var vi=0;vi<visHijos.length;vi++){var vp=fila.vr_unitarios[visHijos[vi].id];if(vp&&vp>0){vrUnit=vp;break}}
-                      var totCantFila=0,totVrFila=0;
-                      hijos.forEach(function(h){var c=fila.cantidades[h.id]||0;var v=fila.vr_unitarios[h.id]||0;totCantFila+=c;totVrFila+=c*v});
-                      return[
-                        <tr key={fila.num_item} style={{borderBottom:'1px solid var(--bdr)'}}>
+
+                      if(!preciosDifieren){
+                        /* ══ CASO 1: Todos con mismo precio → 1 fila fusionada ══ */
+                        var vrUnit=preciosArr[0]||0;
+                        var totCantFila=0,totVrFila=0;
+                        hijos.forEach(function(h){var c=fila.cantidades[h.id]||0;var v=fila.vr_unitarios[h.id]||0;totCantFila+=c;totVrFila+=c*v});
+                        return <tr key={fila.num_item} style={{borderBottom:'1px solid var(--bdr)'}}>
                           <td style={{padding:'2px 4px',textAlign:'center',color:'var(--tx3)'}}>{fila.num_item}</td>
                           <td style={{padding:'2px 4px',textAlign:'center',color:'var(--ac)',fontWeight:600,fontSize:9}}>{fila.num_item}</td>
                           <td style={{padding:'2px 4px',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}} title={fila.descripcion}>{fila.descripcion||''}</td>
                           <td style={{padding:'2px 4px',textAlign:'center'}}>{fila.unidad||''}</td>
                           <td style={{padding:'2px 4px',textAlign:'right'}}>{fmt(vrUnit)}</td>
                           {visHijos.map(function(h){
-                            var cant=fila.cantidades[h.id]||0;
-                            var vr=fila.vr_unitarios[h.id]||0;
-                            return[
-                              <td key={'c'+h.id+fila.num_item} style={{padding:'2px 4px',textAlign:'right',color:cant===0?'var(--tx3)':'var(--tx)'}}>{fmt(cant)}</td>,
-                              <td key={'v'+h.id+fila.num_item} style={{padding:'2px 4px',textAlign:'right',fontWeight:600,color:cant===0?'var(--tx3)':'var(--tx)'}}>{cant?fmt(vr*cant):'—'}</td>
-                            ];
+                            var cant=fila.cantidades[h.id]||0;var vr=fila.vr_unitarios[h.id]||0;
+                            return[<td key={'c'+h.id+fila.num_item} style={{padding:'2px 4px',textAlign:'right',color:cant===0?'var(--tx3)':'var(--tx)'}}>{fmt(cant)}</td>,
+                                   <td key={'v'+h.id+fila.num_item} style={{padding:'2px 4px',textAlign:'right',fontWeight:600,color:cant===0?'var(--tx3)':'var(--tx)'}}>{cant?fmt(vr*cant):'—'}</td>];
                           })}
                           <td style={{padding:'2px 4px',textAlign:'right',fontWeight:600,color:'var(--warn)'}}>{totCantFila?fmt(totCantFila):''}</td>
                           <td style={{padding:'2px 4px',textAlign:'right',fontWeight:700,color:'var(--warn)'}}>{totVrFila?fmt(totVrFila):''}</td>
-                        </tr>,
-                        preciosDifieren&&<tr key={fila.num_item+'_pv'} style={{borderBottom:'1px solid var(--bdr)',background:'rgba(255,200,50,.04)'}}>
-                          <td/><td/><td/><td/>
-                          <td style={{padding:'2px 4px',textAlign:'right',fontSize:9,color:'var(--warn)',fontWeight:600,fontStyle:'italic'}}>Vr.Unit:</td>
-                          {visHijos.map(function(h){
-                            var vp=preciosHijos[h.id];
-                            return[<td key={'pc'+h.id+fila.num_item}/>,<td key={'pv'+h.id+fila.num_item} style={{padding:'2px 4px',textAlign:'right',fontSize:9,color:vp?'var(--warn)':'var(--tx3)',fontWeight:600}}>{vp?fmt(vp):'—'}</td>];
-                          })}
-                          <td/><td/>
-                        </tr>
-                      ];
+                        </tr>;
+                      }else{
+                        /* ══ CASO 2: Precios diferentes → 1 fila por hijo ══ */
+                        return visHijos.filter(function(h){return preciosHijos[h.id]>0}).map(function(h,idx){
+                          var cant=fila.cantidades[h.id]||0;var vr=fila.vr_unitarios[h.id]||0;var esPrimera=idx===0;
+                          return <tr key={fila.num_item+(esPrimera?'':'_sub'+h.id)} style={{borderBottom:'1px solid var(--bdr)',background:esPrimera?'transparent':'rgba(255,200,50,.04)'}}>
+                            {esPrimera?<>
+                              <td style={{padding:'2px 4px',textAlign:'center',color:'var(--tx3)'}}>{fila.num_item}</td>
+                              <td style={{padding:'2px 4px',textAlign:'center',color:'var(--ac)',fontWeight:600,fontSize:9}}>{fila.num_item}</td>
+                              <td style={{padding:'2px 4px',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}} title={fila.descripcion}>{fila.descripcion||''}</td>
+                            </>:<><td style={{padding:'2px 4px'}}/><td style={{padding:'2px 4px'}}/><td style={{padding:'2px 4px'}}/></>}
+                            <td style={{padding:'2px 4px',textAlign:'center',fontSize:esPrimera?undefined:9,color:esPrimera?undefined:'var(--tx2)'}}>{fila.unidades[h.id]||''}</td>
+                            <td style={{padding:'2px 4px',textAlign:'right',fontSize:esPrimera?undefined:9,color:esPrimera?undefined:'var(--warn)',fontWeight:esPrimera?undefined:600}}>{fmt(vr)}</td>
+                            {visHijos.map(function(h2){
+                              if(h2.id===h.id){
+                                return[<td key={'c'+h2.id+fila.num_item} style={{padding:'2px 4px',textAlign:'right'}}>{fmt(cant)}</td>,
+                                       <td key={'v'+h2.id+fila.num_item} style={{padding:'2px 4px',textAlign:'right',fontWeight:600}}>{cant?fmt(vr*cant):'—'}</td>];
+                              }
+                              return[<td key={'c'+h2.id+fila.num_item} style={{padding:'2px 4px'}}/>,<td key={'v'+h2.id+fila.num_item} style={{padding:'2px 4px'}}/>];
+                            })}
+                            <td style={{padding:'2px 4px',textAlign:'right',fontWeight:600,color:'var(--warn)'}}>{cant?fmt(cant):''}</td>
+                            <td style={{padding:'2px 4px',textAlign:'right',fontWeight:700,color:'var(--warn)'}}>{cant?fmt(vr*cant):''}</td>
+                          </tr>;
+                        });
+                      }
                     })}
                   </React.Fragment>
                 );

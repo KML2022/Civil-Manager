@@ -9610,12 +9610,6 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
           </div>
         </div>
       </div>
-    </div>
-    {/* Panel derecho — Resumen Financiero en tiempo real */}
-    <div style={{width:300,flexShrink:0,display:'flex',flexDirection:'column',gap:8,height:'100%',overflowY:'auto'}}>
-      <ResumenLateralFormulario pres={pres} calcItemVal={calcItemVal} data={data} presupuestos={presupuestos} selPresIdx={idxPres} onChange={onChange} readOnly={readOnly}/>
-    </div>
-    </div>
       {fo&&
         <div style={{flexShrink:0,display:'flex',alignItems:'center',gap:10,padding:'6px 12px',background:fo.archivo_adjunto?'rgba(74,222,128,.07)':'rgba(230,168,0,.08)',border:'1px solid '+(fo.archivo_adjunto?'rgba(74,222,128,.25)':'rgba(230,168,0,.3)'),borderRadius:6,width:'100%',boxSizing:'border-box'}}>
           <span style={{fontSize:11,fontWeight:700,color:fo.archivo_adjunto?'var(--ok)':'var(--warn)'}}>{fo.archivo_adjunto?'✓ Formulario cargado':'⚠ Ítems importados sin archivo adjunto'}</span>
@@ -9848,6 +9842,11 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
         </div>
         );
       })()}
+    </div>
+    {/* Panel derecho — Resumen Financiero en tiempo real */}
+    <div style={{width:300,flexShrink:0,display:'flex',flexDirection:'column',gap:8,height:'100%',overflowY:'auto'}}>
+      <ResumenLateralFormulario pres={pres} calcItemVal={calcItemVal} data={data} presupuestos={presupuestos} selPresIdx={idxPres} onChange={onChange} readOnly={readOnly}/>
+    </div>
     </div>
   );
 }

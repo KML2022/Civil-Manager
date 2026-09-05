@@ -9240,7 +9240,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
                             <td style={{padding:'2px 6px',textAlign:'center',color:'var(--ac)',fontWeight:600}}>{it.num_item||''}</td>
                             <td style={{padding:'2px 6px',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{it.descripcion||''}</td>
                             <td style={{padding:'2px 6px',textAlign:'center'}}>{it.unidad||''}</td>
-                            <td style={{padding:'2px 6px',textAlign:'right'}}>{Number(it.cantidad)||0}</td>
+                            <td style={{padding:'2px 6px',textAlign:'right'}}>{fmt(it.cantidad)}</td>
                             <td style={{padding:'2px 6px',textAlign:'right'}}>{fmt(cv.vr_unit)}</td>
                             <td style={{padding:'2px 6px',textAlign:'right',fontWeight:600}}>{fmt(cv.vr_total)}</td>
                           </tr>
@@ -9314,11 +9314,11 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
                             var cant=fila.cantidades[h.id]||0;
                             var vr=fila.vr_unitarios[h.id]||0;
                             return[
-                              <td key={'c'+h.id+fila.num_item} style={{padding:'2px 4px',textAlign:'right',color:cant===0?'var(--tx3)':'var(--tx)'}}>{cant}</td>,
+                              <td key={'c'+h.id+fila.num_item} style={{padding:'2px 4px',textAlign:'right',color:cant===0?'var(--tx3)':'var(--tx)'}}>{fmt(cant)}</td>,
                               <td key={'v'+h.id+fila.num_item} style={{padding:'2px 4px',textAlign:'right',fontWeight:600,color:cant===0?'var(--tx3)':'var(--tx)'}}>{cant?fmt(vr*cant):'—'}</td>
                             ];
                           })}
-                          <td style={{padding:'2px 4px',textAlign:'right',fontWeight:600,color:'var(--warn)'}}>{totCantFila||''}</td>
+                          <td style={{padding:'2px 4px',textAlign:'right',fontWeight:600,color:'var(--warn)'}}>{totCantFila?fmt(totCantFila):''}</td>
                           <td style={{padding:'2px 4px',textAlign:'right',fontWeight:700,color:'var(--warn)'}}>{totVrFila?fmt(totVrFila):''}</td>
                         </tr>
                       );

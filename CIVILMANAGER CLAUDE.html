@@ -611,6 +611,36 @@ function recalcCapitulos(arr){
   });
 }
 
+/* Fusiona items de multiples subproyectos en una lista unica ordenada por capitulo.
+   Retorna {filaMap:num_item->fila, capitulos:[{capitulo,items:[fila]}]}
+   Cada fila tiene: {num_item, descripcion, unidad, capitulo, cantidades:{hijo_id:cantidad}, vr_unitarios:{hijo_id:vr}} */
+function mergeItemsDeHijos(hijos,buildSnapCtx,calcItemValFor){
+  var filaMap=new Map();
+  var capOrder=[];
+  var capMap=new Map();
+  hijos.forEach(function(h){
+    var snapCtx=buildSnapCtx(h);
+    var currentCap='';
+    (h.items||[]).forEach(function(it){
+      if(esCapituloFinal(it)){
+        currentCap=it.descripcion||'';
+        if(!capMap.has(currentCap)){capMap.set(currentCap,[]);capOrder.push(currentCap)}
+      }else{
+        var key=it.num_item||it.id;
+        if(!filaMap.has(key)){
+          var fila={num_item:it.num_item,descripcion:it.descripcion,unidad:it.unidad,capitulo:currentCap,cantidades:{},vr_unitarios:{}};
+          filaMap.set(key,fila);
+          var arr=capMap.get(currentCap);if(arr)arr.push(fila);
+        }
+        filaMap.get(key).cantidades[h.id]=Number(it.cantidad)||0;
+        var cv=calcItemValFor(it,h,snapCtx);
+        filaMap.get(key).vr_unitarios[h.id]=cv.vr_unit;
+      }
+    });
+  });
+  return{filaMap:filaMap,capitulos:capOrder.map(function(c){return{capitulo:c,items:capMap.get(c)||[]}})};
+}
+
 function autoDetectarFilaInicio(filas){
   /* Busca la transicion de encabezados a datos: fila con >=3 celdas seguida de fila con >=2 celdas.
      Esto maneja formularios donde capitulos (2 celdas) alternan con actividades (4+ celdas). */
@@ -8040,17 +8070,31 @@ function PresEntregablesPanel({pres,presupuestos,calcResumenPres,calcItemVal,cal
           <div style={{padding:'6px 10px',background:'var(--bg3)',borderBottom:'1px solid var(--bdr)',fontSize:12,fontWeight:700,color:'var(--ac)'}}>VISTA PREVIA</div>
           <div style={{padding:12,fontSize:11}}>
             <div style={{fontWeight:700,fontSize:13,marginBottom:6}}>{pres.nombre||'(sin nombre)'}</div>
+            {esConsolidado&&<div style={{fontSize:9,padding:'2px 8px',borderRadius:3,border:'1px solid var(--ac)',background:'rgba(77,143,247,.08)',color:'var(--ac)',fontWeight:700,display:'inline-block',marginBottom:8}}>Consolidado — {hijos.length} sub(s)</div>}
             <div style={{color:'var(--tx2)',marginBottom:2}}>Entidad: {pres.entidad||'-'}</div>
             <div style={{color:'var(--tx2)',marginBottom:2}}>Contrato: {pres.contrato||'-'}</div>
             <div style={{color:'var(--tx2)',marginBottom:10}}>Ciudad: {pres.ciudad||'-'}{pres.departamento?(' / '+pres.departamento):''}</div>
-            <table style={{width:'100%',fontSize:10}}>
+            {esConsolidado?(function(){
+              var totCD=0,totAIU=0,totIVA=0,totVT=0;
+              hijos.forEach(function(h){var rh=calcResumenFor(h);totCD+=rh.cdTotal;totAIU+=rh.aiuTotal;totIVA+=rh.ivaUtilidad;totVT+=rh.valorTotal});
+              return(
+                <table style={{width:'100%',fontSize:10}}>
+                  <tbody>
+                    <tr><td style={{padding:'3px 0',color:'var(--tx2)'}}>Costo Directo</td><td style={{padding:'3px 0',textAlign:'right'}}>{fmt(totCD)}</td></tr>
+                    <tr><td style={{padding:'3px 0',color:'var(--tx2)'}}>AIU</td><td style={{padding:'3px 0',textAlign:'right'}}>{fmt(totAIU)}</td></tr>
+                    <tr><td style={{padding:'3px 0',color:'var(--tx2)'}}>IVA</td><td style={{padding:'3px 0',textAlign:'right'}}>{fmt(totIVA)}</td></tr>
+                    <tr style={{borderTop:'1px solid var(--bdr)'}}><td style={{padding:'6px 0',fontWeight:700,color:'var(--ac)'}}>VALOR TOTAL</td><td style={{padding:'6px 0',textAlign:'right',fontWeight:700,color:'var(--ok)'}}>{fmt(totVT)}</td></tr>
+                  </tbody>
+                </table>
+              );
+            })():(<table style={{width:'100%',fontSize:10}}>
               <tbody>
                 <tr><td style={{padding:'3px 0',color:'var(--tx2)'}}>Costo Directo</td><td style={{padding:'3px 0',textAlign:'right'}}>{fmt(r.cdTotal)}</td></tr>
                 <tr><td style={{padding:'3px 0',color:'var(--tx2)'}}>AIU ({r.aiuPct.toFixed(2)}%)</td><td style={{padding:'3px 0',textAlign:'right'}}>{fmt(r.aiuTotal)}</td></tr>
                 <tr><td style={{padding:'3px 0',color:'var(--tx2)'}}>IVA sobre Utilidad</td><td style={{padding:'3px 0',textAlign:'right'}}>{fmt(r.ivaUtilidad)}</td></tr>
                 <tr style={{borderTop:'1px solid var(--bdr)'}}><td style={{padding:'6px 0',fontWeight:700,color:'var(--ac)'}}>VALOR TOTAL</td><td style={{padding:'6px 0',textAlign:'right',fontWeight:700,color:'var(--ok)'}}>{fmt(r.valorTotal)}</td></tr>
               </tbody>
-            </table>
+            </table>)}
           </div>
         </div>
       </div>
@@ -8497,6 +8541,49 @@ var exportarFormularioLlenoGlobal=async function(pres,calcItemVal,setPendientesF
 var FORM_TABLE_MAXW=1145; /* debe igualar la suma del colgroup de la tabla de items (fase revision) */
 var SCROLLBAR_W=16; /* ancho tipico de scrollbar vertical webkit/blink; xl-scroll usa scrollbarGutter:'stable' para reservarlo siempre, asi esta resta es valida haya o no overflow vertical */
 var FORM_TABLE_INNERW=FORM_TABLE_MAXW-2-SCROLLBAR_W; /* xl-wrap tiene border 1px+1px; tabla/footer deben usar el ancho interno real, no el externo, para no forzar scroll horizontal */
+
+/* Resumen Económico consolidado para proyecto contenedor (padre con subproyectos) */
+function ResumenConsolidadoHijos({hijos,resHijos,totCD,totAIU,totIVA,totVT}){
+  return(
+    <div style={{border:'1px solid var(--bdr)',borderRadius:4,overflow:'hidden'}}>
+      <div style={{padding:'6px 10px',background:'var(--bg3)',borderBottom:'1px solid var(--bdr)',fontSize:11,fontWeight:700,color:'var(--ac)',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+        <span>RESUMEN CONSOLIDADO</span>
+      </div>
+      <div style={{overflowY:'auto',maxHeight:'calc(100vh - 320px)'}}>
+        <table style={{width:'100%',fontSize:10,tableLayout:'fixed',borderCollapse:'collapse'}}>
+          <colgroup><col style={{width:'45%'}}/><col style={{width:'20%'}}/><col style={{width:'20%'}}/><col style={{width:'15%'}}/></colgroup>
+          <thead><tr style={{background:'var(--bg2)'}}>
+            <th style={{padding:'3px 6px',borderBottom:'1px solid var(--bdr)',fontWeight:600,color:'var(--tx2)',textAlign:'left',fontSize:9}}>Sub-proyecto</th>
+            <th style={{padding:'3px 6px',borderBottom:'1px solid var(--bdr)',fontWeight:600,color:'var(--tx2)',textAlign:'right',fontSize:9}}>CD</th>
+            <th style={{padding:'3px 6px',borderBottom:'1px solid var(--bdr)',fontWeight:600,color:'var(--tx2)',textAlign:'right',fontSize:9}}>AIU</th>
+            <th style={{padding:'3px 6px',borderBottom:'1px solid var(--bdr)',fontWeight:600,color:'var(--tx2)',textAlign:'right',fontSize:9}}>Total</th>
+          </tr></thead>
+          <tbody>
+            {resHijos.map(function(r){
+              return(
+                <tr key={r.hijo.id} style={{borderBottom:'1px solid var(--bdr)'}}>
+                  <td style={{padding:'4px 6px',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',fontWeight:600}} title={r.hijo.codigo+' — '+r.hijo.nombre}>
+                    <span style={{color:'var(--ac)'}}>{r.hijo.codigo}</span> {r.hijo.nombre||'—'}
+                  </td>
+                  <td style={{padding:'4px 6px',textAlign:'right'}}>{fmt(r.res.cdTotal)}</td>
+                  <td style={{padding:'4px 6px',textAlign:'right'}}>{fmt(r.res.aiuTotal)}</td>
+                  <td style={{padding:'4px 6px',textAlign:'right',fontWeight:700,color:'var(--ok)'}}>{fmt(r.res.valorTotal)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+          <tfoot><tr style={{background:'var(--bg3)',fontWeight:700}}>
+            <td style={{padding:'5px 6px',borderTop:'2px solid var(--bdr)',fontSize:10}}>TOTAL CONSOLIDADO</td>
+            <td style={{padding:'5px 6px',borderTop:'2px solid var(--bdr)',textAlign:'right',fontSize:10}}>{fmt(totCD)}</td>
+            <td style={{padding:'5px 6px',borderTop:'2px solid var(--bdr)',textAlign:'right',fontSize:10}}>{fmt(totAIU)}</td>
+            <td style={{padding:'5px 6px',borderTop:'2px solid var(--bdr)',textAlign:'right',fontSize:11,color:'var(--ok)'}}>{fmt(totVT)}</td>
+          </tr></tfoot>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 function ResumenLateralFormulario({pres,calcItemVal,data,presupuestos,selPresIdx,onChange,readOnly}){
   var[editandoAIU,setEditandoAIU]=useState(false);
   var config=data.config||{};
@@ -8598,7 +8685,7 @@ function ResumenLateralFormulario({pres,calcItemVal,data,presupuestos,selPresIdx
   );
 }
 
-function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModal,setApuModal,apus,categorias_apu,calcItemVal,setTab,estadoLabel,estadoColor,cargosCalc,cargosCalcSnap,personMap,esHora,eqMap,insMap,factorPrest,factorPrestSnap,usarFpEnApu,equipos,insumos,apusBasico}){
+function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModal,setApuModal,apus,categorias_apu,calcItemVal,setTab,estadoLabel,estadoColor,cargosCalc,cargosCalcSnap,personMap,esHora,eqMap,insMap,factorPrest,factorPrestSnap,usarFpEnApu,equipos,insumos,apusBasico,calcResumenFor,calcItemValFor,buildSnapCtx}){
   var faseState=useState('inicio');var fase=faseState[0],setFase=faseState[1];
   var tipoPrecioFormularioState=useState('apu');var tipoPrecioFormulario=tipoPrecioFormularioState[0],setTipoPrecioFormulario=tipoPrecioFormularioState[1];
   var alarmasPrecioFaltanteState=useState(null);var alarmasPrecioFaltante=alarmasPrecioFaltanteState[0],setAlarmasPrecioFaltante=alarmasPrecioFaltanteState[1];
@@ -8621,6 +8708,11 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
   var herrPct=data.config&&data.config.herr_pct!=null?Number(data.config.herr_pct):5;
   var fileRef=useRef(null);
   var presId=pres&&pres.id;
+
+  /* ── Detección de proyecto contenedor (padre con subproyectos) ── */
+  var hijos=(presupuestos||[]).filter(function(p){return p.parent_id===pres.id});
+  var esContenedor=hijos.length>0;
+  var vistaPadreState=useState('subproyectos');var vistaPadre=vistaPadreState[0],setVistaPadre=vistaPadreState[1]; /* 'subproyectos' | 'matriz' */
 
   useEffect(function(){
     setFase(pres&&(pres.formulario_original||(pres.items||[]).length>0)?'revision':'inicio');
@@ -9306,6 +9398,161 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
     );
   }
 
+  /* ═══════════════════ VISTA PROYECTO CONTENEDOR (padre con subproyectos) ═══════════════════ */
+  if(esContenedor){
+    var resHijos=hijos.map(function(h){return{hijo:h,res:calcResumenFor(h)}});
+    var totCD=0,totAIU=0,totIVA=0,totVT=0;
+    resHijos.forEach(function(r){totCD+=r.res.cdTotal;totAIU+=r.res.aiuTotal;totIVA+=r.res.ivaUtilidad;totVT+=r.res.valorTotal});
+    var merged=mergeItemsDeHijos(hijos,buildSnapCtx,calcItemValFor);
+
+    var toggleBtn=function(label,mode){
+      var activo=vistaPadre===mode;
+      return <button key={mode} onClick={function(){setVistaPadre(mode)}} style={{padding:'4px 12px',fontSize:10,border:'1px solid '+(activo?'var(--ok)':'var(--bdr)'),borderRadius:4,background:activo?'rgba(74,222,128,.1)':'transparent',color:activo?'var(--ok)':'var(--tx2)',cursor:'pointer',fontWeight:activo?700:400}}>{label}</button>;
+    };
+
+    return(
+      <div style={{display:'flex',flexDirection:'row',gap:12,height:'calc(100vh - 150px)',minHeight:0,minWidth:0,alignItems:'flex-start'}}>
+      <div style={{maxWidth:FORM_TABLE_MAXW,flex:'1 1 0',display:'flex',flexDirection:'column',gap:8,height:'100%',minHeight:0,minWidth:0}}>
+        <div style={{flexShrink:0,display:'flex',flexDirection:'column',gap:8}}>
+          <TituloSubTab pres={pres} presupuestos={presupuestos} tituloSubTab="Formulario Consolidado" extra={<span style={{fontSize:9,padding:'2px 8px',borderRadius:3,border:'1px solid var(--ac)',background:'rgba(77,143,247,.08)',color:'var(--ac)',fontWeight:700}}>{hijos.length} sub-proyecto(s)</span>}/>
+          <div style={{display:'flex',gap:6,alignItems:'center'}}>
+            {toggleBtn('📋 Vista por Subproyecto','subproyectos')}
+            {toggleBtn('📊 Vista Matriz','matriz')}
+          </div>
+        </div>
+
+        {/* ── OPCIÓN 1: Vista por Subproyecto ── */}
+        {vistaPadre==='subproyectos'&&<div className="xl-scroll" style={{flex:1,overflowY:'auto',display:'flex',flexDirection:'column',gap:10}}>
+          {resHijos.map(function(r){
+            var h=r.hijo,resH=r.res;
+            var hItems=(h.items||[]).filter(function(it){return !esCapituloFinal(it)});
+            return(
+              <div key={h.id} style={{border:'1px solid var(--bdr)',borderRadius:4,overflow:'hidden'}}>
+                <div style={{padding:'6px 10px',background:'var(--bg3)',borderBottom:'1px solid var(--bdr)',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                  <span style={{fontSize:11,fontWeight:700,color:'var(--tx)',display:'flex',alignItems:'center',gap:6}}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--ok)" strokeWidth="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                    {h.codigo} — {h.nombre||'(sin nombre)'}
+                  </span>
+                  <span style={{fontSize:9,color:'var(--tx2)'}}>{hItems.length} items · {fmt(resH.cdTotal)}</span>
+                </div>
+                <div style={{overflowX:'auto'}}>
+                  <table style={{width:'100%',fontSize:10,tableLayout:'fixed',borderCollapse:'collapse'}}>
+                    <colgroup><col style={{width:40}}/><col style={{width:80}}/><col style={{width:'auto'}}/><col style={{width:60}}/><col style={{width:80}}/><col style={{width:90}}/><col style={{width:100}}/></colgroup>
+                    <thead><tr style={{background:'var(--bg2)'}}>
+                      {['#','Item','Descripción','UN','Cant.','Vr. Unit','Vr. Total'].map(function(h2){return <th key={h2} style={{padding:'3px 6px',borderBottom:'1px solid var(--bdr)',fontWeight:700,color:'var(--tx2)',textAlign:h2==='Descripción'?'left':'center',fontSize:9,position:'sticky',top:0,zIndex:2,background:'var(--bg2)'}}>{h2}</th>})}
+                    </tr></thead>
+                    <tbody>
+                      {(h.items||[]).map(function(it,idx){
+                        if(esCapituloFinal(it)){
+                          return <tr key={it.id}><td colSpan={7} style={{padding:'3px 8px',background:'#1E3A5F',color:'#fff',fontWeight:700,fontSize:10}}>{it.descripcion}</td></tr>;
+                        }
+                        var cv=calcItemValFor(it,h,buildSnapCtx(h));
+                        return(
+                          <tr key={it.id} style={{borderBottom:'1px solid var(--bdr)'}}>
+                            <td style={{padding:'2px 6px',textAlign:'center',color:'var(--tx3)'}}>{idx+1}</td>
+                            <td style={{padding:'2px 6px',textAlign:'center',color:'var(--ac)',fontWeight:600}}>{it.num_item||''}</td>
+                            <td style={{padding:'2px 6px',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{it.descripcion||''}</td>
+                            <td style={{padding:'2px 6px',textAlign:'center'}}>{it.unidad||''}</td>
+                            <td style={{padding:'2px 6px',textAlign:'right'}}>{Number(it.cantidad)||0}</td>
+                            <td style={{padding:'2px 6px',textAlign:'right'}}>{fmt(cv.vr_unit)}</td>
+                            <td style={{padding:'2px 6px',textAlign:'right',fontWeight:600}}>{fmt(cv.vr_total)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                <div style={{padding:'4px 10px',background:'var(--bg2)',borderTop:'1px solid var(--bdr)',display:'flex',gap:16,fontSize:10}}>
+                  <span>CD: <b>{fmt(resH.cdTotal)}</b></span>
+                  <span>AIU: <b>{fmt(resH.aiuTotal)}</b></span>
+                  {resH.tieneIva&&<span>IVA: <b>{fmt(resH.ivaUtilidad)}</b></span>}
+                  <span style={{color:'var(--ok)',fontWeight:700}}>Total: {fmt(resH.valorTotal)}</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>}
+
+        {/* ── OPCIÓN 2: Vista Matriz ── */}
+        {vistaPadre==='matriz'&&<div className="xl-scroll" style={{flex:1,overflow:'auto'}}>
+          <table style={{width:'100%',fontSize:10,tableLayout:'fixed',borderCollapse:'collapse',border:'1px solid var(--bdr)'}}>
+            <colgroup>
+              <col style={{width:40}}/><col style={{width:80}}/><col style={{width:260}}/><col style={{width:50}}/><col style={{width:70}}/>
+              {hijos.map(function(){return [<col key="c" style={{width:60}}/>,<col key="v" style={{width:80}}>]})}
+            </colgroup>
+            <thead>
+              <tr style={{background:'var(--bg2)'}}>
+                <th colSpan={5} style={{padding:'4px 6px',borderBottom:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',fontWeight:700,color:'var(--tx)',textAlign:'center',fontSize:11}}>Item</th>
+                {hijos.map(function(h){return <th key={h.id} colSpan={2} style={{padding:'4px 6px',borderBottom:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',fontWeight:700,color:'var(--ac)',textAlign:'center',fontSize:10}}>{h.codigo}</th>})}
+              </tr>
+              <tr style={{background:'var(--bg3)'}}>
+                {['#','Item','Descripción','UN','Vr.Unit'].map(function(h2){return <th key={h2} style={{padding:'2px 6px',borderBottom:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',fontWeight:600,color:'var(--tx2)',textAlign:'center',fontSize:9,position:'sticky',top:0,zIndex:2,background:'var(--bg3)'}}>{h2}</th>})}
+                {hijos.map(function(h){return [<th key={'c'+h.id} style={{padding:'2px 4px',borderBottom:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',fontWeight:600,color:'var(--tx2)',textAlign:'center',fontSize:9,position:'sticky',top:0,zIndex:2,background:'var(--bg3)'}}>Cant</th>,<th key={'v'+h.id} style={{padding:'2px 4px',borderBottom:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',fontWeight:600,color:'var(--tx2)',textAlign:'center',fontSize:9,position:'sticky',top:0,zIndex:2,background:'var(--bg3)'}}>Vr Parc</th>]})}
+              </tr>
+            </thead>
+            <tbody>
+              {merged.capitulos.map(function(cap){
+                return(
+                  <React.Fragment key={cap.capitulo}>
+                    <tr><td colSpan={5+hijos.length*2} style={{padding:'3px 8px',background:'#1E3A5F',color:'#fff',fontWeight:700,fontSize:10}}>{cap.capitulo||'(Sin capítulo)'}</td></tr>
+                    {cap.items.map(function(fila){
+                      var primerHijoId=hijos[0]&&hijos[0].id;
+                      var vrUnit=fila.vr_unitarios[primerHijoId]||0;
+                      return(
+                        <tr key={fila.num_item} style={{borderBottom:'1px solid var(--bdr)'}}>
+                          <td style={{padding:'2px 4px',textAlign:'center',color:'var(--tx3)'}}>{fila.num_item}</td>
+                          <td style={{padding:'2px 4px',textAlign:'center',color:'var(--ac)',fontWeight:600,fontSize:9}}>{fila.num_item}</td>
+                          <td style={{padding:'2px 4px',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}} title={fila.descripcion}>{fila.descripcion||''}</td>
+                          <td style={{padding:'2px 4px',textAlign:'center'}}>{fila.unidad||''}</td>
+                          <td style={{padding:'2px 4px',textAlign:'right'}}>{fmt(vrUnit)}</td>
+                          {hijos.map(function(h){
+                            var cant=fila.cantidades[h.id]||0;
+                            var vr=fila.vr_unitarios[h.id]||0;
+                            return[
+                              <td key={'c'+h.id+fila.num_item} style={{padding:'2px 4px',textAlign:'right',color:cant===0?'var(--tx3)':'var(--tx)'}}>{cant}</td>,
+                              <td key={'v'+h.id+fila.num_item} style={{padding:'2px 4px',textAlign:'right',fontWeight:600,color:cant===0?'var(--tx3)':'var(--tx)'}}>{cant?fmt(vr*cant):'—'}</td>
+                            ];
+                          })}
+                        </tr>
+                      );
+                    })}
+                  </React.Fragment>
+                );
+              })}
+            </tbody>
+            <tfoot>
+              <tr style={{background:'var(--bg2)',fontWeight:700}}>
+                <td colSpan={5} style={{padding:'4px 8px',borderTop:'2px solid var(--bdr)',textAlign:'right',fontSize:10}}>TOTAL por sub-proyecto:</td>
+                {hijos.map(function(h){
+                  var rh=calcResumenFor(h);
+                  return[
+                    <td key={'tc'+h.id} style={{padding:'4px 6px',borderTop:'2px solid var(--bdr)',textAlign:'right',fontSize:10}}/>,
+                    <td key={'tv'+h.id} style={{padding:'4px 6px',borderTop:'2px solid var(--bdr)',textAlign:'right',fontSize:10,color:'var(--ok)',fontWeight:700}}>{fmt(rh.valorTotal)}</td>
+                  ];
+                })}
+              </tr>
+            </tfoot>
+          </table>
+        </div>}
+
+        {/* Totales consolidados */}
+        <div style={{flexShrink:0,padding:'6px 10px',background:'var(--bg3)',border:'1px solid var(--bdr)',borderRadius:4,display:'flex',gap:16,fontSize:10,alignItems:'center'}}>
+          <span style={{fontWeight:700,color:'var(--ac)',fontSize:11}}>CONSOLIDADO:</span>
+          <span>CD: <b style={{color:'var(--tx)'}}>{fmt(totCD)}</b></span>
+          <span>AIU: <b style={{color:'var(--tx)'}}>{fmt(totAIU)}</b></span>
+          <span>IVA: <b style={{color:'var(--tx)'}}>{fmt(totIVA)}</b></span>
+          <span style={{color:'var(--ok)',fontWeight:700,fontSize:12}}>Total: {fmt(totVT)}</span>
+        </div>
+      </div>
+
+      {/* Resumen lateral consolidado */}
+      <div style={{width:300,flexShrink:0}}>
+        <ResumenConsolidadoHijos hijos={hijos} resHijos={resHijos} totCD={totCD} totAIU={totAIU} totIVA={totIVA} totVT={totVT}/>
+      </div>
+      </div>
+    );
+  }
+
   /* fase === 'revision': tabla unica de items, sea que vengan de importar Excel o se hayan creado a mano */
   var itemsArr=pres.items||[];
   var fo=pres.formulario_original;
@@ -9764,7 +10011,7 @@ function etiquetaFirma(firma){return FIRMA_LABEL[firma]||'⚠ Múltiples diferen
 
 function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
   cargosCalcSnap,cuadrillasCalcSnap,equiposSnapEfectivo,insumosSnapEfectivo,factorPrestSnap,personMapSnap,
-  eqMapSnap,insMapSnap,herrPct,usarFpEnApu,esHora,abCalcList,apusBasico,provMap,_unidades,cambiarPerfilPais,estadoLabel,estadoColor,setTab}){
+  eqMapSnap,insMapSnap,herrPct,usarFpEnApu,esHora,abCalcList,apusBasico,provMap,_unidades,cambiarPerfilPais,estadoLabel,estadoColor,setTab,calcResumenFor,calcItemValFor,buildSnapCtx}){
 
   var[tipo,setTipo]=useState('parametros');
   var[fpRowEditIdx,setFpRowEditIdx]=useState(null);
@@ -9822,6 +10069,57 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
   },[panelHuerfanos]);
 
   if(!pres)return <PresBannerProyecto pres={pres} presupuestos={presupuestos} setTab={setTab}/>;
+
+  /* ── Vista para proyecto contenedor (padre con subproyectos): solo lectura ── */
+  var hijosCat=(presupuestos||[]).filter(function(p){return p.parent_id===pres.id});
+  if(hijosCat.length>0){
+    var resHijosCat=hijosCat.map(function(h){return{hijo:h,res:calcResumenFor(h)}});
+    return(
+      <div style={{display:'flex',flexDirection:'column',gap:8,height:'calc(100vh - 150px)',minHeight:0}}>
+        <TituloSubTab pres={pres} presupuestos={presupuestos} tituloSubTab="Recursos del Proyecto" extra={<span style={{fontSize:9,padding:'2px 8px',borderRadius:3,border:'1px solid var(--ac)',background:'rgba(77,143,247,.08)',color:'var(--ac)',fontWeight:700}}>Proyecto contenedor — {hijosCat.length} sub(s)</span>}/>
+        <div style={{flex:1,display:'flex',flexDirection:'column',gap:12}}>
+          {/* Mensaje informativo */}
+          <div style={{padding:'12px 16px',background:'rgba(77,143,247,.06)',border:'1px solid rgba(77,143,247,.2)',borderRadius:6,display:'flex',alignItems:'center',gap:10}}>
+            <span style={{fontSize:20}}>📦</span>
+            <div>
+              <div style={{fontSize:11,fontWeight:700,color:'var(--ac)',marginBottom:2}}>Gestión de recursos por sub-proyecto</div>
+              <div style={{fontSize:10,color:'var(--tx2)'}}>Los recursos (insumos, equipos, APUs, etc.) se gestionan individualmente en cada sub-proyecto. Seleccione un sub-proyecto desde el Catálogo para editar sus recursos.</div>
+            </div>
+          </div>
+          {/* Tabla resumen por subproyecto */}
+          <div style={{border:'1px solid var(--bdr)',borderRadius:4,overflow:'hidden',flex:1}}>
+            <div style={{padding:'6px 10px',background:'var(--bg3)',borderBottom:'1px solid var(--bdr)',fontSize:11,fontWeight:700,color:'var(--ac)'}}>Recursos por sub-proyecto</div>
+            <table style={{width:'100%',fontSize:10,tableLayout:'fixed',borderCollapse:'collapse'}}>
+              <colgroup><col style={{width:'40%'}}/><col style={{width:60}}/><col style={{width:60}}/><col style={{width:60}}/><col style={{width:60}}/><col style={{width:60}}/></colgroup>
+              <thead><tr style={{background:'var(--bg2)'}}>
+                <th style={{padding:'3px 6px',borderBottom:'1px solid var(--bdr)',fontWeight:600,color:'var(--tx2)',textAlign:'left',fontSize:9}}>Sub-proyecto</th>
+                <th style={{padding:'3px 6px',borderBottom:'1px solid var(--bdr)',fontWeight:600,color:'var(--tx2)',textAlign:'center',fontSize:9}}>Insumos</th>
+                <th style={{padding:'3px 6px',borderBottom:'1px solid var(--bdr)',fontWeight:600,color:'var(--tx2)',textAlign:'center',fontSize:9}}>Equipos</th>
+                <th style={{padding:'3px 6px',borderBottom:'1px solid var(--bdr)',fontWeight:600,color:'var(--tx2)',textAlign:'center',fontSize:9}}>Cargos</th>
+                <th style={{padding:'3px 6px',borderBottom:'1px solid var(--bdr)',fontWeight:600,color:'var(--tx2)',textAlign:'center',fontSize:9}}>Cuadrillas</th>
+                <th style={{padding:'3px 6px',borderBottom:'1px solid var(--bdr)',fontWeight:600,color:'var(--tx2)',textAlign:'center',fontSize:9}}>APUs</th>
+              </tr></thead>
+              <tbody>
+                {hijosCat.map(function(h){
+                  return(
+                    <tr key={h.id} style={{borderBottom:'1px solid var(--bdr)'}}>
+                      <td style={{padding:'4px 6px',fontWeight:600}}><span style={{color:'var(--ac)'}}>{h.codigo}</span> {h.nombre||'—'}</td>
+                      <td style={{padding:'4px 6px',textAlign:'center'}}>{(h.insumos_snap||[]).length||<span style={{color:'var(--tx3)'}}>global</span>}</td>
+                      <td style={{padding:'4px 6px',textAlign:'center'}}>{(h.equipos_snap||[]).length||<span style={{color:'var(--tx3)'}}>global</span>}</td>
+                      <td style={{padding:'4px 6px',textAlign:'center'}}>{(h.cargos_snap||[]).length||<span style={{color:'var(--tx3)'}}>global</span>}</td>
+                      <td style={{padding:'4px 6px',textAlign:'center'}}>{(h.cuadrillas_snap||[]).length||<span style={{color:'var(--tx3)'}}>global</span>}</td>
+                      <td style={{padding:'4px 6px',textAlign:'center'}}>{(h.apus_snap||[]).length||<span style={{color:'var(--tx3)'}}>global</span>}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   var esEditable=pres.estado!=='cerrado'; // pestaña Parametros: editable en borrador Y en_revision, solo cerrado bloquea
   var adaptado=crearDataAdapterProyecto(pres,data,presupuestos,selPresIdx,onChange);
   var onChangeSnap=esEditable?adaptado.onChange:function(){showToast('Presupuesto cerrado: solo lectura, no se pueden guardar cambios.',{type:'warn'})};
@@ -11439,9 +11737,9 @@ function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,i
   /* Tab 11 reservado — no existe en PRES_NAV pero puede llegar desde IDB
      antiguo o estado guardado. Se redirige a tab 9 (Catálogo de Proyectos). */
   var tabEfectivo=(tab===11)?9:tab;
-  var presContent=tabEfectivo===10?<PresFormularioPanel pres={pres} presupuestos={presupuestos} selPresIdx={selFinal} data={data} onChange={onChange} apuModal={apuModal} setApuModal={setApuModal} apus={apus} categorias_apu={categorias_apu} calcItemVal={calcItemVal} setTab={setTab} estadoLabel={estadoLabel} estadoColor={estadoColor} cargosCalc={cargosCalc} cargosCalcSnap={cargosCalcSnap} personMap={personMap} esHora={esHora} eqMap={eqMap} insMap={insMap} factorPrest={factorPrest} factorPrestSnap={factorPrestSnap} usarFpEnApu={usarFpEnApu} equipos={equipos} insumos={insumos} apusBasico={apusBasico}/>
+  var presContent=tabEfectivo===10?<PresFormularioPanel pres={pres} presupuestos={presupuestos} selPresIdx={selFinal} data={data} onChange={onChange} apuModal={apuModal} setApuModal={setApuModal} apus={apus} categorias_apu={categorias_apu} calcItemVal={calcItemVal} setTab={setTab} estadoLabel={estadoLabel} estadoColor={estadoColor} cargosCalc={cargosCalc} cargosCalcSnap={cargosCalcSnap} personMap={personMap} esHora={esHora} eqMap={eqMap} insMap={insMap} factorPrest={factorPrest} factorPrestSnap={factorPrestSnap} usarFpEnApu={usarFpEnApu} equipos={equipos} insumos={insumos} apusBasico={apusBasico} calcResumenFor={calcResumenFor} calcItemValFor={calcItemValFor} buildSnapCtx={buildSnapCtx}/>
     :tabEfectivo===13?<PresEntregablesPanel pres={pres} presupuestos={presupuestos} calcResumenPres={calcResumenPres} calcItemVal={calcItemVal} calcResumenFor={calcResumenFor} calcItemValFor={calcItemValFor} buildSnapCtx={buildSnapCtx} setTab={setTab} estadoLabel={estadoLabel} estadoColor={estadoColor}/>
-    :tabEfectivo===14?<PresCatalogoProyectoPanel pres={pres} presupuestos={presupuestos} selPresIdx={selFinal} data={data} onChange={onChange} cargosCalcSnap={cargosCalcSnap} cuadrillasCalcSnap={cuadrillasCalcSnap} equiposSnapEfectivo={equiposSnapEfectivo} insumosSnapEfectivo={insumosSnapEfectivo} factorPrestSnap={factorPrestSnap} personMapSnap={personMapSnap} eqMapSnap={eqMapSnap} insMapSnap={insMapSnap} herrPct={herrPct} usarFpEnApu={usarFpEnApu} esHora={esHora} abCalcList={abCalcList} apusBasico={apusBasico} provMap={provMap} _unidades={_unidades} cambiarPerfilPais={cambiarPerfilPais} estadoLabel={estadoLabel} estadoColor={estadoColor} setTab={setTab}/>
+    :tabEfectivo===14?<PresCatalogoProyectoPanel pres={pres} presupuestos={presupuestos} selPresIdx={selFinal} data={data} onChange={onChange} cargosCalcSnap={cargosCalcSnap} cuadrillasCalcSnap={cuadrillasCalcSnap} equiposSnapEfectivo={equiposSnapEfectivo} insumosSnapEfectivo={insumosSnapEfectivo} factorPrestSnap={factorPrestSnap} personMapSnap={personMapSnap} eqMapSnap={eqMapSnap} insMapSnap={insMapSnap} herrPct={herrPct} usarFpEnApu={usarFpEnApu} esHora={esHora} abCalcList={abCalcList} apusBasico={apusBasico} provMap={provMap} _unidades={_unidades} cambiarPerfilPais={cambiarPerfilPais} estadoLabel={estadoLabel} estadoColor={estadoColor} setTab={setTab} calcResumenFor={calcResumenFor} calcItemValFor={calcItemValFor} buildSnapCtx={buildSnapCtx}/>
     :<PresProyectosPanel presupuestos={presupuestos} selPresIdx={selPresIdx} setSelPresIdx={setSelPresIdx} data={data} onChange={onChange} estadoColor={estadoColor} estadoLabel={estadoLabel} addPresupuesto={addPresupuesto} addSubProyecto={addSubProyecto} toggleEstado={toggleEstado} cambiarPerfilPais={cambiarPerfilPais} delPresupuesto={delPresupuesto} clonarPresupuesto={clonarPresupuesto} setTab={setTab}/>;
 
   return(

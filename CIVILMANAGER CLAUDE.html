@@ -11770,6 +11770,13 @@ function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,i
   }
 
   function calcItemValFor(item,p,snapCtx){
+    if(item.tipoPrecio==='entidad'){
+      var vrUnitEnt=parseFloat(item.precioEntidad)||0;
+      var ctxE=snapCtx||buildSnapCtx(p);
+      var apuEnt=null;if(item.apu_id){var snapE=(p&&p.apus_snap)||[];for(var e=0;e<snapE.length;e++){if(snapE[e].id===item.apu_id){apuEnt=snapE[e];break}}if(!apuEnt){for(var f=0;f<apus.length;f++){if(apus[f].id===item.apu_id){apuEnt=apus[f];break}}}}
+      var calcEnt=apuEnt?calcAPU(apuEnt,ctxE.cargosCalcSnap,ctxE.equiposSnap,ctxE.insumosSnap,abCalcList,herrPct,ctxE.factorPrestSnap,usarFpEnApu,esHora,ctxE.personMapSnap,ctxE.eqMapSnap,ctxE.insMapSnap):null;
+      return{vr_unit:vrUnitEnt,vr_total:r2(vrUnitEnt*safeFloat(item.cantidad)),apu:apuEnt,calc:calcEnt};
+    }
     if(!item.apu_id)return{vr_unit:0,vr_total:0,apu:null,calc:null};
     var snap=(p&&p.apus_snap)||[];
     var apu=null;

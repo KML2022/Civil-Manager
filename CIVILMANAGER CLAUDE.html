@@ -7793,13 +7793,17 @@ function PresResumenPanel({pres,presupuestos,selPresIdx,data,onChange,calcResume
   var readOnly=pres.estado==='cerrado';
   var r=calcResumenPres();
   var useOv=pres.aiu_override&&pres.aiu_override.activo;
+  var[editandoAIU,setEditandoAIU]=useState(false);
 
   var updOv=function(k,v){
     if(readOnly)return;
+    /* Al editar por primera vez, activar override pre-cargando valores globales */
+    var cfg=data.config||{};
+    var baseGlobal={pct_a:safeFloat(cfg.pct_administracion)||0,pct_i:safeFloat(cfg.pct_imprevistos)||0,pct_u:safeFloat(cfg.pct_utilidad)||0,iva_pct:19,tiene_iva:false,iva_base:'utilidad',vr_resumido:false,usar_en_cada_apu:true};
+    var baseActual=(pres.aiu_override&&pres.aiu_override.activo)?pres.aiu_override:Object.assign({},baseGlobal);
     var n=presupuestos.slice();
     n[selPresIdx]=Object.assign({},n[selPresIdx]);
-    n[selPresIdx].aiu_override=Object.assign({},n[selPresIdx].aiu_override);
-    n[selPresIdx].aiu_override[k]=v;
+    n[selPresIdx].aiu_override=Object.assign({},baseActual,{activo:true},{[k]:v});
     onChange(Object.assign({},data,{presupuestos:n}));
   };
 
@@ -7825,60 +7829,92 @@ function PresResumenPanel({pres,presupuestos,selPresIdx,data,onChange,calcResume
         );
       })()}
       <div style={{display:'flex',gap:16,alignItems:'flex-start'}}>
-        <div style={{width:480,border:'1px solid var(--bdr)',borderRadius:4}}>
-          <div style={{padding:'6px 10px',background:'var(--bg3)',borderBottom:'1px solid var(--bdr)',fontSize:12,fontWeight:700,color:'var(--ac)'}}>RESUMEN ECONOMICO</div>
+        <div style={{width:500,border:'1px solid var(--bdr)',borderRadius:4}}>
+          <div style={{padding:'6px 10px',background:'var(--bg3)',borderBottom:'1px solid var(--bdr)',fontSize:12,fontWeight:700,color:'var(--ac)',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+            <span>RESUMEN ECONÓMICO</span>
+            {!readOnly&&(!editandoAIU
+              ?<button onClick={function(){setEditandoAIU(true)}} title="Editar AIU e IVA" style={{background:'none',border:'none',cursor:'pointer',color:'var(--tx2)',display:'inline-flex',alignItems:'center',gap:4,fontSize:10}}><IconEdit/> Editar AIU / IVA</button>
+              :<button onClick={function(){setEditandoAIU(false)}} style={{fontSize:9,padding:'2px 8px',border:'1px solid var(--ok)',borderRadius:3,background:'none',color:'var(--ok)',cursor:'pointer',fontWeight:700}}>✓ Listo</button>
+            )}
+          </div>
           <table style={{width:'100%',fontSize:11,tableLayout:'fixed'}}>
-            <colgroup><col className="cw-280"/><col className="cw-100"/><col className="cw-100"/></colgroup>
+            <colgroup><col style={{width:220}}/><col style={{width:120}}/><col style={{width:120}}/></colgroup>
             <tbody>
-              <tr><td style={{padding:'6px 10px',borderBottom:'1px solid var(--bdr)'}}>Costo Directo Total</td><td style={{textAlign:'right',padding:'6px 10px',borderBottom:'1px solid var(--bdr)',fontWeight:600}}>{fmt(r.cdTotal)}</td><td style={{padding:'6px 10px',borderBottom:'1px solid var(--bdr)'}}/></tr>
-              <tr><td style={{padding:'6px 10px',borderBottom:'1px solid var(--bdr)'}}>Administracion ({r.pctA.toFixed(2)}%)</td><td style={{textAlign:'right',padding:'6px 10px',borderBottom:'1px solid var(--bdr)'}}>{fmt(r.adm)}</td><td style={{padding:'6px 10px',borderBottom:'1px solid var(--bdr)'}}/></tr>
-              <tr><td style={{padding:'6px 10px',borderBottom:'1px solid var(--bdr)'}}>Imprevistos ({r.pctI.toFixed(2)}%)</td><td style={{textAlign:'right',padding:'6px 10px',borderBottom:'1px solid var(--bdr)'}}>{fmt(r.imp)}</td><td style={{padding:'6px 10px',borderBottom:'1px solid var(--bdr)'}}/></tr>
-              <tr><td style={{padding:'6px 10px',borderBottom:'1px solid var(--bdr)'}}>Utilidad ({r.pctU.toFixed(2)}%)</td><td style={{textAlign:'right',padding:'6px 10px',borderBottom:'1px solid var(--bdr)'}}>{fmt(r.uti)}</td><td style={{padding:'6px 10px',borderBottom:'1px solid var(--bdr)'}}/></tr>
-              <tr style={{background:'var(--bg2)'}}><td style={{padding:'6px 10px',borderBottom:'1px solid var(--bdr)',fontWeight:700}}>AIU Total ({r.aiuPct.toFixed(2)}%)</td><td style={{textAlign:'right',padding:'6px 10px',borderBottom:'1px solid var(--bdr)',fontWeight:700,color:r.aiuWarn?'var(--warn)':'var(--ok)'}}>{fmt(r.aiuTotal)}</td><td style={{padding:'6px 10px',borderBottom:'1px solid var(--bdr)'}}/></tr>
-              {r.tieneIva&&<tr><td style={{padding:'6px 10px',borderBottom:'1px solid var(--bdr)'}}>{r.ivaBase==='cd'?'IVA sobre CD':'IVA sobre Utilidad'} ({r.ivaPct}%)</td><td style={{textAlign:'right',padding:'6px 10px',borderBottom:'1px solid var(--bdr)'}}>{fmt(r.ivaUtilidad)}</td><td style={{padding:'6px 10px',borderBottom:'1px solid var(--bdr)'}}/></tr>}
-              <tr style={{background:'var(--bg3)'}}><td style={{padding:'8px 10px',fontWeight:700,fontSize:13,color:'var(--ac)'}}>VALOR TOTAL CONTRATO</td><td style={{textAlign:'right',padding:'8px 10px',fontWeight:700,fontSize:13,color:'var(--ok)'}}>{fmt(r.valorTotal)}</td><td style={{padding:'8px 10px'}}/></tr>
+              <tr>
+                <td style={{padding:'6px 10px',borderBottom:'1px solid var(--bdr)'}}>Costo Directo Total</td>
+                <td style={{textAlign:'right',padding:'6px 10px',borderBottom:'1px solid var(--bdr)',fontWeight:600}}>{fmt(r.cdTotal)}</td>
+                <td style={{padding:'4px 8px',borderBottom:'1px solid var(--bdr)'}}/>
+              </tr>
+              {[{label:'Administración',campo:'pct_a',val:r.pctA,vr:r.adm},{label:'Imprevistos',campo:'pct_i',val:r.pctI,vr:r.imp},{label:'Utilidad',campo:'pct_u',val:r.pctU,vr:r.uti}].map(function(row){
+                return(
+                  <tr key={row.campo}>
+                    <td style={{padding:'6px 10px',borderBottom:'1px solid var(--bdr)'}}>{row.label} ({row.val.toFixed(2)}%)</td>
+                    <td style={{textAlign:'right',padding:'6px 10px',borderBottom:'1px solid var(--bdr)'}}>{fmt(row.vr)}</td>
+                    <td style={{padding:'4px 8px',borderBottom:'1px solid var(--bdr)',textAlign:'center'}}>
+                      {editandoAIU&&!readOnly
+                        ?<NumInput step=".5" inputMode="decimal" value={row.val} onChange={function(v){updOv(row.campo,v)}} style={{width:70,fontSize:10,textAlign:'right',height:20}} decimals={2}/>
+                        :<span style={{fontSize:10,color:'var(--warn)',fontWeight:600}}>{row.val.toFixed(2)}%</span>
+                      }
+                    </td>
+                  </tr>
+                );
+              })}
+              <tr style={{background:'var(--bg2)'}}>
+                <td style={{padding:'6px 10px',borderBottom:'1px solid var(--bdr)',fontWeight:700}}>AIU Total ({r.aiuPct.toFixed(2)}%)</td>
+                <td style={{textAlign:'right',padding:'6px 10px',borderBottom:'1px solid var(--bdr)',fontWeight:700,color:r.aiuWarn?'var(--warn)':'var(--ok)'}}>{fmt(r.aiuTotal)}</td>
+                <td style={{padding:'4px 8px',borderBottom:'1px solid var(--bdr)',textAlign:'center'}}>
+                  {r.aiuWarn&&<span style={{fontSize:9,color:'var(--warn)'}}>⚠ {r.aiuPct<5?'bajo 5%':'sobre 50%'}</span>}
+                </td>
+              </tr>
+              {r.tieneIva&&(
+                <tr>
+                  <td style={{padding:'6px 10px',borderBottom:'1px solid var(--bdr)'}}>{r.ivaBase==='cd'?'IVA sobre CD':'IVA sobre Utilidad'} ({r.ivaPct.toFixed(2)}%)</td>
+                  <td style={{textAlign:'right',padding:'6px 10px',borderBottom:'1px solid var(--bdr)'}}>{fmt(r.ivaUtilidad)}</td>
+                  <td style={{padding:'4px 8px',borderBottom:'1px solid var(--bdr)'}}/>
+                </tr>
+              )}
+              <tr style={{background:'var(--bg3)'}}>
+                <td style={{padding:'8px 10px',fontWeight:700,fontSize:13,color:'var(--ac)'}}>VALOR TOTAL CONTRATO</td>
+                <td style={{textAlign:'right',padding:'8px 10px',fontWeight:700,fontSize:13,color:'var(--ok)'}}>{fmt(r.valorTotal)}</td>
+                <td style={{padding:'4px 8px'}}/>
+              </tr>
             </tbody>
           </table>
+          {editandoAIU&&!readOnly&&(
+            <div style={{padding:'10px',borderTop:'1px solid var(--bdr)',display:'flex',flexDirection:'column',gap:8}}>
+              <div style={{display:'flex',alignItems:'center',gap:8}}>
+                <span style={{fontSize:10,fontWeight:700,color:'var(--tx)',flex:1}}>¿El presupuesto tiene IVA?</span>
+                <select className="ni" value={r.tieneIva?'1':'0'} onChange={function(e){updOv('tiene_iva',e.target.value==='1')}} style={{width:60,height:22,fontSize:10,border:'1px solid var(--bd)',borderRadius:4,textAlign:'center',fontWeight:700}}>
+                  <option value="0">NO</option>
+                  <option value="1">SÍ</option>
+                </select>
+              </div>
+              {r.tieneIva&&(
+                <React.Fragment>
+                  <div style={{display:'flex',alignItems:'center',gap:8}}>
+                    <span style={{fontSize:10,color:'var(--tx2)',flex:1}}>IVA se aplica sobre:</span>
+                    <select className="ni" value={r.ivaBase} onChange={function(e){updOv('iva_base',e.target.value)}} style={{width:130,height:22,fontSize:10,border:'1px solid var(--bd)',borderRadius:4,padding:'0 4px'}}>
+                      <option value="utilidad">Utilidad</option>
+                      <option value="cd">Costo Directo (CD)</option>
+                    </select>
+                  </div>
+                  <div style={{display:'flex',alignItems:'center',gap:8}}>
+                    <span style={{fontSize:10,color:'var(--tx2)',flex:1}}>Tarifa IVA (%):</span>
+                    <NumInput step=".5" inputMode="decimal" value={r.ivaPct} onChange={function(v){updOv('iva_pct',v)}} style={{width:70,fontSize:10,textAlign:'right',height:22}} decimals={2}/>
+                  </div>
+                  <div style={{fontSize:10,color:'var(--tx3)',padding:'4px 6px',background:'var(--bg)',borderRadius:3,border:'1px solid var(--bdr)'}}>
+                    IVA calculado: <strong style={{color:'var(--warn)'}}>{fmt(r.ivaUtilidad)}</strong> sobre {r.ivaBase==='cd'?'CD ('+fmt(r.cdTotal)+')':'Utilidad ('+fmt(r.uti)+')'}
+                  </div>
+                </React.Fragment>
+              )}
+            </div>
+          )}
         </div>
         <div style={{flex:1,display:'flex',flexDirection:'column',gap:10}}>
           <div style={{border:'1px solid var(--bdr)',borderRadius:4}}>
-            <div style={{padding:'6px 10px',background:'var(--bg3)',borderBottom:'1px solid var(--bdr)',fontSize:12,fontWeight:700,color:'var(--ac)',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-              <span>AIU Override</span>
-              {!readOnly&&<label style={{display:'inline-flex',alignItems:'center',gap:4,fontSize:10,cursor:'pointer'}}><input type="checkbox" checked={useOv||false} onChange={function(e){updOv('activo',e.target.checked)}}/> Usar AIU especifico</label>}
+            <div style={{padding:'6px 10px',background:'var(--bg3)',borderBottom:'1px solid var(--bdr)',fontSize:12,fontWeight:700,color:'var(--ac)'}}>
+              {useOv?<span style={{color:'var(--ok)',fontSize:10}}>✓ Usando AIU específico del proyecto</span>:<span style={{fontSize:10,color:'var(--tx3)'}}>Usando AIU global ({r.pctA.toFixed(1)}%+{r.pctI.toFixed(1)}%+{r.pctU.toFixed(1)}%)</span>}
             </div>
-            {useOv?(
-              <div style={{padding:'8px 10px',display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6,fontSize:10}}>
-                <div><label style={{color:'var(--tx2)',display:'block',marginBottom:2}}>Admin %</label><NumInput step=".5" inputMode="decimal" value={r.pctA} onChange={function(v){updOv('pct_a',v)}} disabled={readOnly} style={{width:'100%',fontSize:10,textAlign:'right'}} decimals={2}/></div>
-                <div><label style={{color:'var(--tx2)',display:'block',marginBottom:2}}>Impr %</label><NumInput step=".5" inputMode="decimal" value={r.pctI} onChange={function(v){updOv('pct_i',v)}} disabled={readOnly} style={{width:'100%',fontSize:10,textAlign:'right'}} decimals={2}/></div>
-                <div><label style={{color:'var(--tx2)',display:'block',marginBottom:2}}>Util %</label><NumInput step=".5" inputMode="decimal" value={r.pctU} onChange={function(v){updOv('pct_u',v)}} disabled={readOnly} style={{width:'100%',fontSize:10,textAlign:'right'}} decimals={2}/></div>
-                <div style={{gridColumn:'1 / 4',borderTop:'1px solid var(--bdr)',paddingTop:6,marginTop:2,display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
-                  <label style={{display:'inline-flex',alignItems:'center',gap:4,fontSize:10,cursor:'pointer',fontWeight:600,color:'var(--warn)'}}>
-                    <input type="checkbox" checked={!!(pres.aiu_override&&pres.aiu_override.tiene_iva)} onChange={function(e){updOv('tiene_iva',e.target.checked)}} disabled={readOnly}/>
-                    El presupuesto tiene IVA
-                  </label>
-                  {!!(pres.aiu_override&&pres.aiu_override.tiene_iva)&&(
-                    <React.Fragment>
-                      <select className="ni" value={(pres.aiu_override&&pres.aiu_override.iva_base)||'utilidad'} onChange={function(e){updOv('iva_base',e.target.value)}} disabled={readOnly} style={{fontSize:10,height:20,border:'1px solid var(--bd)',borderRadius:4,padding:'0 4px'}}>
-                        <option value="utilidad">IVA sobre Utilidad</option>
-                        <option value="cd">IVA sobre CD</option>
-                      </select>
-                      <div style={{display:'flex',alignItems:'center',gap:4}}>
-                        <span style={{fontSize:10,color:'var(--tx2)'}}>Tarifa:</span>
-                        <NumInput step=".5" inputMode="decimal" value={safeFloat((pres.aiu_override&&pres.aiu_override.iva_pct)||19)} onChange={function(v){updOv('iva_pct',v)}} disabled={readOnly} style={{width:50,fontSize:10,textAlign:'right'}} decimals={2}/>
-                        <span style={{fontSize:10,color:'var(--tx2)'}}>%</span>
-                      </div>
-                    </React.Fragment>
-                  )}
-                </div>
-                <div style={{gridColumn:'1 / 4',marginTop:6,padding:'4px 6px',borderRadius:3,background:r.aiuWarn?'rgba(248,113,113,.1)':(r.cdTotal>0?'rgba(74,222,128,.06)':'var(--bg3)')}}>
-                  {r.aiuPct>=5&&r.aiuPct<=50&&<span style={{fontSize:10,color:'var(--ok)',fontWeight:600}}>AIU {r.aiuPct.toFixed(2)}% OK</span>}
-                  {r.aiuPct<5&&r.aiuWarn&&<span style={{fontSize:10,color:'var(--warn)',fontWeight:600}}>AIU {r.aiuPct.toFixed(2)}% - bajo 5%</span>}
-                  {r.aiuPct>50&&<span style={{fontSize:10,color:'#f87171',fontWeight:600}}>AIU {r.aiuPct.toFixed(2)}% - sobre 50%</span>}
-                </div>
-              </div>
-            ):(
-              <div style={{padding:'8px 10px',fontSize:10,color:'var(--tx3)'}}>Usando AIU global ({r.pctA.toFixed(1)}%+{r.pctI.toFixed(1)}%+{r.pctU.toFixed(1)}%). Activa "Usar AIU especifico" para cambiar.</div>
-            )}
           </div>
           <div style={{border:'1px solid var(--bdr)',borderRadius:4}}>
             <div style={{padding:'6px 10px',background:'var(--bg3)',borderBottom:'1px solid var(--bdr)',fontSize:12,fontWeight:700,color:'var(--ac)'}}>DISTRIBUCION POR CATEGORIA</div>
@@ -8612,6 +8648,113 @@ var exportarFormularioLlenoGlobal=async function(pres,calcItemVal,setPendientesF
 var FORM_TABLE_MAXW=1145; /* debe igualar la suma del colgroup de la tabla de items (fase revision) */
 var SCROLLBAR_W=16; /* ancho tipico de scrollbar vertical webkit/blink; xl-scroll usa scrollbarGutter:'stable' para reservarlo siempre, asi esta resta es valida haya o no overflow vertical */
 var FORM_TABLE_INNERW=FORM_TABLE_MAXW-2-SCROLLBAR_W; /* xl-wrap tiene border 1px+1px; tabla/footer deben usar el ancho interno real, no el externo, para no forzar scroll horizontal */
+function ResumenLateralFormulario({pres,calcItemVal,data,presupuestos,selPresIdx,onChange,readOnly}){
+  var[editandoAIU,setEditandoAIU]=useState(false);
+  var config=data.config||{};
+  var itemsArr=(pres&&pres.items)||[];
+  var cdTotal=0;
+  for(var i=0;i<itemsArr.length;i++){cdTotal+=calcItemVal(itemsArr[i]).vr_total}
+  var useOv=pres&&pres.aiu_override&&pres.aiu_override.activo;
+  var pctA=useOv?(safeFloat(pres.aiu_override.pct_a)||0):(safeFloat(config.pct_administracion)||0);
+  var pctI=useOv?(safeFloat(pres.aiu_override.pct_i)||0):(safeFloat(config.pct_imprevistos)||0);
+  var pctU=useOv?(safeFloat(pres.aiu_override.pct_u)||0):(safeFloat(config.pct_utilidad)||0);
+  var aiuPct=pctA+pctI+pctU;
+  var tieneIva=useOv&&!!(pres.aiu_override.tiene_iva);
+  var ivaBase=useOv?(pres.aiu_override.iva_base||'utilidad'):'utilidad';
+  var ivaPct=useOv?(safeFloat(pres.aiu_override.iva_pct)||19):19;
+  var adm=r2(cdTotal*pctA/100),imp=r2(cdTotal*pctI/100),uti=r2(cdTotal*pctU/100);
+  var aiuTotal=r2(adm+imp+uti);
+  var ivaBase_=ivaBase==='cd'?cdTotal:uti;
+  var ivaCalculado=tieneIva?r2(ivaBase_*ivaPct/100):0;
+  var valorTotal=r2(cdTotal+aiuTotal+ivaCalculado);
+  var aiuWarn=aiuPct>0&&(aiuPct<5||aiuPct>50);
+
+  var updOv=function(k,v){
+    if(readOnly)return;
+    var baseGlobal={pct_a:safeFloat(config.pct_administracion)||0,pct_i:safeFloat(config.pct_imprevistos)||0,pct_u:safeFloat(config.pct_utilidad)||0,iva_pct:19,tiene_iva:false,iva_base:'utilidad',vr_resumido:false,usar_en_cada_apu:true};
+    var baseActual=(pres.aiu_override&&pres.aiu_override.activo)?pres.aiu_override:Object.assign({},baseGlobal);
+    var n=presupuestos.slice();
+    n[selPresIdx]=Object.assign({},n[selPresIdx],{aiu_override:Object.assign({},baseActual,{activo:true},{[k]:v})});
+    onChange(Object.assign({},data,{presupuestos:n}));
+  };
+
+  return(
+    <div style={{border:'1px solid var(--bdr)',borderRadius:4,overflow:'hidden'}}>
+      <div style={{padding:'6px 10px',background:'var(--bg3)',borderBottom:'1px solid var(--bdr)',fontSize:11,fontWeight:700,color:'var(--ac)',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+        <span>RESUMEN ECONÓMICO</span>
+        {!readOnly&&(!editandoAIU
+          ?<button onClick={function(){setEditandoAIU(true)}} title="Editar AIU e IVA" style={{background:'none',border:'none',cursor:'pointer',color:'var(--tx2)',display:'inline-flex',alignItems:'center',gap:3,fontSize:10}}><IconEdit/><span>AIU/IVA</span></button>
+          :<button onClick={function(){setEditandoAIU(false)}} style={{fontSize:9,padding:'2px 8px',border:'1px solid var(--ok)',borderRadius:3,background:'none',color:'var(--ok)',cursor:'pointer',fontWeight:700}}>✓ Listo</button>
+        )}
+      </div>
+      <table style={{width:'100%',fontSize:10,tableLayout:'fixed'}}>
+        <colgroup><col style={{width:'55%'}}/><col style={{width:'25%'}}/><col style={{width:'20%'}}/></colgroup>
+        <tbody>
+          <tr><td style={{padding:'5px 8px',borderBottom:'1px solid var(--bdr)',color:'var(--tx2)'}}>Costo Directo</td><td style={{textAlign:'right',padding:'5px 8px',borderBottom:'1px solid var(--bdr)',fontWeight:600,color:'var(--tx)'}} colSpan={2}>{fmt(cdTotal)}</td></tr>
+          {[{label:'Administración',campo:'pct_a',val:pctA,vr:adm},{label:'Imprevistos',campo:'pct_i',val:pctI,vr:imp},{label:'Utilidad',campo:'pct_u',val:pctU,vr:uti}].map(function(row){
+            return(
+              <tr key={row.campo}>
+                <td style={{padding:'5px 8px',borderBottom:'1px solid var(--bdr)',color:'var(--tx2)'}}>{row.label} ({row.val.toFixed(1)}%)</td>
+                <td style={{textAlign:'right',padding:'5px 8px',borderBottom:'1px solid var(--bdr)'}}>{fmt(row.vr)}</td>
+                <td style={{padding:'3px 6px',borderBottom:'1px solid var(--bdr)',textAlign:'center'}}>
+                  {editandoAIU
+                    ?<NumInput step=".5" inputMode="decimal" value={row.val} onChange={function(v){updOv(row.campo,v)}} style={{width:52,fontSize:9,textAlign:'right',height:18}} decimals={2}/>
+                    :<span style={{fontSize:9,color:'var(--warn)',fontWeight:700}}>{row.val.toFixed(1)}%</span>
+                  }
+                </td>
+              </tr>
+            );
+          })}
+          <tr style={{background:'var(--bg2)'}}>
+            <td style={{padding:'5px 8px',borderBottom:'1px solid var(--bdr)',fontWeight:700}}>AIU ({aiuPct.toFixed(1)}%)</td>
+            <td style={{textAlign:'right',padding:'5px 8px',borderBottom:'1px solid var(--bdr)',fontWeight:700,color:aiuWarn?'var(--warn)':'var(--ok)'}} colSpan={2}>{fmt(aiuTotal)}</td>
+          </tr>
+          {tieneIva&&(
+            <tr>
+              <td style={{padding:'5px 8px',borderBottom:'1px solid var(--bdr)',color:'var(--tx2)'}}>{ivaBase==='cd'?'IVA/CD':'IVA/Util'} ({ivaPct.toFixed(1)}%)</td>
+              <td style={{textAlign:'right',padding:'5px 8px',borderBottom:'1px solid var(--bdr)'}} colSpan={2}>{fmt(ivaCalculado)}</td>
+            </tr>
+          )}
+          <tr style={{background:'var(--bg3)'}}>
+            <td style={{padding:'6px 8px',fontWeight:700,fontSize:11,color:'var(--ac)'}}>VALOR TOTAL</td>
+            <td style={{textAlign:'right',padding:'6px 8px',fontWeight:700,fontSize:12,color:'var(--ok)'}} colSpan={2}>{fmt(valorTotal)}</td>
+          </tr>
+        </tbody>
+      </table>
+      {/* Configuración IVA — solo en modo edición */}
+      {editandoAIU&&!readOnly&&(
+        <div style={{padding:'8px',borderTop:'1px solid var(--bdr)',display:'flex',flexDirection:'column',gap:6,background:'var(--bg)'}}>
+          <div style={{display:'flex',alignItems:'center',gap:6}}>
+            <span style={{fontSize:10,fontWeight:700,color:'var(--tx)',flex:1}}>¿Tiene IVA?</span>
+            <select className="ni" value={tieneIva?'1':'0'} onChange={function(e){updOv('tiene_iva',e.target.value==='1')}} style={{width:55,height:20,fontSize:10,border:'1px solid var(--bd)',borderRadius:4,textAlign:'center',fontWeight:700}}>
+              <option value="0">NO</option>
+              <option value="1">SÍ</option>
+            </select>
+          </div>
+          {tieneIva&&(
+            <React.Fragment>
+              <div style={{display:'flex',alignItems:'center',gap:6}}>
+                <span style={{fontSize:9,color:'var(--tx2)',flex:1}}>IVA sobre:</span>
+                <select className="ni" value={ivaBase} onChange={function(e){updOv('iva_base',e.target.value)}} style={{width:120,height:20,fontSize:9,border:'1px solid var(--bd)',borderRadius:4,padding:'0 3px'}}>
+                  <option value="utilidad">Utilidad</option>
+                  <option value="cd">Costo Directo</option>
+                </select>
+              </div>
+              <div style={{display:'flex',alignItems:'center',gap:6}}>
+                <span style={{fontSize:9,color:'var(--tx2)',flex:1}}>Tarifa %:</span>
+                <NumInput step=".5" inputMode="decimal" value={ivaPct} onChange={function(v){updOv('iva_pct',v)}} style={{width:55,fontSize:9,textAlign:'right',height:20}} decimals={2}/>
+              </div>
+              <div style={{fontSize:9,color:'var(--tx3)',padding:'3px 6px',background:'var(--bg2)',borderRadius:3}}>
+                = {fmt(ivaCalculado)} sobre {ivaBase==='cd'?'CD':'Utilidad'}
+              </div>
+            </React.Fragment>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModal,setApuModal,apus,categorias_apu,calcItemVal,setTab,estadoLabel,estadoColor,cargosCalc,cargosCalcSnap,personMap,esHora,eqMap,insMap,factorPrest,factorPrestSnap,usarFpEnApu,equipos,insumos,apusBasico}){
   var faseState=useState('inicio');var fase=faseState[0],setFase=faseState[1];
   var tipoPrecioFormularioState=useState('apu');var tipoPrecioFormulario=tipoPrecioFormularioState[0],setTipoPrecioFormulario=tipoPrecioFormularioState[1];
@@ -9338,7 +9481,8 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
   var itemsPagina=itemsFiltrados.slice(page*PAGE_SIZE,(page+1)*PAGE_SIZE);
 
   return(
-    <div style={{maxWidth:FORM_TABLE_MAXW,display:'flex',flexDirection:'column',gap:8,height:'calc(100vh - 150px)',minHeight:0,minWidth:0}}>
+    <div style={{display:'flex',flexDirection:'row',gap:12,height:'calc(100vh - 150px)',minHeight:0,minWidth:0,alignItems:'flex-start'}}>
+    <div style={{maxWidth:FORM_TABLE_MAXW,flex:'1 1 0',display:'flex',flexDirection:'column',gap:8,height:'100%',minHeight:0,minWidth:0}}>
       <div style={{flexShrink:0,display:'flex',flexDirection:'column',gap:8}}>
         <TituloSubTab pres={pres} presupuestos={presupuestos} tituloSubTab="Formulario de Cantidades y Precios" extra={<span style={{fontSize:14,fontWeight:700,color:'var(--tx)',textAlign:'right'}}>CD: {fmt(cdTotal)}</span>}/>
         <BannerEstadoProyecto pres={pres} estadoLabel={estadoLabel} estadoColor={estadoColor}/>
@@ -9466,6 +9610,12 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
           </div>
         </div>
       </div>
+    </div>
+    {/* Panel derecho — Resumen Financiero en tiempo real */}
+    <div style={{width:300,flexShrink:0,display:'flex',flexDirection:'column',gap:8,height:'100%',overflowY:'auto'}}>
+      <ResumenLateralFormulario pres={pres} calcItemVal={calcItemVal} data={data} presupuestos={presupuestos} selPresIdx={idxPres} onChange={onChange} readOnly={readOnly}/>
+    </div>
+    </div>
       {fo&&
         <div style={{flexShrink:0,display:'flex',alignItems:'center',gap:10,padding:'6px 12px',background:fo.archivo_adjunto?'rgba(74,222,128,.07)':'rgba(230,168,0,.08)',border:'1px solid '+(fo.archivo_adjunto?'rgba(74,222,128,.25)':'rgba(230,168,0,.3)'),borderRadius:6,width:'100%',boxSizing:'border-box'}}>
           <span style={{fontSize:11,fontWeight:700,color:fo.archivo_adjunto?'var(--ok)':'var(--warn)'}}>{fo.archivo_adjunto?'✓ Formulario cargado':'⚠ Ítems importados sin archivo adjunto'}</span>

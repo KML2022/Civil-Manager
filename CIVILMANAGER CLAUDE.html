@@ -12029,7 +12029,37 @@ var factorPrest=useMemo(function(){return r2(factoresPrestaciones.reduce(functio
 
   var futureLabel=isFuture?(SECTIONS[mainSection]||{}).label||'':'';
 
-
+  /* ── Exportar / Importar JSON (temporal) ── */
+  var jsonFileRef=useRef(null);
+  var exportarJSON=function(){
+    idbLoad().then(function(d){
+      var json=JSON.stringify(d,null,2);
+      var blob=new Blob([json],{type:'application/json'});
+      var url=URL.createObjectURL(blob);
+      var link=document.createElement('a');
+      var fecha=new Date().toISOString().slice(0,10);
+      link.href=url;link.download='CIVILMANAGER_backup_'+fecha+'.json';
+      document.body.appendChild(link);link.click();
+      document.body.removeChild(link);URL.revokeObjectURL(url);
+      showToast('Datos exportados correctamente',{type:'ok'});
+    }).catch(function(){showToast('Error al exportar datos',{type:'err'})});
+  };
+  var importarJSON=function(e){
+    var file=e.target.files[0];if(!file)return;
+    if(!file.name.match(/\.json$/i)){showToast('Solo se permiten archivos .json',{type:'err'});e.target.value='';return}
+    var reader=new FileReader();
+    reader.onload=function(ev){
+      try{
+        var d=JSON.parse(ev.target.result);
+        if(!d||typeof d!=='object'||!d.config){showToast('Archivo JSON no valido: falta estructura de datos',{type:'err'});e.target.value='';return}
+        if(!confirm('Esto reemplazara todos los datos actuales.\n\nProyectos: '+(d.presupuestos||[]).length+'\nAPUs: '+(d.apus||[]).length+'\nInsumos: '+(d.insumos||[]).length+'\n\nDesea continuar?')){e.target.value='';return}
+        idbSave(d).then(function(){showToast('Datos importados. Recargando...',{type:'ok',dur:1500});setTimeout(function(){location.reload()},1500)}).catch(function(){showToast('Error al guardar datos importados',{type:'err'})});
+      }catch(err){showToast('Error leyendo JSON: '+err.message,{type:'err'})}
+      e.target.value='';
+    };
+    reader.onerror=function(){showToast('Error leyendo el archivo',{type:'err'});e.target.value=''};
+    reader.readAsText(file);
+  };
 
   return(
 
@@ -12060,6 +12090,11 @@ var factorPrest=useMemo(function(){return r2(factoresPrestaciones.reduce(functio
         <button onClick={function(){}} disabled style={{display:'flex',alignItems:'center',flexDirection:'column',justifyContent:'center',gap:4,padding:'8px 16px',fontSize:11,minWidth:80,borderRadius:6,background:'transparent',border:'none',borderBottom:'3px solid transparent',marginBottom:-2,color:'var(--tx3)',cursor:'not-allowed',whiteSpace:'nowrap',opacity:0.5}}><img src={CIVILMANAGER_ICONS.ControlCostos} width="48" height="48" alt="Control de Costos" style={{objectFit:'contain'}}/><span>Control de Costos ⏳</span></button>
 
         <button onClick={function(){}} disabled style={{display:'flex',alignItems:'center',flexDirection:'column',justifyContent:'center',gap:4,padding:'8px 16px',fontSize:11,minWidth:80,borderRadius:6,background:'transparent',border:'none',borderBottom:'3px solid transparent',marginBottom:-2,color:'var(--tx3)',cursor:'not-allowed',whiteSpace:'nowrap',opacity:0.5}}><img src={CIVILMANAGER_ICONS.Reportes} width="48" height="48" alt="Reportes" style={{objectFit:'contain'}}/><span>Reportes ⏳</span></button>
+
+        <span style={{width:1,height:40,background:'var(--bdr)',margin:'0 6px',flexShrink:0}}/>
+        <input ref={jsonFileRef} type="file" accept=".json" style={{display:'none'}} onChange={importarJSON}/>
+        <button onClick={exportarJSON} style={{display:'flex',alignItems:'center',flexDirection:'column',justifyContent:'center',gap:4,padding:'8px 12px',fontSize:10,minWidth:70,borderRadius:6,background:'transparent',border:'1px dashed var(--tx3)',borderBottom:'3px solid transparent',marginBottom:-2,color:'var(--tx3)',cursor:'pointer',whiteSpace:'nowrap',opacity:0.7}}><span style={{fontSize:20}}>💾</span><span>Exportar JSON</span></button>
+        <button onClick={function(){jsonFileRef.current.click()}} style={{display:'flex',alignItems:'center',flexDirection:'column',justifyContent:'center',gap:4,padding:'8px 12px',fontSize:10,minWidth:70,borderRadius:6,background:'transparent',border:'1px dashed var(--tx3)',borderBottom:'3px solid transparent',marginBottom:-2,color:'var(--tx3)',cursor:'pointer',whiteSpace:'nowrap',opacity:0.7}}><span style={{fontSize:20}}>📂</span><span>Importar JSON</span></button>
 
       </div>
 

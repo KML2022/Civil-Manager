@@ -8547,9 +8547,11 @@ var FORM_TABLE_INNERW=FORM_TABLE_MAXW-2-SCROLLBAR_W; /* xl-wrap tiene border 1px
 /* Resumen Económico consolidado para proyecto contenedor (padre con subproyectos)
    Estilo ficha vertical por proyecto, colapsable, sincronizado con la vista del formulario.
    Total Consolidado SIEMPRE visible arriba, fichas de subproyectos debajo. */
-function ResumenConsolidadoHijos({hijos,resHijos,totCD,totAIU,totIVA,totVT,colapsados,setColapsados}){
+function ResumenConsolidadoHijos({hijos,resHijos,visResHijos,totCD,totAIU,totIVA,totVT,colapsados,setColapsados}){
+  var visFichas=visResHijos||resHijos;
   var totItems=0,totAdm=0,totImp=0,totUti=0;
   resHijos.forEach(function(r){totItems+=r.nItems;totAdm+=r.res.adm;totImp+=r.res.imp;totUti+=r.res.uti});
+  var visItems=0;visFichas.forEach(function(r){visItems+=r.nItems});
 
   var toggleCol=function(hId){setColapsados(function(prev){var n=Object.assign({},prev);n[hId]=!n[hId];return n})};
 
@@ -8558,7 +8560,7 @@ function ResumenConsolidadoHijos({hijos,resHijos,totCD,totAIU,totIVA,totVT,colap
       {/* Header */}
       <div style={{padding:'6px 10px',background:'var(--bg3)',borderBottom:'1px solid var(--bdr)',fontSize:11,fontWeight:700,color:'var(--ac)',display:'flex',alignItems:'center',justifyContent:'space-between',flexShrink:0}}>
         <span>RESUMEN CONSOLIDADO</span>
-        <span style={{fontSize:9,color:'var(--tx2)',fontWeight:400}}>{hijos.length} sub(s) &middot; {totItems} items</span>
+        <span style={{fontSize:9,color:'var(--tx2)',fontWeight:400}}>{visFichas.length===hijos.length?hijos.length+' sub(s)':visFichas.length+' de '+hijos.length+' sub(s)'} · {visItems} items</span>
       </div>
 
       {/* ── TOTAL CONSOLIDADO — SIEMPRE VISIBLE ── */}
@@ -8583,7 +8585,7 @@ function ResumenConsolidadoHijos({hijos,resHijos,totCD,totAIU,totIVA,totVT,colap
 
       {/* ── FICHAS POR PROYECTO ── */}
       <div className="xl-scroll" style={{flex:1,overflowY:'auto',display:'flex',flexDirection:'column',gap:0}}>
-        {resHijos.map(function(r){
+        {visFichas.map(function(r){
           var h=r.hijo,resH=r.res;
           var pctA=resH.pctA,pctI=resH.pctI,pctU=resH.pctU;
           var aiuPct=pctA+pctI+pctU;
@@ -9389,7 +9391,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
 
       {/* Resumen lateral consolidado */}
       <div style={{width:300,flexShrink:0}}>
-        <ResumenConsolidadoHijos hijos={vistaPadre==='matriz'?visResHijos.map(function(r){return r.hijo}):hijos} resHijos={vistaPadre==='matriz'?visResHijos:resHijos} totCD={vistaPadre==='matriz'?visTotCD:totCD} totAIU={vistaPadre==='matriz'?visTotAIU:totAIU} totIVA={vistaPadre==='matriz'?visTotIVA:totIVA} totVT={vistaPadre==='matriz'?visTotVT:totVT} colapsados={colapsados} setColapsados={setColapsados}/>
+        <ResumenConsolidadoHijos hijos={hijos} resHijos={resHijos} visResHijos={vistaPadre==='matriz'?visResHijos:resHijos} totCD={totCD} totAIU={totAIU} totIVA={totIVA} totVT={totVT} colapsados={colapsados} setColapsados={setColapsados}/>
       </div>
       </div>
     );

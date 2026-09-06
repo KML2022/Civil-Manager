@@ -9184,6 +9184,9 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
     resHijos.forEach(function(r){totCD+=r.res.cdTotal;totAIU+=r.res.aiuTotal;totIVA+=r.res.ivaUtilidad;totVT+=r.res.valorTotal});
     var merged=mergeItemsDeHijos(hijos,buildSnapCtx,calcItemValFor);
     var totItems=0;resHijos.forEach(function(r){totItems+=r.nItems});
+    var visResHijos=resHijos.filter(function(r){return visibilidadCols[r.hijo.id]!==false});
+    var visTotCD=0,visTotAIU=0,visTotIVA=0,visTotVT=0;
+    visResHijos.forEach(function(r){visTotCD+=r.res.cdTotal;visTotAIU+=r.res.aiuTotal;visTotIVA+=r.res.ivaUtilidad;visTotVT+=r.res.valorTotal});
 
     var toggleBtn=function(label,mode){
       var activo=vistaPadre===mode;
@@ -9386,7 +9389,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
 
       {/* Resumen lateral consolidado */}
       <div style={{width:300,flexShrink:0}}>
-        <ResumenConsolidadoHijos hijos={hijos} resHijos={resHijos} totCD={totCD} totAIU={totAIU} totIVA={totIVA} totVT={totVT} colapsados={colapsados} setColapsados={setColapsados}/>
+        <ResumenConsolidadoHijos hijos={vistaPadre==='matriz'?visResHijos.map(function(r){return r.hijo}):hijos} resHijos={vistaPadre==='matriz'?visResHijos:resHijos} totCD={vistaPadre==='matriz'?visTotCD:totCD} totAIU={vistaPadre==='matriz'?visTotAIU:totAIU} totIVA={vistaPadre==='matriz'?visTotIVA:totIVA} totVT={vistaPadre==='matriz'?visTotVT:totVT} colapsados={colapsados} setColapsados={setColapsados}/>
       </div>
       </div>
     );

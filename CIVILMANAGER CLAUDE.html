@@ -8756,6 +8756,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
   var[colapsados,setColapsados]=useState(colapsadosInit); /* {hijo_id:true} = colapsado */
   var visColsInit={};hijos.forEach(function(h){visColsInit[h.id]=true});
   var[visibilidadCols,setVisibilidadCols]=useState(visColsInit); /* {hijo_id:false} = columna oculta */
+  useEffect(function(){if(vistaPadre==='matriz'){var c={};hijos.forEach(function(h){c[h.id]=false});setColapsados(c)}},[vistaPadre]);
 
   useEffect(function(){
     setFase(pres&&(pres.formulario_original||(pres.items||[]).length>0)?'revision':'inicio');

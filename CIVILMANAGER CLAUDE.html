@@ -8590,7 +8590,7 @@ function ResumenConsolidadoHijos({hijos,resHijos,visResHijos,totCD,totAIU,totIVA
           var pctA=resH.pctA,pctI=resH.pctI,pctU=resH.pctU;
           var aiuPct=pctA+pctI+pctU;
           var colapsado=!!colapsados[h.id];
-          var ivaLabel=resH.tieneIva?(resH.ivaBase==='cd'?'IVA sobre Costo Directo':'IVA sobre Utilidad'):'IVA';
+          var ivaLabel=resH.tieneIva?(resH.ivaBase==='cd'?'IVA s/ CD':'IVA s/ Utilidad'):'IVA';
           return(
             <div key={h.id} style={{borderBottom:'1px solid var(--bdr)'}}>
               {/* Header ficha — clickeable */}

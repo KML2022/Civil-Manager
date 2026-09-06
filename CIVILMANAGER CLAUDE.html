@@ -9303,10 +9303,12 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
             </thead>
             <tbody>
               {merged.capitulos.map(function(cap){
+                var visItems=cap.items.filter(function(fila){return visHijos.some(function(h){return (fila.cantidades[h.id]||0)>0})});
+                if(visItems.length===0) return null;
                 return(
                   <React.Fragment key={cap.capitulo}>
                     <tr><td colSpan={totalColSpan} style={{padding:'3px 8px',background:'#1E3A5F',color:'#fff',fontWeight:700,fontSize:10}}>{cap.capitulo||'(Sin capítulo)'}</td></tr>
-                    {cap.items.map(function(fila){
+                    {visItems.map(function(fila){
                       /* Detectar si precios difieren entre hijos visibles */
                       var preciosHijos={};visHijos.forEach(function(h){preciosHijos[h.id]=fila.vr_unitarios[h.id]||0});
                       var preciosArr=visHijos.map(function(h){return preciosHijos[h.id]}).filter(function(v){return v>0});

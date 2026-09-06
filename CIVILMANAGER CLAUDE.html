@@ -8665,7 +8665,7 @@ function ResumenLateralFormulario({pres,calcItemVal,data,presupuestos,selPresIdx
         )}
       </div>
       <table style={{width:'100%',fontSize:10,tableLayout:'fixed'}}>
-        <colgroup><col style={{width:'55%'}}/><col style={{width:'25%'}}/><col style={{width:'20%'}}/></colgroup>
+        <colgroup><col style={{width:'45%'}}/><col style={{width:'35%'}}/><col style={{width:'20%'}}/></colgroup>
         <tbody>
           <tr><td style={{padding:'5px 8px',borderBottom:'1px solid var(--bdr)',color:'var(--tx2)'}}>Costo Directo</td><td style={{textAlign:'right',padding:'5px 8px',borderBottom:'1px solid var(--bdr)',fontWeight:600,color:'var(--tx)'}} colSpan={2}>{fmt(cdTotal)}</td></tr>
           {[{label:'Administración',campo:'pct_a',val:pctA,vr:adm},{label:'Imprevistos',campo:'pct_i',val:pctI,vr:imp},{label:'Utilidad',campo:'pct_u',val:pctU,vr:uti}].map(function(row){

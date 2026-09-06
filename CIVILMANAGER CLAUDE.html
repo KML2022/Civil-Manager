@@ -626,7 +626,7 @@ function mergeItemsDeHijos(hijos,buildSnapCtx,calcItemValFor){
         currentCap=it.descripcion||'';
         if(!capMap.has(currentCap)){capMap.set(currentCap,[]);capOrder.push(currentCap)}
       }else{
-        var key=it.num_item||it.id;
+        var key=(it.num_item||it.id)+'||'+currentCap;
         if(!filaMap.has(key)){
           var fila={num_item:it.num_item,descripcion:it.descripcion,unidad:it.unidad,capitulo:currentCap,cantidades:{},vr_unitarios:{},unidades:{}};
           filaMap.set(key,fila);

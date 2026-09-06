@@ -9260,14 +9260,14 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
         {vistaPadre==='matriz'&&<div className="xl-scroll" style={{flex:1,overflow:'auto'}}>
           {/* Toggles de visibilidad de columnas */}
           <div style={{display:'flex',gap:6,alignItems:'center',marginBottom:6,padding:'4px 8px',background:'var(--bg2)',border:'1px solid var(--bdr)',borderRadius:4}}>
-            <span style={{fontSize:9,color:'var(--tx2)',fontWeight:600}}>Columnas:</span>
+            <span style={{fontSize:9,color:'var(--tx2)',fontWeight:600}}>Mostrar / Ocultar Proyectos:</span>
             {hijos.map(function(h){
               var vis=visibilidadCols[h.id]!==false;
-              return <button key={h.id} onClick={function(){setVisibilidadCols(function(prev){var n=Object.assign({},prev);n[h.id]=!vis;return n})}} style={{fontSize:9,padding:'2px 8px',border:'1px solid '+(vis?'var(--ok)':'var(--bdr)'),borderRadius:4,background:vis?'rgba(74,222,128,.1)':'transparent',color:vis?'var(--ok)':'var(--tx3)',cursor:'pointer',fontWeight:vis?700:400}}>{h.codigo}</button>;
+              return <button key={h.id} onClick={function(){setVisibilidadCols(function(prev){var n=Object.assign({},prev);n[h.id]=!vis;return n});if(!vis)setColapsados(function(prev){var n=Object.assign({},prev);n[h.id]=false;return n})}} style={{fontSize:9,padding:'2px 8px',border:'1px solid '+(vis?'var(--ok)':'var(--bdr)'),borderRadius:4,background:vis?'rgba(74,222,128,.1)':'transparent',color:vis?'var(--ok)':'var(--tx3)',cursor:'pointer',fontWeight:vis?700:400}}>{h.codigo}</button>;
             })}
             <span style={{width:1,height:14,background:'var(--bdr)',margin:'0 2px'}}/>
-            <button onClick={function(){var n={};hijos.forEach(function(h){n[h.id]=true});setVisibilidadCols(n)}} style={{fontSize:9,padding:'2px 6px',border:'1px solid var(--bdr)',borderRadius:4,background:'transparent',color:'var(--tx2)',cursor:'pointer'}}>Todas</button>
-            <button onClick={function(){var n={};hijos.forEach(function(h){n[h.id]=false});setVisibilidadCols(n)}} style={{fontSize:9,padding:'2px 6px',border:'1px solid var(--bdr)',borderRadius:4,background:'transparent',color:'var(--tx2)',cursor:'pointer'}}>Ninguna</button>
+            <button onClick={function(){var n={};hijos.forEach(function(h){n[h.id]=true});setVisibilidadCols(n);var c={};hijos.forEach(function(h){c[h.id]=false});setColapsados(c)}} style={{fontSize:9,padding:'2px 6px',border:'1px solid var(--bdr)',borderRadius:4,background:'transparent',color:'var(--tx2)',cursor:'pointer'}}>Todas</button>
+            <button onClick={function(){var n={};hijos.forEach(function(h){n[h.id]=false});setVisibilidadCols(n);var c={};hijos.forEach(function(h){c[h.id]=true});setColapsados(c)}} style={{fontSize:9,padding:'2px 6px',border:'1px solid var(--bdr)',borderRadius:4,background:'transparent',color:'var(--tx2)',cursor:'pointer'}}>Ninguna</button>
           </div>
           {(function(){
             var visHijos=hijos.filter(function(h){return visibilidadCols[h.id]!==false});

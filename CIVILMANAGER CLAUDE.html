@@ -8692,36 +8692,37 @@ function ResumenLateralFormulario({pres,calcItemVal,data,presupuestos,selPresIdx
           </tr>
         </tbody>
       </table>
-      {/* Configuración IVA — solo en modo editar */}
-      {editandoAIU&&(
-        <div style={{padding:'8px',borderTop:'1px solid var(--bdr)',display:'flex',flexDirection:'column',gap:6,background:'var(--bg)'}}>
-          <div style={{display:'flex',alignItems:'center',gap:6}}>
-            <span style={{fontSize:10,fontWeight:700,color:'var(--tx)',flex:1}}>¿Tiene IVA?</span>
-            <select className="ni" value={tieneIva?'1':'0'} onChange={function(e){updOv('tiene_iva',e.target.value==='1')}} disabled={readOnly} style={{width:55,height:20,fontSize:10,border:'1px solid var(--bd)',borderRadius:4,textAlign:'center',fontWeight:700,opacity:readOnly?0.5:1,cursor:readOnly?'not-allowed':'pointer'}}>
-              <option value="0">NO</option>
-              <option value="1">SÍ</option>
-            </select>
-          </div>
-          {tieneIva&&(
-            <React.Fragment>
-              <div style={{display:'flex',alignItems:'center',gap:6}}>
-                <span style={{fontSize:9,color:'var(--tx2)',flex:1}}>IVA sobre:</span>
-                <select className="ni" value={ivaBase} onChange={function(e){updOv('iva_base',e.target.value)}} disabled={readOnly} style={{width:120,height:20,fontSize:9,border:'1px solid var(--bd)',borderRadius:4,padding:'0 3px',opacity:readOnly?0.5:1,cursor:readOnly?'not-allowed':'pointer'}}>
-                  <option value="utilidad">Utilidad</option>
-                  <option value="cd">Costo Directo</option>
-                </select>
-              </div>
-              <div style={{display:'flex',alignItems:'center',gap:6}}>
-                <span style={{fontSize:9,color:'var(--tx2)',flex:1}}>Tarifa %:</span>
-                <NumInput step=".5" inputMode="decimal" value={ivaPct} onChange={function(v){updOv('iva_pct',v)}} disabled={readOnly} style={{width:55,fontSize:9,textAlign:'right',height:20,opacity:readOnly?0.5:1,cursor:readOnly?'not-allowed':'pointer'}} decimals={2}/>
-              </div>
-              <div style={{fontSize:9,color:'var(--tx3)',padding:'3px 6px',background:'var(--bg2)',borderRadius:3}}>
-                = {fmt(ivaCalculado)} sobre {ivaBase==='cd'?'CD':'Utilidad'}
-              </div>
-            </React.Fragment>
-          )}
+      {/* Configuración IVA — siempre visible, editable solo en modo editar */}
+      <div style={{padding:'8px',borderTop:'1px solid var(--bdr)',display:'flex',flexDirection:'column',gap:6,background:'var(--bg)'}}>
+        <div style={{display:'flex',alignItems:'center',gap:6}}>
+          <span style={{fontSize:10,fontWeight:700,color:'var(--tx)',flex:1}}>¿Tiene IVA?</span>
+          {editandoAIU
+            ?<select className="ni" value={tieneIva?'1':'0'} onChange={function(e){updOv('tiene_iva',e.target.value==='1')}} disabled={readOnly} style={{width:55,height:20,fontSize:10,border:'1px solid var(--bd)',borderRadius:4,textAlign:'center',fontWeight:700,opacity:readOnly?0.5:1,cursor:readOnly?'not-allowed':'pointer'}}><option value="0">NO</option><option value="1">SÍ</option></select>
+            :<span style={{fontSize:10,fontWeight:700,color:tieneIva?'var(--ok)':'var(--tx3)'}}>{tieneIva?'SÍ':'NO'}</span>
+          }
         </div>
-      )}
+        {tieneIva&&(
+          <React.Fragment>
+            <div style={{display:'flex',alignItems:'center',gap:6}}>
+              <span style={{fontSize:9,color:'var(--tx2)',flex:1}}>IVA sobre:</span>
+              {editandoAIU
+                ?<select className="ni" value={ivaBase} onChange={function(e){updOv('iva_base',e.target.value)}} disabled={readOnly} style={{width:120,height:20,fontSize:9,border:'1px solid var(--bd)',borderRadius:4,padding:'0 3px',opacity:readOnly?0.5:1,cursor:readOnly?'not-allowed':'pointer'}}><option value="utilidad">Utilidad</option><option value="cd">Costo Directo</option></select>
+                :<span style={{fontSize:9,color:'var(--tx)'}}>{ivaBase==='cd'?'Costo Directo':'Utilidad'}</span>
+              }
+            </div>
+            <div style={{display:'flex',alignItems:'center',gap:6}}>
+              <span style={{fontSize:9,color:'var(--tx2)',flex:1}}>Tarifa %:</span>
+              {editandoAIU
+                ?<NumInput step=".5" inputMode="decimal" value={ivaPct} onChange={function(v){updOv('iva_pct',v)}} disabled={readOnly} style={{width:55,fontSize:9,textAlign:'right',height:20,opacity:readOnly?0.5:1,cursor:readOnly?'not-allowed':'pointer'}} decimals={2}/>
+                :<span style={{fontSize:9,color:'var(--tx)',fontWeight:600}}>{ivaPct.toFixed(2)}%</span>
+              }
+            </div>
+            <div style={{fontSize:9,color:'var(--tx3)',padding:'3px 6px',background:'var(--bg2)',borderRadius:3}}>
+              = {fmt(ivaCalculado)} sobre {ivaBase==='cd'?'CD':'Utilidad'}
+            </div>
+          </React.Fragment>
+        )}
+      </div>
     </div>
   );
 }

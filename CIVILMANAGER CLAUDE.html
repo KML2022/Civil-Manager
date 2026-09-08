@@ -9198,7 +9198,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
 
     return(
       <div style={{display:'flex',flexDirection:'row',gap:12,height:'calc(100vh - 150px)',minHeight:0,minWidth:0,alignItems:'flex-start'}}>
-      <div style={{maxWidth:FORM_TABLE_MAXW,flex:'1 1 0',display:'flex',flexDirection:'column',gap:8,height:'100%',minHeight:0,minWidth:0}}>
+    <div style={{maxWidth:FORM_TABLE_MAXW,flex:'1 1 0',display:'flex',flexDirection:'column',gap:8,height:'100%',minHeight:0,minWidth:0,overflow:'auto'}}>
         <div style={{flexShrink:0,display:'flex',flexDirection:'column',gap:8}}>
           <TituloSubTab pres={pres} presupuestos={presupuestos} tituloSubTab="Formulario Consolidado" extra={<span style={{fontSize:9,padding:'2px 8px',borderRadius:3,border:'1px solid var(--ac)',background:'rgba(77,143,247,.08)',color:'var(--ac)',fontWeight:700}}>{hijos.length} sub-proyecto(s)</span>}/>
           <div style={{display:'flex',gap:6,alignItems:'center'}}>
@@ -9684,7 +9684,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
 
   return(
     <div style={{display:'flex',flexDirection:'row',gap:12,height:'calc(100vh - 150px)',minHeight:0,minWidth:0,alignItems:'flex-start'}}>
-    <div style={{maxWidth:FORM_TABLE_MAXW,flex:'1 1 0',display:'flex',flexDirection:'column',gap:8,height:'100%',minHeight:0,minWidth:0}}>
+    <div style={{maxWidth:FORM_TABLE_MAXW,flex:'1 1 0',display:'flex',flexDirection:'column',gap:8,height:'100%',minHeight:0,minWidth:0,overflow:'auto'}}>
       <div style={{flexShrink:0,display:'flex',flexDirection:'column',gap:8}}>
         <TituloSubTab pres={pres} presupuestos={presupuestos} tituloSubTab="Formulario de Cantidades y Precios"/>
         <BannerEstadoProyecto pres={pres} estadoLabel={estadoLabel} estadoColor={estadoColor}/>
@@ -9723,8 +9723,8 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
           </div>
         )}
       </div>
-      <div className="xl-wrap" style={{flex:'1 1 0',minHeight:0,minWidth:0,display:'flex',flexDirection:'column',boxSizing:'border-box'}}>
-        <div className="xl-scroll" style={{overflowX:'auto',flex:'0 1 auto',minHeight:0,minWidth:0,scrollbarGutter:'stable'}}>
+      <div className="xl-wrap" style={{minWidth:0,display:'flex',flexDirection:'column',boxSizing:'border-box'}}>
+        <div className="xl-scroll" style={{overflowX:'auto',minHeight:0,minWidth:0,scrollbarGutter:'stable'}}>
           <table className="tbl-hanken-test" style={{tableLayout:'fixed',width:FORM_TABLE_INNERW,fontSize:10}}>
             <colgroup>
               <col style={{width:40}}/>{tipoPrecioFormulario==='apu'&&<col style={{width:65}}/>}<col style={{width:100}}/><col style={{width:392}}/><col style={{width:70}}/><col style={{width:80}}/><col style={{width:90}}/><col style={{width:100}}/><col style={{width:80}}/><col style={{width:110}}/>

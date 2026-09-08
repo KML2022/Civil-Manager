@@ -9197,8 +9197,8 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
     };
 
     return(
-      <div style={{display:'flex',flexDirection:'row',gap:12,height:'calc(100vh - 150px)',minHeight:0,minWidth:0,alignItems:'flex-start'}}>
-    <div style={{maxWidth:FORM_TABLE_MAXW,flex:'1 1 0',display:'flex',flexDirection:'column',gap:8,height:'100%',minHeight:0,minWidth:0}}>
+      <div style={{display:'flex',flexDirection:'row',gap:12,flex:'1 1 0',minHeight:0,minWidth:0,overflow:'hidden'}}>
+    <div style={{maxWidth:FORM_TABLE_MAXW,flex:'1 1 0',display:'flex',flexDirection:'column',gap:8,minHeight:0,minWidth:0}}>
         <div style={{flexShrink:0,display:'flex',flexDirection:'column',gap:8}}>
           <TituloSubTab pres={pres} presupuestos={presupuestos} tituloSubTab="Formulario Consolidado" extra={<span style={{fontSize:9,padding:'2px 8px',borderRadius:3,border:'1px solid var(--ac)',background:'rgba(77,143,247,.08)',color:'var(--ac)',fontWeight:700}}>{hijos.length} sub-proyecto(s)</span>}/>
           <div style={{display:'flex',gap:6,alignItems:'center'}}>
@@ -9683,8 +9683,8 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
   var itemsPagina=itemsFiltrados.slice(page*PAGE_SIZE,(page+1)*PAGE_SIZE);
 
   return(
-    <div style={{display:'flex',flexDirection:'row',gap:12,height:'calc(100vh - 150px)',minHeight:0,minWidth:0,alignItems:'flex-start'}}>
-    <div style={{maxWidth:FORM_TABLE_MAXW,flex:'1 1 0',display:'flex',flexDirection:'column',gap:8,height:'100%',minHeight:0,minWidth:0}}>
+    <div style={{display:'flex',flexDirection:'row',gap:12,flex:'1 1 0',minHeight:0,minWidth:0,overflow:'hidden'}}>
+    <div style={{maxWidth:FORM_TABLE_MAXW,flex:'1 1 0',display:'flex',flexDirection:'column',gap:8,minHeight:0,minWidth:0}}>
       <div style={{flexShrink:0,display:'flex',flexDirection:'column',gap:8}}>
         <TituloSubTab pres={pres} presupuestos={presupuestos} tituloSubTab="Formulario de Cantidades y Precios"/>
         <BannerEstadoProyecto pres={pres} estadoLabel={estadoLabel} estadoColor={estadoColor}/>
@@ -12133,7 +12133,7 @@ var factorPrest=useMemo(function(){return r2(factoresPrestaciones.reduce(functio
 
       </div>}
 
-      <div className="main" style={tab===6||tab===7?{flex:'0 0 auto',overflow:'visible'}:tab===8?{overflow:'hidden'}:(tab>=9&&tab<=14)?{overflow:'visible'}:{}}>
+      <div className="main" style={tab===6||tab===7?{flex:'0 0 auto',overflow:'visible'}:tab===8?{overflow:'hidden'}:(tab>=9&&tab<=14)?{display:'flex',flexDirection:'column'}:{}}>
 
         {!isFuture&&tab===0&&<FactorPrestacionalTab {...tabProps}/>}
 

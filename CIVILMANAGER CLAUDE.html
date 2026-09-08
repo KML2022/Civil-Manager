@@ -9877,7 +9877,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
           else if(candidatos.length>1){resultado.manual++;resultado.items.push({item:it.num_item,apu:candidatos.length+' opciones',ok:false})}
           else{resultado.sinApu++;resultado.items.push({item:it.num_item,apu:'Sin APU disponible',ok:false})}
         });
-        var执行Asignacion=function(){
+        var ejecutarAsignacion=function(){
           var arr=pres.items.slice();var asignados=0;
           var snapApus=(pres.apus_snap||[]).slice();
           var insumosSnap=(pres.insumos_snap||[]).slice();
@@ -9958,7 +9958,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
               )}
               <div style={{display:'flex',gap:8,justifyContent:'flex-end',paddingTop:8,borderTop:'1px solid var(--bdr)'}}>
                 <button className="btn" onClick={function(){setShowAsignarApuTodos(false)}} style={{fontSize:10,padding:'5px 14px',border:'1px solid var(--bdr)',borderRadius:4,background:'none',color:'var(--tx2)',cursor:'pointer'}}>Cancelar</button>
-                <button className="btn" onClick={执行Asignacion} disabled={itemsSinApu.length===0||apusDisponibles.length===0} style={{fontSize:10,padding:'5px 14px',border:'1px solid #a78bfa',borderRadius:4,background:itemsSinApu.length>0&&apusDisponibles.length>0?'#a78bfa':'var(--bg2)',color:itemsSinApu.length>0&&apusDisponibles.length>0?'#fff':'var(--tx3)',cursor:itemsSinApu.length>0&&apusDisponibles.length>0?'pointer':'not-allowed',fontWeight:700}}>Asignar APU automáticos ({resultado.auto})</button>
+                <button className="btn" onClick={ejecutarAsignacion} disabled={itemsSinApu.length===0||apusDisponibles.length===0} style={{fontSize:10,padding:'5px 14px',border:'1px solid #a78bfa',borderRadius:4,background:itemsSinApu.length>0&&apusDisponibles.length>0?'#a78bfa':'var(--bg2)',color:itemsSinApu.length>0&&apusDisponibles.length>0?'#fff':'var(--tx3)',cursor:itemsSinApu.length>0&&apusDisponibles.length>0?'pointer':'not-allowed',fontWeight:700}}>Asignar APU automáticos ({resultado.auto})</button>
               </div>
             </div>
           </div>

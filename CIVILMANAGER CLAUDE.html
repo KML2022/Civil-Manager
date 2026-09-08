@@ -9727,12 +9727,12 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
         <div className="xl-scroll" style={{overflowX:'auto',flex:'1 1 0',minHeight:0,minWidth:0,maxHeight:'none',scrollbarGutter:'stable'}}>
           <table className="tbl-hanken-test" style={{tableLayout:'fixed',width:FORM_TABLE_INNERW,fontSize:10}}>
             <colgroup>
-              <col style={{width:40}}/><col style={{width:65}}/><col style={{width:100}}/><col style={{width:392}}/><col style={{width:70}}/><col style={{width:80}}/><col style={{width:90}}/><col style={{width:100}}/><col style={{width:80}}/><col style={{width:110}}/>
+              <col style={{width:40}}/>{tipoPrecioFormulario==='apu'&&<col style={{width:65}}/>}<col style={{width:100}}/><col style={{width:392}}/><col style={{width:70}}/><col style={{width:80}}/><col style={{width:90}}/><col style={{width:100}}/><col style={{width:80}}/><col style={{width:110}}/>
             </colgroup>
-            <thead><tr><th>#</th><th style={{textAlign:'center'}}>APU</th><th style={{textAlign:'center'}}>Item</th><th>Descripcion</th><th style={{textAlign:'center'}}>UN</th><th>Cant.</th><th>Vr. Unit</th><th>Vr. Total</th><th style={{textAlign:'center'}}>Tipo Precio</th><th className="col-act">Acciones</th></tr></thead>
+            <thead><tr><th>#</th>{tipoPrecioFormulario==='apu'&&<th style={{textAlign:'center'}}>APU</th>}<th style={{textAlign:'center'}}>Item</th><th>Descripcion</th><th style={{textAlign:'center'}}>UN</th><th>Cant.</th><th>Vr. Unit</th><th>Vr. Total</th><th style={{textAlign:'center'}}>Tipo Precio</th><th className="col-act">Acciones</th></tr></thead>
             <tbody>
-              {itemsArr.length===0&&<tr className="empty-row"><td colSpan={10}>Sin items.{!readOnly&&' Agrega con "+ Capitulo"'}</td></tr>}
-              {itemsArr.length>0&&itemsFiltrados.length===0&&<tr className="empty-row"><td colSpan={10}>Sin resultados para "{busq}".</td></tr>}
+              {itemsArr.length===0&&<tr className="empty-row"><td colSpan={tipoPrecioFormulario==='apu'?10:9}>Sin items.{!readOnly&&' Agrega con "+ Capitulo"'}</td></tr>}
+              {itemsArr.length>0&&itemsFiltrados.length===0&&<tr className="empty-row"><td colSpan={tipoPrecioFormulario==='apu'?10:9}>Sin resultados para "{busq}".</td></tr>}
               {itemsPagina.map(function(it){
                 var i=itemsArr.indexOf(it);
                 var c=calcItemVal(it);
@@ -9742,9 +9742,9 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
                 if(esCap)return(
                   <tr key={it.id} style={{background:'#1E3A5F'}} onBlur={function(e){if(!e.currentTarget.contains(e.relatedTarget))setEditIdx(null)}}>
                     <td style={{textAlign:'center',color:'#fff'}}>{i+1}</td>
-                    <td/>
+                    {tipoPrecioFormulario==='apu'&&<td/>}
                     <td style={{color:'#fff',fontWeight:700,textAlign:'center'}}>{isEdit?<input className="ni" value={it.num_item} onChange={function(e){updItem(i,'num_item',e.target.value)}} style={{width:'100%',fontSize:10,background:'transparent',color:'#fff',fontWeight:700,textAlign:'center'}} autoFocus/>:it.num_item}</td>
-                    <td style={{color:'#fff',fontWeight:700,whiteSpace:'normal',wordBreak:'break-word'}} colSpan={6}>{isEdit?<input className="ni" value={it.descripcion} onChange={function(e){updItem(i,'descripcion',e.target.value)}} style={{width:'100%',fontSize:10,background:'transparent',color:'#fff',fontWeight:700}} placeholder="Descripcion"/>:it.descripcion}</td>
+                    <td style={{color:'#fff',fontWeight:700,whiteSpace:'normal',wordBreak:'break-word'}} colSpan={tipoPrecioFormulario==='apu'?6:5}>{isEdit?<input className="ni" value={it.descripcion} onChange={function(e){updItem(i,'descripcion',e.target.value)}} style={{width:'100%',fontSize:10,background:'transparent',color:'#fff',fontWeight:700}} placeholder="Descripcion"/>:it.descripcion}</td>
                     <td className="col-act" style={{textAlign:'center',whiteSpace:'nowrap',background:'#1E3A5F',boxSizing:'border-box',height:'inherit'}}>
                       <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100%'}}>
                         <span style={{width:24,display:'inline-flex',justifyContent:'center'}}>{!readOnly&&<button onClick={function(){setEditIdx(isEdit?null:i)}} title="Editar" style={{background:'none',border:'none',cursor:'pointer',padding:0,color:'#fff'}}><IconEdit/></button>}</span>
@@ -9758,11 +9758,11 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
                 return(
                   <tr key={it.id} onBlur={function(e){if(!e.currentTarget.contains(e.relatedTarget))setEditIdx(null)}}>
                     <td style={{textAlign:'center',color:'var(--tx3)'}}>{i+1}</td>
-                    <td style={{textAlign:'center'}}>
+                    {tipoPrecioFormulario==='apu'&&<td style={{textAlign:'center'}}>
                       {apu?<span style={{fontSize:9,color:'var(--ok)',fontWeight:600}}>{apu.codigo}</span>
                       :it.alerta_sin_apu?<span style={{fontSize:9,color:'#f87171',fontWeight:600}}>🔴 Sin APU</span>
                       :<span style={{fontSize:9,color:'var(--err)'}}>Sin asignar</span>}
-                    </td>
+                    </td>}
                     <td style={{textAlign:'center'}}>{isEdit?<input className="ni" value={it.num_item} onChange={function(e){updItem(i,'num_item',e.target.value)}} style={{width:'100%',fontSize:10,textAlign:'center'}} autoFocus/>:it.num_item}</td>
                     <td style={{whiteSpace:'normal',wordBreak:'break-word'}}>{isEdit?<input className="ni" value={it.descripcion} onChange={function(e){updItem(i,'descripcion',e.target.value)}} style={{width:'100%',fontSize:10}} placeholder="Descripcion"/>:it.descripcion}</td>
                     <td style={{textAlign:'center'}}>{isEdit?<input className="ni" value={it.unidad} onChange={function(e){updItem(i,'unidad',e.target.value)}} style={{width:'100%',fontSize:10,textAlign:'center'}}/>:it.unidad}</td>
@@ -9774,16 +9774,13 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
                         placeholder="0" step="0.01" inputMode="decimal"/>
                       :(apu||it.tipoPrecio==='entidad')?fmt(c.vr_unit):'-'}</td>
                     <td style={{textAlign:'right',fontWeight:600}}>{(apu||it.tipoPrecio==='entidad')?fmt(c.vr_total):'-'}</td>
-                    <td style={{textAlign:'center'}}>
-                      <select value={it.tipoPrecio||'apu'} onChange={function(e){updItem(i,'tipoPrecio',e.target.value)}} disabled={readOnly} style={{fontSize:9,background:'var(--bg2)',color:'var(--tx)',border:'1px solid var(--bdr)',borderRadius:3,padding:'1px 3px',width:'100%'}}>
-                        <option value="apu">APU</option>
-                        <option value="entidad">Entidad</option>
-                      </select>
+                    <td style={{textAlign:'center',fontSize:9,fontWeight:600,color:it.tipoPrecio==='entidad'?'#fbbf24':'var(--ac)'}}>
+                      {it.tipoPrecio==='entidad'?'Entidad':'APU'}
                     </td>
                     <td className="col-act" style={{textAlign:'center',whiteSpace:'nowrap',boxSizing:'border-box',height:'inherit'}}>
                       <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100%'}}>
                         <span style={{width:24,display:'inline-flex',justifyContent:'center'}}>{!readOnly&&<button onClick={function(){setEditIdx(isEdit?null:i)}} title="Editar" style={{background:'none',border:'none',cursor:'pointer',padding:0}}><IconEdit/></button>}</span>
-                        <span style={{width:24,display:'inline-flex',justifyContent:'center'}}>{!readOnly&&(apu?
+                        <span style={{width:24,display:'inline-flex',justifyContent:'center'}}>{tipoPrecioFormulario==='apu'&&!readOnly&&(apu?
                           <button onClick={function(){unassignApu(i)}} title="Quitar APU" style={{background:'none',border:'none',color:'#f87171',cursor:'pointer',padding:0,fontSize:15,fontWeight:700,verticalAlign:'middle'}}>⊘</button>
                           :<button onClick={function(){openApuModal(i)}} title="Asignar APU" style={{background:'none',border:'none',color:'var(--ac)',cursor:'pointer',padding:0,fontSize:11,fontWeight:700,verticalAlign:'middle'}}>APU</button>
                         )}</span>

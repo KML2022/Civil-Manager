@@ -12133,7 +12133,7 @@ var factorPrest=useMemo(function(){return r2(factoresPrestaciones.reduce(functio
 
       </div>}
 
-      <div className="main" style={tab===6||tab===7?{flex:'0 0 auto',overflow:'visible'}:tab===8?{overflow:'hidden'}:{}}>
+      <div className="main" style={tab===6||tab===7?{flex:'0 0 auto',overflow:'visible'}:tab===8?{overflow:'hidden'}:(tab>=9&&tab<=14)?{overflow:'visible'}:{}}>
 
         {!isFuture&&tab===0&&<FactorPrestacionalTab {...tabProps}/>}
 

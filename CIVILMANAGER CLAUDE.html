@@ -11859,8 +11859,8 @@ function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,i
     :<PresProyectosPanel presupuestos={presupuestos} selPresIdx={selPresIdx} setSelPresIdx={setSelPresIdx} data={data} onChange={onChange} estadoColor={estadoColor} estadoLabel={estadoLabel} addPresupuesto={addPresupuesto} addSubProyecto={addSubProyecto} toggleEstado={toggleEstado} cambiarPerfilPais={cambiarPerfilPais} delPresupuesto={delPresupuesto} clonarPresupuesto={clonarPresupuesto} setTab={setTab}/>;
 
   return(
-    <div style={{display:'flex',flexDirection:'column',gap:8}}>
-      <div style={{display:'flex',flexDirection:'row',flexWrap:'wrap',gap:6,paddingBottom:8,borderBottom:'1px solid var(--bdr)'}}>
+    <div style={{display:'flex',flexDirection:'column',gap:8,flex:1,minHeight:0}}>
+      <div style={{display:'flex',flexDirection:'row',flexWrap:'wrap',gap:6,paddingBottom:8,borderBottom:'1px solid var(--bdr)',flexShrink:0}}>
         {PRES_NAV.map(function(nav){
           var activo=tab===nav.tab||(nav.tab===9&&tab<9);
           return(
@@ -11875,7 +11875,7 @@ function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,i
           );
         })}
       </div>
-      <div style={{flex:1,minWidth:0,width:'100%'}}>
+      <div style={{flex:1,minWidth:0,minHeight:0,width:'100%'}}>
         {presContent}
       </div>
     </div>

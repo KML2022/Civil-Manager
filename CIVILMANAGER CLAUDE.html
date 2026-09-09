@@ -8763,6 +8763,13 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
 
   useEffect(function(){setPage(0)},[presId]);
   useEffect(function(){
+    var arr=(pres&&pres.items||[]);
+    var b=busq?norm(busq):'';
+    var len=b?arr.filter(function(it){return norm(it.descripcion||'').indexOf(b)>=0||norm(it.capitulo||'').indexOf(b)>=0||norm(it.num_item||'').indexOf(b)>=0}).length:arr.length;
+    var tot=Math.max(1,Math.ceil(len/50));
+    if(page>=tot) setPage(Math.max(0,tot-1));
+  },[presId,busq,page,(pres&&pres.items||[]).length]);
+  useEffect(function(){
     setFase(pres&&(pres.formulario_original||(pres.items||[]).length>0)?'revision':'inicio');
     setTipoPrecioFormulario((pres&&pres.tipoPrecioFormulario)||'apu');
     var tipo=(pres&&pres.tipoPrecioFormulario)||'apu';
@@ -9681,8 +9688,8 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
   });
   var PAGE_SIZE=50;
   var totalPaginas=Math.max(1,Math.ceil(itemsFiltrados.length/PAGE_SIZE));
-  var itemsPagina=itemsFiltrados.slice(page*PAGE_SIZE,(page+1)*PAGE_SIZE);
-  useEffect(function(){if(page>=totalPaginas)setPage(Math.max(0,totalPaginas-1))},[totalPaginas]);
+  var pageSafe=page>=totalPaginas?Math.max(0,totalPaginas-1):page;
+  var itemsPagina=itemsFiltrados.slice(pageSafe*PAGE_SIZE,(pageSafe+1)*PAGE_SIZE);
 
   return(
     <div style={{display:'flex',flexDirection:'row',gap:12,flex:'1 1 0',minHeight:0,minWidth:0,overflow:'hidden'}}>
@@ -9799,9 +9806,9 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
       </div>
       <div style={{flexShrink:0,display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,padding:'6px 12px',borderTop:'1px solid var(--bdr)',fontSize:11,color:'var(--tx3)',width:'100%',boxSizing:'border-box'}}>
         <div style={{display:'flex',alignItems:'center',gap:8}}>
-          <button disabled={page===0} onClick={function(){setPage(page-1)}} style={{padding:'2px 8px',fontSize:10,opacity:page===0?0.4:1,cursor:page===0?'not-allowed':'pointer'}}>{'← Anterior'}</button>
-          <span>Página {page+1} de {totalPaginas} ({itemsFiltrados.length} ítems)</span>
-          <button disabled={page>=totalPaginas-1} onClick={function(){setPage(page+1)}} style={{padding:'2px 8px',fontSize:10,opacity:page>=totalPaginas-1?0.4:1,cursor:page>=totalPaginas-1?'not-allowed':'pointer'}}>{'Siguiente →'}</button>
+          <button disabled={pageSafe===0} onClick={function(){setPage(pageSafe-1)}} style={{padding:'2px 8px',fontSize:10,opacity:pageSafe===0?0.4:1,cursor:pageSafe===0?'not-allowed':'pointer'}}>{'← Anterior'}</button>
+          <span>Página {pageSafe+1} de {totalPaginas} ({itemsFiltrados.length} ítems)</span>
+          <button disabled={pageSafe>=totalPaginas-1} onClick={function(){setPage(pageSafe+1)}} style={{padding:'2px 8px',fontSize:10,opacity:pageSafe>=totalPaginas-1?0.4:1,cursor:pageSafe>=totalPaginas-1?'not-allowed':'pointer'}}>{'Siguiente →'}</button>
         </div>
         <div style={{display:'flex',alignItems:'center',gap:6}}>
           {!readOnly&&fo&&tipoPrecioFormulario==='apu'&&<button className="btn" onClick={function(){setShowAsignarApuTodos(true)}} style={{fontSize:9,padding:'3px 8px',border:'1px solid #a78bfa',borderRadius:4,background:'rgba(167,139,250,.08)',color:'#a78bfa',cursor:'pointer',fontWeight:600}}>🔄 Asignar APU</button>}

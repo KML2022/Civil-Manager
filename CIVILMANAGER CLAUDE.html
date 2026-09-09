@@ -7764,8 +7764,8 @@ function PresProyectosPanel({presupuestos,selPresIdx,setSelPresIdx,data,onChange
           </table>
         </div>
         <CrudFooter onAdd={function(){setEditIdx(presupuestos.length);addPresupuesto()}} addLabel="Nuevo Proyecto" excel={presupuestosExcel} exportLabel="Exportar" countLabel="No. de Proyectos:" count={filteredPresupuestos.length}>
-          <input className="ni" style={{width:130,height:22,fontSize:11,border:'1px solid var(--ac)',borderRadius:4}} placeholder="Buscar por Cliente..." value={searchCliente} onChange={function(e){setSearchCliente(e.target.value)}}/>
-          <input className="ni" style={{width:130,height:22,fontSize:11,border:'1px solid var(--ac)',borderRadius:4}} placeholder="Buscar por Tipo de Proyecto..." value={searchTipo} onChange={function(e){setSearchTipo(e.target.value)}}/>
+          <input className="ni" style={{width:150,height:22,fontSize:11,border:'1px solid var(--ac)',borderRadius:4}} placeholder="Buscar por Cliente..." value={searchCliente} onChange={function(e){setSearchCliente(e.target.value)}}/>
+          <input className="ni" style={{width:170,height:22,fontSize:11,border:'1px solid var(--ac)',borderRadius:4}} placeholder="Buscar por Tipo de Proyecto..." value={searchTipo} onChange={function(e){setSearchTipo(e.target.value)}}/>
         </CrudFooter>
         <ExcelPreviewModal excel={presupuestosExcel}/>
         {(data.proyectos_eliminados||[]).length>0&&(

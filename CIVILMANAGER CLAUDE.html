@@ -9804,7 +9804,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
           </table>
         </div>
       </div>
-      <div style={{flexShrink:0,display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,padding:'6px 12px',borderTop:'1px solid var(--bdr)',fontSize:11,color:'var(--tx3)',width:'100%',boxSizing:'border-box'}}>
+      <div style={{flexShrink:0,display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,padding:'8px 12px',background:'var(--bg2)',border:'1px solid var(--bdr)',borderRadius:6,fontSize:11,color:'var(--tx3)',width:'100%',boxSizing:'border-box'}}>
         <div style={{display:'flex',alignItems:'center',gap:8}}>
           <button disabled={pageSafe===0} onClick={function(){setPage(pageSafe-1)}} style={{padding:'2px 8px',fontSize:10,opacity:pageSafe===0?0.4:1,cursor:pageSafe===0?'not-allowed':'pointer'}}>{'← Anterior'}</button>
           <span>Página {pageSafe+1} de {totalPaginas} ({itemsFiltrados.length} ítems)</span>

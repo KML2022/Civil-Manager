@@ -8988,7 +8988,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
     if(!fo||!fo.archivo_b64){showToast('No hay formulario para exportar',{type:'warn'});return}
     var useOv=pres.aiu_override&&pres.aiu_override.activo;
     var cfg=data.config||{};
-    var aiuC={pctA:useOv?(safeFloat(pres.aiu_override.pct_a)||0):(safeFloat(cfg.pct_administracion)||0),pctI:useOv?(safeFloat(pres.aiu_override.pct_i)||0):(safeFloat(cfg.pct_imprevistos)||0),pctU:useOv?(safeFloat(pres.aiu_override.pct_u)||0):(safeFloat(cfg.pct_utilidad)||0)};
+    var aiuC={pctA:useOv?(safeFloat(pres.aiu_override.pct_a)||0):(safeFloat(cfg.pct_administracion)||0),pctI:useOv?(safeFloat(pres.aiu_override.pct_i)||0):(safeFloat(cfg.pct_imprevistos)||0),pctU:useOv?(safeFloat(pres.aiu_override.pct_u)||0):(safeFloat(cfg.pct_utilidad)||0),tieneIva:useOv?!!(pres.aiu_override.tiene_iva):false,ivaBase:useOv?(pres.aiu_override.iva_base||'utilidad'):'utilidad',ivaPct:useOv?(safeFloat(pres.aiu_override.iva_pct)||19):19};
     exportarFormularioLlenoGlobal(pres,calcItemVal,null,aiuC);
   };
 

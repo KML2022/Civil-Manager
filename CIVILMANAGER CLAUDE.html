@@ -7654,16 +7654,16 @@ function PresProyectosPanel({presupuestos,selPresIdx,setSelPresIdx,data,onChange
     <div onClick={function(){if(proyMsg)setProyMsg(null)}}>
       <div className="sec-hdr" style={{border:'1px solid var(--bdr)',borderRadius:4,padding:'2px 10px',height:25,marginBottom:8,display:'flex',alignItems:'center',justifyContent:'space-between',width:1425}}>
         <span className="title" style={{fontSize:15,lineHeight:'19px'}}>1. CATALOGO DE PROYECTOS</span>
-        <span onClick={function(){setShowGuia(!showGuia)}} style={{display:'flex',alignItems:'center',gap:6,fontSize:12,color:showGuia?'var(--ok)':'var(--tx)',cursor:'pointer',padding:'4px 12px',borderRadius:5,border:'1px solid '+(showGuia?'var(--ok)':'var(--bdr)'),background:showGuia?'rgba(74,222,128,.1)':'rgba(42,58,85,.4)',transition:'all .15s',userSelect:'none',fontWeight:600}}>
+        <span onClick={function(){setShowGuia(!showGuia)}} style={{display:'flex',alignItems:'center',gap:6,fontSize:12,color:showGuia?'var(--ok)':'#00e5ff',cursor:'pointer',padding:'4px 12px',borderRadius:5,border:'1px solid '+(showGuia?'var(--ok)':'rgba(0,229,255,.4)'),background:showGuia?'rgba(74,222,128,.1)':'rgba(0,229,255,.08)',transition:'all .15s',userSelect:'none',fontWeight:600}}>
           <span style={{fontSize:15,lineHeight:1}}>📖</span>
           <span style={{fontWeight:700}}>Guía Rápida</span>
           <span style={{fontSize:10,transition:'transform .15s',transform:showGuia?'rotate(180deg)':'rotate(0deg)',display:'inline-block'}}>▾</span>
         </span>
       </div>
       {showGuia&&<div style={{padding:'12px 14px',borderRadius:6,border:'1px solid var(--bdr)',background:'var(--bg2)',fontSize:10,color:'var(--tx2)',lineHeight:1.7,marginBottom:8,width:1425}}>
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px 14px'}}>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'6px 14px'}}>
           {/* Estados */}
-          <div style={{paddingBottom:8,borderBottom:'1px solid var(--bdr)'}}>
+          <div>
             <div style={{fontWeight:700,color:'var(--tx)',fontSize:11,marginBottom:4}}>📌 Estados del Proyecto</div>
             <div style={{display:'flex',flexDirection:'column',gap:2}}>
               <span><span style={{color:'var(--warn)',fontWeight:700}}>🟡 Borrador</span> — construcción activa, todo editable.</span>
@@ -7673,7 +7673,7 @@ function PresProyectosPanel({presupuestos,selPresIdx,setSelPresIdx,data,onChange
             </div>
           </div>
           {/* Crear proyecto */}
-          <div style={{paddingBottom:8,borderBottom:'1px solid var(--bdr)'}}>
+          <div style={{borderLeft:'1px solid var(--bdr)',paddingLeft:14}}>
             <div style={{fontWeight:700,color:'var(--tx)',fontSize:11,marginBottom:4}}>➕ Crear un Proyecto</div>
             <div>
               <span>1. Clic en </span><span style={{color:'var(--ok)',fontWeight:600}}>"+ Nuevo Proyecto"</span><span> abajo a la izquierda.</span><br/>
@@ -7682,7 +7682,7 @@ function PresProyectosPanel({presupuestos,selPresIdx,setSelPresIdx,data,onChange
             </div>
           </div>
           {/* Importar formulario */}
-          <div style={{paddingBottom:8,borderBottom:'1px solid var(--bdr)'}}>
+          <div>
             <div style={{fontWeight:700,color:'var(--tx)',fontSize:11,marginBottom:4}}>📥 Importar Formulario</div>
             <div>
               <span>1. Abre el proyecto → pestaña </span><span style={{color:'var(--ac)',fontWeight:600}}>"Formulario de Cantidades y Precios"</span><span>.</span><br/>
@@ -7692,7 +7692,7 @@ function PresProyectosPanel({presupuestos,selPresIdx,setSelPresIdx,data,onChange
             </div>
           </div>
           {/* Asignar precios */}
-          <div style={{paddingBottom:8,borderBottom:'1px solid var(--bdr)'}}>
+          <div style={{borderLeft:'1px solid var(--bdr)',paddingLeft:14}}>
             <div style={{fontWeight:700,color:'var(--tx)',fontSize:11,marginBottom:4}}>💰 Asignar Precios a los Ítems</div>
             <div>
               <span style={{color:'var(--ac)',fontWeight:600}}>Opción A — Desde APU:</span><br/>
@@ -7710,7 +7710,7 @@ function PresProyectosPanel({presupuestos,selPresIdx,setSelPresIdx,data,onChange
             </div>
           </div>
           {/* Sub-proyectos */}
-          <div style={{paddingBottom:8,borderBottom:'1px solid var(--bdr)'}}>
+          <div>
             <div style={{fontWeight:700,color:'var(--tx)',fontSize:11,marginBottom:4}}>📁 Proyectos Padre con Sub-proyectos</div>
             <div>
               <span>Un proyecto padre (🟠 carpeta) agrupa sub-proyectos relacionados.</span><br/>
@@ -7719,7 +7719,7 @@ function PresProyectosPanel({presupuestos,selPresIdx,setSelPresIdx,data,onChange
             </div>
           </div>
           {/* Clonar */}
-          <div style={{paddingBottom:8,borderBottom:'1px solid var(--bdr)'}}>
+          <div style={{borderLeft:'1px solid var(--bdr)',paddingLeft:14}}>
             <div style={{fontWeight:700,color:'var(--tx)',fontSize:11,marginBottom:4}}>📋 Clonar un Proyecto</div>
             <div>
               <span>Úsalo cuando necesites crear un nuevo proyecto </span><span style={{fontWeight:600}}>basándote en uno existente</span><span>. En lugar de empezar de cero, clonas todo (ítems, APU, configuración) y luego ajustas lo que cambie.</span><br/>

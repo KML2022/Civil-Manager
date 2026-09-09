@@ -9693,7 +9693,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
 
   return(
     <div style={{display:'flex',flexDirection:'row',gap:12,flex:'1 1 0',minHeight:0,minWidth:0,overflow:'hidden'}}>
-    <div style={{maxWidth:FORM_TABLE_MAXW,flex:'1 1 0',display:'flex',flexDirection:'column',gap:8,height:0,minHeight:0,minWidth:0}}>
+    <div style={{maxWidth:FORM_TABLE_MAXW,flex:'1 1 0',display:'flex',flexDirection:'column',gap:8,minHeight:0,minWidth:0}}>
       <div style={{flexShrink:0,display:'flex',flexDirection:'column',gap:8}}>
         <TituloSubTab pres={pres} presupuestos={presupuestos} tituloSubTab="Formulario de Cantidades y Precios"/>
         <BannerEstadoProyecto pres={pres} estadoLabel={estadoLabel} estadoColor={estadoColor}/>
@@ -9732,8 +9732,8 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
           </div>
         )}
       </div>
-      <div className="xl-wrap" style={{flex:'1 1 auto',minHeight:180,height:0,minWidth:0,display:'flex',flexDirection:'column',boxSizing:'border-box',maxHeight:'none'}}>
-        <div className="xl-scroll" style={{overflowX:'auto',overflowY:'auto',flex:'1 1 auto',minHeight:200,minWidth:0,height:'auto',maxHeight:'clamp(260px, calc(100vh - 380px), 520px)',scrollbarGutter:'stable',paddingBottom:8}}>
+      <div className="xl-wrap" style={{flex:'1 1 0',minHeight:0,minWidth:0,display:'flex',flexDirection:'column',boxSizing:'border-box'}}>
+        <div className="xl-scroll" style={{overflowX:'auto',overflowY:'auto',flex:'1 1 0',minHeight:0,minWidth:0,maxHeight:'none',scrollbarGutter:'stable'}}>
           <table className="tbl-hanken-test" style={{tableLayout:'fixed',width:FORM_TABLE_INNERW,fontSize:10}}>
             <colgroup>
               <col style={{width:40}}/>{tipoPrecioFormulario==='apu'&&<col style={{width:65}}/>}<col style={{width:100}}/><col style={{width:392}}/><col style={{width:70}}/><col style={{width:80}}/><col style={{width:90}}/><col style={{width:100}}/><col style={{width:80}}/><col style={{width:110}}/>
@@ -11884,7 +11884,7 @@ function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,i
           );
         })}
       </div>
-      <div style={{flex:1,minWidth:0,minHeight:0,width:'100%'}}>
+      <div style={{flex:1,minWidth:0,minHeight:0,width:'100%',display:'flex',flexDirection:'column'}}>
         {presContent}
       </div>
     </div>

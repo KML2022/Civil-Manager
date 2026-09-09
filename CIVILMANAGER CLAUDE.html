@@ -8761,6 +8761,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
   var[visibilidadCols,setVisibilidadCols]=useState(visColsInit); /* {hijo_id:false} = columna oculta */
   useEffect(function(){if(vistaPadre==='matriz'){var c={};hijos.forEach(function(h){c[h.id]=false});setColapsados(c)}},[vistaPadre]);
 
+  useEffect(function(){setPage(0)},[presId]);
   useEffect(function(){
     setFase(pres&&(pres.formulario_original||(pres.items||[]).length>0)?'revision':'inicio');
     setTipoPrecioFormulario((pres&&pres.tipoPrecioFormulario)||'apu');
@@ -9681,6 +9682,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
   var PAGE_SIZE=50;
   var totalPaginas=Math.max(1,Math.ceil(itemsFiltrados.length/PAGE_SIZE));
   var itemsPagina=itemsFiltrados.slice(page*PAGE_SIZE,(page+1)*PAGE_SIZE);
+  useEffect(function(){if(page>=totalPaginas)setPage(Math.max(0,totalPaginas-1))},[totalPaginas]);
 
   return(
     <div style={{display:'flex',flexDirection:'row',gap:12,flex:'1 1 0',minHeight:0,minWidth:0,overflow:'hidden'}}>
@@ -9723,8 +9725,8 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
           </div>
         )}
       </div>
-      <div className="xl-wrap" style={{flex:'1 1 0',minHeight:0,minWidth:0,display:'flex',flexDirection:'column',boxSizing:'border-box'}}>
-        <div className="xl-scroll" style={{overflowX:'auto',flex:'1 1 0',minHeight:0,minWidth:0,scrollbarGutter:'stable'}}>
+      <div className="xl-wrap" style={{flex:'1 1 auto',minHeight:0,minWidth:0,height:0,display:'flex',flexDirection:'column',boxSizing:'border-box',maxHeight:'none'}}>
+        <div className="xl-scroll" style={{overflowX:'auto',overflowY:'auto',flex:'1 1 auto',minHeight:0,minWidth:0,height:0,maxHeight:'none',scrollbarGutter:'stable'}}>
           <table className="tbl-hanken-test" style={{tableLayout:'fixed',width:FORM_TABLE_INNERW,fontSize:10}}>
             <colgroup>
               <col style={{width:40}}/>{tipoPrecioFormulario==='apu'&&<col style={{width:65}}/>}<col style={{width:100}}/><col style={{width:392}}/><col style={{width:70}}/><col style={{width:80}}/><col style={{width:90}}/><col style={{width:100}}/><col style={{width:80}}/><col style={{width:110}}/>
@@ -12133,7 +12135,7 @@ var factorPrest=useMemo(function(){return r2(factoresPrestaciones.reduce(functio
 
       </div>}
 
-      <div className="main" style={tab===6||tab===7?{flex:'0 0 auto',overflow:'visible'}:tab===8?{overflow:'hidden'}:(tab>=9&&tab<=14)?{display:'flex',flexDirection:'column'}:{}}>
+      <div className="main" style={tab===6||tab===7?{flex:'0 0 auto',overflow:'visible'}:tab===8?{overflow:'hidden'}:(tab>=9&&tab<=14)?{display:'flex',flexDirection:'column',minHeight:0,overflow:'hidden'}:{}}>
 
         {!isFuture&&tab===0&&<FactorPrestacionalTab {...tabProps}/>}
 

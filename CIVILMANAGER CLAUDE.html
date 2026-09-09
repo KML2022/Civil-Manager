@@ -7661,79 +7661,87 @@ function PresProyectosPanel({presupuestos,selPresIdx,setSelPresIdx,data,onChange
         </span>
       </div>
       {showGuia&&<div style={{padding:'12px 14px',borderRadius:6,border:'1px solid var(--bdr)',background:'var(--bg2)',fontSize:10,color:'var(--tx2)',lineHeight:1.7,marginBottom:8,width:1425}}>
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'6px 14px'}}>
-          {/* Estados */}
-          <div>
-            <div style={{fontWeight:700,color:'var(--tx)',fontSize:11,marginBottom:4}}>📌 Estados del Proyecto</div>
-            <div style={{display:'flex',flexDirection:'column',gap:2}}>
-              <span><span style={{color:'var(--warn)',fontWeight:700}}>🟡 Borrador</span> — construcción activa, todo editable.</span>
-              <span><span style={{color:'var(--ac)',fontWeight:700}}>🔵 Revisión de Costos</span> — formulario congelado, solo recursos y parámetros editables.</span>
-              <span><span style={{color:'var(--ok)',fontWeight:700}}>🟢 Cerrado</span> — versión oficial, solo lectura total.</span>
-              <span style={{color:'var(--tx3)',fontSize:9}}>(Clic en el badge de estado para cambiar)</span>
-            </div>
-          </div>
-          {/* Crear proyecto */}
-          <div style={{borderLeft:'1px solid var(--bdr)',paddingLeft:14}}>
-            <div style={{fontWeight:700,color:'var(--tx)',fontSize:11,marginBottom:4}}>➕ Crear un Proyecto</div>
-            <div>
-              <span>1. Clic en </span><span style={{color:'var(--ok)',fontWeight:600}}>"+ Nuevo Proyecto"</span><span> abajo a la izquierda.</span><br/>
-              <span>2. Llena los datos obligatorios (Código, Nombre, País).</span><br/>
-              <span>3. El proyecto nace en estado <span style={{color:'var(--warn)',fontWeight:600}}>Borrador</span>.</span>
-            </div>
-          </div>
-          {/* Importar formulario */}
-          <div>
-            <div style={{fontWeight:700,color:'var(--tx)',fontSize:11,marginBottom:4}}>📥 Importar Formulario</div>
-            <div>
-              <span>1. Abre el proyecto → pestaña </span><span style={{color:'var(--ac)',fontWeight:600}}>"Formulario de Cantidades y Precios"</span><span>.</span><br/>
-              <span>2. Clic en </span><span style={{color:'var(--ok)',fontWeight:600}}>"Importar Formulario (Excel)"</span><span> y selecciona el archivo .xlsx.</span><br/>
-              <span>3. Configura el mapeo de columnas y clic </span><span style={{color:'var(--ok)',fontWeight:600}}>"Aplicar"</span><span>.</span><br/>
-              <span>4. El formulario se carga con todos los ítems y capítulos.</span>
-            </div>
-          </div>
-          {/* Asignar precios */}
-          <div style={{borderLeft:'1px solid var(--bdr)',paddingLeft:14}}>
-            <div style={{fontWeight:700,color:'var(--tx)',fontSize:11,marginBottom:4}}>💰 Asignar Precios a los Ítems</div>
-            <div>
-              <span style={{color:'var(--ac)',fontWeight:600}}>Opción A — Desde APU:</span><br/>
-              <span>Cada ítem requiere un APU (materiales + mano de obra + equipos). El precio final es </span><span style={{fontFamily:'monospace',color:'var(--tx)'}}>APU × (1 + AIU%)</span><span>. Clic en "APU" de cada fila o usa "</span><span style={{color:'var(--ok)',fontWeight:600}}>🔄 Asignar APU</span><span>" para varios de golpe.</span>
-              <div style={{marginTop:4,padding:'3px 8px',borderRadius:4,background:'rgba(248,113,113,.06)',border:'1px solid rgba(248,113,113,.2)',color:'#f87171',fontSize:9}}>
-                ⚠ Todos los ítems DEBEN tener APU antes de avanzar a "Revisión de Costos".
+        <div style={{display:'flex',gap:'0 14px'}}>
+          {/* Columna izquierda */}
+          <div style={{flex:'1',display:'flex',flexDirection:'column',gap:6}}>
+            {/* Estados */}
+            <div style={{paddingBottom:8,borderBottom:'1px solid var(--bdr)'}}>
+              <div style={{fontWeight:700,color:'var(--tx)',fontSize:11,marginBottom:4}}>📌 Estados del Proyecto</div>
+              <div style={{display:'flex',flexDirection:'column',gap:2}}>
+                <span><span style={{color:'var(--warn)',fontWeight:700}}>🟡 Borrador</span> — construcción activa, todo editable.</span>
+                <span><span style={{color:'var(--ac)',fontWeight:700}}>🔵 Revisión de Costos</span> — formulario congelado, solo recursos y parámetros editables.</span>
+                <span><span style={{color:'var(--ok)',fontWeight:700}}>🟢 Cerrado</span> — versión oficial, solo lectura total.</span>
+                <span style={{color:'var(--tx3)',fontSize:9}}>(Clic en el badge de estado para cambiar)</span>
               </div>
-              <div style={{marginTop:6}}>
-                <span style={{color:'var(--warn)',fontWeight:600}}>Opción B — Precio del Cliente (Entidad):</span><br/>
-                <span>El cliente entrega un Excel con precios fijos. Al importar, se cargan directamente en "Vr. Unit" (amarillo). No requiere APU.</span>
-                <div style={{marginTop:3,padding:'3px 8px',borderRadius:4,background:'rgba(251,191,36,.06)',border:'1px solid rgba(251,191,36,.2)',color:'#fbbf24',fontSize:9}}>
-                  ⚠ Todos los ítems deben tener precio {'>'} 0 antes de avanzar. Al avanzar, los precios se bloquean.
+            </div>
+            {/* Importar formulario */}
+            <div style={{paddingBottom:8,borderBottom:'1px solid var(--bdr)'}}>
+              <div style={{fontWeight:700,color:'var(--tx)',fontSize:11,marginBottom:4}}>📥 Importar Formulario</div>
+              <div>
+                <span>1. Abre el proyecto → pestaña </span><span style={{color:'var(--ac)',fontWeight:600}}>"Formulario de Cantidades y Precios"</span><span>.</span><br/>
+                <span>2. Clic en </span><span style={{color:'var(--ok)',fontWeight:600}}>"Importar Formulario (Excel)"</span><span> y selecciona el archivo .xlsx.</span><br/>
+                <span>3. Configura el mapeo de columnas y clic </span><span style={{color:'var(--ok)',fontWeight:600}}>"Aplicar"</span><span>.</span><br/>
+                <span>4. El formulario se carga con todos los ítems y capítulos.</span>
+              </div>
+            </div>
+            {/* Sub-proyectos */}
+            <div style={{paddingBottom:8,borderBottom:'1px solid var(--bdr)'}}>
+              <div style={{fontWeight:700,color:'var(--tx)',fontSize:11,marginBottom:4}}>📁 Proyectos Padre con Sub-proyectos</div>
+              <div>
+                <span>Un proyecto padre (🟠 carpeta) agrupa sub-proyectos relacionados.</span><br/>
+                <span>El </span><span style={{color:'var(--ac)',fontWeight:600}}>Resumen Consolidado</span><span> muestra CD/AIU/IVA de todos los hijos.</span><br/>
+                <span>Los sub-proyectos se crean con "</span><span style={{color:'var(--ok)',fontWeight:600}}>+ Sub-proyecto"</span><span>" dentro del padre.</span>
+              </div>
+            </div>
+            {/* Eliminar */}
+            <div>
+              <div style={{fontWeight:700,color:'var(--tx)',fontSize:11,marginBottom:4}}>🗑 Eliminar un Proyecto</div>
+              <div>
+                <span>Clic en 🗑 en "Acciones". Los eliminados quedan en "</span><span style={{color:'var(--tx3)',fontWeight:600}}>Proyectos eliminados</span><span>" abajo.</span><br/>
+                <span style={{color:'#f87171',fontSize:9}}>⚠ Un proyecto CERRADO requiere doble confirmación.</span>
+              </div>
+            </div>
+          </div>
+          {/* Línea vertical */}
+          <div style={{width:1,background:'var(--bdr)',alignSelf:'stretch'}}></div>
+          {/* Columna derecha */}
+          <div style={{flex:'1',display:'flex',flexDirection:'column',gap:6}}>
+            {/* Crear proyecto */}
+            <div style={{paddingBottom:8,borderBottom:'1px solid var(--bdr)'}}>
+              <div style={{fontWeight:700,color:'var(--tx)',fontSize:11,marginBottom:4}}>➕ Crear un Proyecto</div>
+              <div>
+                <span>1. Clic en </span><span style={{color:'var(--ok)',fontWeight:600}}>"+ Nuevo Proyecto"</span><span> abajo a la izquierda.</span><br/>
+                <span>2. Llena los datos obligatorios (Código, Nombre, País).</span><br/>
+                <span>3. El proyecto nace en estado <span style={{color:'var(--warn)',fontWeight:600}}>Borrador</span>.</span>
+              </div>
+            </div>
+            {/* Asignar precios */}
+            <div style={{paddingBottom:8,borderBottom:'1px solid var(--bdr)'}}>
+              <div style={{fontWeight:700,color:'var(--tx)',fontSize:11,marginBottom:4}}>💰 Asignar Precios a los Ítems</div>
+              <div>
+                <span style={{color:'var(--ac)',fontWeight:600}}>Opción A — Desde APU:</span><br/>
+                <span>Cada ítem requiere un APU (materiales + mano de obra + equipos). El precio final es </span><span style={{fontFamily:'monospace',color:'var(--tx)'}}>APU × (1 + AIU%)</span><span>. Clic en "APU" de cada fila o usa "</span><span style={{color:'var(--ok)',fontWeight:600}}>🔄 Asignar APU</span><span>" para varios de golpe.</span>
+                <div style={{marginTop:4,padding:'3px 8px',borderRadius:4,background:'rgba(248,113,113,.06)',border:'1px solid rgba(248,113,113,.2)',color:'#f87171',fontSize:9}}>
+                  ⚠ Todos los ítems DEBEN tener APU antes de avanzar a "Revisión de Costos".
+                </div>
+                <div style={{marginTop:6}}>
+                  <span style={{color:'var(--warn)',fontWeight:600}}>Opción B — Precio del Cliente (Entidad):</span><br/>
+                  <span>El cliente entrega un Excel con precios fijos. Al importar, se cargan directamente en "Vr. Unit" (amarillo). No requiere APU.</span>
+                  <div style={{marginTop:3,padding:'3px 8px',borderRadius:4,background:'rgba(251,191,36,.06)',border:'1px solid rgba(251,191,36,.2)',color:'#fbbf24',fontSize:9}}>
+                    ⚠ Todos los ítems deben tener precio {'>'} 0 antes de avanzar. Al avanzar, los precios se bloquean.
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-          {/* Sub-proyectos */}
-          <div>
-            <div style={{fontWeight:700,color:'var(--tx)',fontSize:11,marginBottom:4}}>📁 Proyectos Padre con Sub-proyectos</div>
+            {/* Clonar */}
             <div>
-              <span>Un proyecto padre (🟠 carpeta) agrupa sub-proyectos relacionados.</span><br/>
-              <span>El </span><span style={{color:'var(--ac)',fontWeight:600}}>Resumen Consolidado</span><span> muestra CD/AIU/IVA de todos los hijos.</span><br/>
-              <span>Los sub-proyectos se crean con "</span><span style={{color:'var(--ok)',fontWeight:600}}>+ Sub-proyecto"</span><span>" dentro del padre.</span>
-            </div>
-          </div>
-          {/* Clonar */}
-          <div style={{borderLeft:'1px solid var(--bdr)',paddingLeft:14}}>
-            <div style={{fontWeight:700,color:'var(--tx)',fontSize:11,marginBottom:4}}>📋 Clonar un Proyecto</div>
-            <div>
-              <span>Úsalo cuando necesites crear un nuevo proyecto </span><span style={{fontWeight:600}}>basándote en uno existente</span><span>. En lugar de empezar de cero, clonas todo (ítems, APU, configuración) y luego ajustas lo que cambie.</span><br/>
-              <span style={{color:'var(--tx3)',fontSize:9}}>Ejemplo: Tienes "PPT-001 — Alcantarillado" y arrancas uno similar. Clonas PPT-001 → se crea copia en Borrador → modificas cantidades o precios.</span><br/>
-              <span style={{color:'var(--tx3)',fontSize:9}}>Qué se copia: ítems, APU, snaps de costos. Qué NO: código, fechas, cliente, estado.</span><br/>
-              <span>Clic en </span><span style={{fontWeight:600}}>📋</span><span> en la columna "Acciones".</span>
-            </div>
-          </div>
-          {/* Eliminar */}
-          <div>
-            <div style={{fontWeight:700,color:'var(--tx)',fontSize:11,marginBottom:4}}>🗑 Eliminar un Proyecto</div>
-            <div>
-              <span>Clic en 🗑 en "Acciones". Los eliminados quedan en "</span><span style={{color:'var(--tx3)',fontWeight:600}}>Proyectos eliminados</span><span>" abajo.</span><br/>
-              <span style={{color:'#f87171',fontSize:9}}>⚠ Un proyecto CERRADO requiere doble confirmación.</span>
+              <div style={{fontWeight:700,color:'var(--tx)',fontSize:11,marginBottom:4}}>📋 Clonar un Proyecto</div>
+              <div>
+                <span>Úsalo cuando necesites crear un nuevo proyecto </span><span style={{fontWeight:600}}>basándote en uno existente</span><span>. En lugar de empezar de cero, clonas todo (ítems, APU, configuración) y luego ajustas lo que cambie.</span><br/>
+                <span style={{color:'var(--tx3)',fontSize:9}}>Ejemplo: Tienes "PPT-001 — Alcantarillado" y arrancas uno similar. Clonas PPT-001 → se crea copia en Borrador → modificas cantidades o precios.</span><br/>
+                <span style={{color:'var(--tx3)',fontSize:9}}>Qué se copia: ítems, APU, snaps de costos. Qué NO: código, fechas, cliente, estado.</span><br/>
+                <span>Clic en </span><span style={{fontWeight:600}}>📋</span><span> en la columna "Acciones".</span>
+              </div>
             </div>
           </div>
         </div>

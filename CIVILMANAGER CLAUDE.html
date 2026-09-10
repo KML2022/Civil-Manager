@@ -9892,8 +9892,8 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
                         placeholder="0" step="0.01" inputMode="decimal"/>
                       :(apu||it.tipoPrecio==='entidad')?fmt(c.vr_unit):'-'}</td>
                     <td style={{textAlign:'right',fontWeight:600}}>{(apu||it.tipoPrecio==='entidad')?fmt(c.vr_total):'-'}</td>
-                    <td style={{textAlign:'center',fontSize:9,fontWeight:600,color:it.tipoPrecio==='entidad'?'#fbbf24':'var(--ac)'}}>
-                      {it.tipoPrecio==='entidad'?'Entidad':'APU'}
+                    <td style={{textAlign:'center',fontSize:9,fontWeight:600,color:it.tipoPrecio==='entidad'?(pres.preciosEntidadOriginal?'#fb923c':'#fbbf24'):'var(--ac)'}}>
+                      {it.tipoPrecio==='entidad'?(pres.preciosEntidadOriginal?'⚠ Pendiente':'Entidad'):'APU'}
                     </td>
                     <td className="col-act" style={{textAlign:'center',whiteSpace:'nowrap',boxSizing:'border-box',height:'inherit'}}>
                       <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100%'}}>

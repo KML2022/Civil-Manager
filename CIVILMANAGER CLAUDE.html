@@ -7694,11 +7694,21 @@ function PresProyectosPanel({presupuestos,selPresIdx,setSelPresIdx,data,onChange
               </div>
             </div>
             {/* Eliminar */}
-            <div>
+            <div style={{paddingBottom:8,borderBottom:'1px solid var(--bdr)'}}>
               <div style={{fontWeight:700,color:'var(--tx)',fontSize:11,marginBottom:4}}>🗑 Eliminar un Proyecto</div>
               <div>
                 <span>Clic en 🗑 en "Acciones". Los eliminados quedan en "</span><span style={{color:'var(--tx3)',fontWeight:600}}>Proyectos eliminados</span><span>" abajo.</span><br/>
                 <span style={{color:'#f87171',fontSize:9}}>⚠ Un proyecto CERRADO requiere doble confirmación.</span>
+              </div>
+            </div>
+            {/* Tipo de Precio */}
+            <div>
+              <div style={{fontWeight:700,color:'var(--tx)',fontSize:11,marginBottom:4}}>💲 Tipo de Precio</div>
+              <div>
+                <span>La columna </span><span style={{color:'#00e5ff',fontWeight:600}}>"Tipo Precio"</span><span> en el catálogo indica cómo se calculan los ítems:</span><br/>
+                <span><span style={{color:'var(--ac)',fontWeight:700}}>APU</span> — precios desde Análisis de Precios Unitarios (materiales + mano de obra + equipos).</span><br/>
+                <span><span style={{color:'#fbbf24',fontWeight:700}}>Entidad</span> — precios fijos del cliente, sin APU requerido.</span><br/>
+                <span style={{color:'var(--tx3)',fontSize:9}}>Se define al importar el formulario. No se puede cambiar después.</span>
               </div>
             </div>
           </div>

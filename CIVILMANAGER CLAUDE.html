@@ -9029,10 +9029,12 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
     if(!found)return;
     var itemActual=apuModal.itemIdx!==null?itemsArr[apuModal.itemIdx]:null;
     if(itemActual&&itemActual.tipoPrecio==='entidad'){
-      var precioTecho=r2(parseFloat(itemActual.precioEntidad)||0);
+      var precioRef=(pres.preciosEntidadOriginal&&pres.preciosEntidadOriginal[itemActual.id]!=null)
+        ?r2(parseFloat(pres.preciosEntidadOriginal[itemActual.id]))
+        :r2(parseFloat(itemActual.precioEntidad)||0);
       var costoDirecto=r2(totalDirectoDeApu(found));
-      if(costoDirecto!==precioTecho){
-        showToast('⚠ El costo directo del APU ('+fmt(costoDirecto)+') difiere del precio entidad ('+fmt(precioTecho)+'). El precio de venta será el precio de entidad.',{type:'warn',dur:5000});
+      if(costoDirecto!==precioRef){
+        showToast('⚠ El costo directo del APU ('+fmt(costoDirecto)+') difiere del precio entidad original ('+fmt(precioRef)+').',{type:'warn',dur:5000});
       }
     }
     assignApu(found.id);
@@ -9063,6 +9065,21 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
     n[idxPres]=Object.assign({},n[idxPres],{estado:next,fecha_cierre:next==='cerrado'?new Date().toISOString().slice(0,10):null});
     onChange(Object.assign({},data,{presupuestos:n}));
     showToast('Estado cambiado a: '+estadoLabel(next),{type:'ok'});
+  };
+
+  var convertirEntidadAapu=async function(){
+    if(readOnly)return;
+    if(tipoPrecioFormulario!=='entidad')return;
+    if(!(await askConfirm('¿Convertir formulario a modo APU?\n\n• Se guardará una copia de los precios Entidad como referencia\n• Podrá asignar APU a cada ítem\n• Los ítems sin APU conservarán su precio Entidad como precio de venta')))return;
+    var snapshot={};
+    (pres.items||[]).forEach(function(it){
+      if(it.precioEntidad!=null)snapshot[it.id]=it.precioEntidad;
+    });
+    var n=presupuestos.slice();
+    n[idxPres]=Object.assign({},n[idxPres],{tipoPrecioFormulario:'apu',preciosEntidadOriginal:snapshot});
+    onChange(Object.assign({},data,{presupuestos:n}));
+    setTipoPrecioFormulario('apu');
+    showToast('Formulario convertido a modo APU. Asigne APU a cada ítem.',{type:'ok',dur:4000});
   };
 
   var eliminarFormulario=async function(){
@@ -9906,6 +9923,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
           {!readOnly&&fo&&tipoPrecioFormulario==='apu'&&<button className="btn" onClick={function(){setShowAsignarApuTodos(true)}} style={{fontSize:9,padding:'3px 8px',border:'1px solid #a78bfa',borderRadius:4,background:'rgba(167,139,250,.08)',color:'#a78bfa',cursor:'pointer',fontWeight:600}}>🔄 Asignar APU</button>}
           {!readOnly&&tipoPrecioFormulario==='apu'&&<button className="btn" onClick={function(){setShowImportApuPres(true)}} style={{fontSize:9,padding:'3px 8px',border:'1px solid var(--ac)',borderRadius:4,background:'rgba(77,143,247,.08)',color:'var(--ac)',cursor:'pointer'}}>📥 Importar APU (Excel)</button>}
           {fo&&<button className="btn" onClick={exportarFormularioRapido} style={{fontSize:9,padding:'3px 8px',border:'1px solid var(--ok)',borderRadius:4,background:'rgba(74,222,128,.06)',color:'var(--ok)',cursor:'pointer'}}>📤 Exportar Formulario (Excel)</button>}
+          {!readOnly&&fo&&tipoPrecioFormulario==='entidad'&&<button className="btn" onClick={convertirEntidadAapu} style={{fontSize:9,padding:'3px 8px',border:'1px solid #a78bfa',borderRadius:4,background:'rgba(167,139,250,.08)',color:'#a78bfa',cursor:'pointer',fontWeight:600}}>🔄 Convertir a APU</button>}
           {!readOnly&&<button className="btn" onClick={reimportar} style={{fontSize:9,padding:'3px 8px',border:'1px solid var(--bdr)',borderRadius:4,background:'none',color:'var(--tx2)',cursor:'pointer'}}>↩ Reimportar Formulario</button>}
           {!readOnly&&fo&&<button className="btn" onClick={eliminarFormulario} style={{fontSize:9,padding:'3px 8px',border:'1px solid #f87171',borderRadius:4,background:'rgba(248,113,113,.08)',color:'#f87171',cursor:'pointer'}}>🗑 Eliminar Formulario</button>}
         </div>
@@ -9914,6 +9932,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
         <div style={{flexShrink:0,display:'flex',alignItems:'center',gap:10,padding:'6px 12px',background:fo.archivo_adjunto?'rgba(74,222,128,.07)':'rgba(230,168,0,.08)',border:'1px solid '+(fo.archivo_adjunto?'rgba(74,222,128,.25)':'rgba(230,168,0,.3)'),borderRadius:6,width:'100%',boxSizing:'border-box'}}>
           <span style={{fontSize:11,fontWeight:700,color:fo.archivo_adjunto?'var(--ok)':'var(--warn)'}}>{fo.archivo_adjunto?'✓ Formulario cargado':'⚠ Ítems importados sin archivo adjunto'}</span>
           <span style={{fontSize:10,color:'var(--tx)',fontWeight:600}}>{fo.nombre_archivo} — {fmtDate(fo.fecha_importacion)} — {fo.total_filas} filas · {itemsReales.length} ítems · {nCapitulos} capítulos</span>
+          {pres.preciosEntidadOriginal&&<span style={{fontSize:9,padding:'1px 6px',borderRadius:3,border:'1px solid rgba(167,139,250,.4)',color:'#a78bfa',fontWeight:600}}>Convertido desde Entidad</span>}
         </div>
       }
       {showImportApuPres&&(function(){
@@ -10067,7 +10086,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
         var itemActual=apuModal.itemIdx!==null?itemsArr[apuModal.itemIdx]:null;
         var apuSeleccionado=apuSel?filteredApus().find(function(a){return apuKey(a)===apuSel}):null;
         var esEntidad=itemActual&&itemActual.tipoPrecio==='entidad';
-        var precioTecho=esEntidad?r2(parseFloat(itemActual.precioEntidad)||0):0;
+        var precioTecho=esEntidad?((pres.preciosEntidadOriginal&&pres.preciosEntidadOriginal[itemActual.id]!=null)?r2(parseFloat(pres.preciosEntidadOriginal[itemActual.id])):r2(parseFloat(itemActual.precioEntidad)||0)):0;
         var costoDirectoSel=esEntidad&&apuSeleccionado?r2(totalDirectoDeApu(apuSeleccionado)):0;
         var exacto=esEntidad?costoDirectoSel===precioTecho:true;
         return(
@@ -11664,6 +11683,7 @@ function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,i
       equipos_snap:[],
       cuadrillas_snap:[],
       apus_snap:[],
+      preciosEntidadOriginal:null,
       perfil_pais_snap:Object.assign({},getPaisData(config.pais,data.config_listas&&data.config_listas.perfiles_pais))
     };
     var n=presupuestos.concat([nuevo]);
@@ -11756,7 +11776,8 @@ function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,i
       cuadrillas_snap:(origen.cuadrillas_snap||[]).map(function(x){return Object.assign({},x)}),
       factores_snap:(origen.factores_snap||[]).map(function(x){return Object.assign({},x)}),
       perfil_pais_snap:origen.perfil_pais_snap?Object.assign({},origen.perfil_pais_snap):null,
-      aiu_override:Object.assign({},origen.aiu_override)
+      aiu_override:Object.assign({},origen.aiu_override),
+      preciosEntidadOriginal:origen.preciosEntidadOriginal?Object.assign({},origen.preciosEntidadOriginal):null
     });
     var n=presupuestos.concat([clon]);
     onChange(Object.assign({},data,{presupuestos:n}));
@@ -11831,7 +11852,8 @@ function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,i
           if(!apuEnt){for(var f=0;f<apus.length;f++){if(apus[f].id===item.apu_id){apuEnt=apus[f];break}}}
         }
         var calcEnt=apuEnt?calcAPU(apuEnt,cargosCalcSnap,equiposSnapEfectivo,insumosSnapEfectivo,abCalcList,herrPct,factorPrestSnap,usarFpEnApu,esHora,personMapSnap,eqMapSnap,insMapSnap):null;
-        map.set(item.id,{vr_unit:vrUnitEnt,vr_total:r2(vrUnitEnt*safeFloat(item.cantidad)),apu:apuEnt,calc:calcEnt});
+        var vrUnit=apuEnt&&calcEnt?r2(calcEnt.totalDirecto*(1+aiuPct/100)):vrUnitEnt;
+        map.set(item.id,{vr_unit:vrUnit,vr_total:r2(vrUnit*safeFloat(item.cantidad)),apu:apuEnt,calc:calcEnt});
         return;
       }
       if(!item.apu_id){map.set(item.id,{vr_unit:0,vr_total:0,apu:null,calc:null});return}
@@ -11907,7 +11929,11 @@ function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,i
       var ctxE=snapCtx||buildSnapCtx(p);
       var apuEnt=null;if(item.apu_id){var snapE=(p&&p.apus_snap)||[];for(var e=0;e<snapE.length;e++){if(snapE[e].id===item.apu_id){apuEnt=snapE[e];break}}if(!apuEnt){for(var f=0;f<apus.length;f++){if(apus[f].id===item.apu_id){apuEnt=apus[f];break}}}}
       var calcEnt=apuEnt?calcAPU(apuEnt,ctxE.cargosCalcSnap,ctxE.equiposSnap,ctxE.insumosSnap,abCalcList,herrPct,ctxE.factorPrestSnap,usarFpEnApu,esHora,ctxE.personMapSnap,ctxE.eqMapSnap,ctxE.insMapSnap):null;
-      return{vr_unit:vrUnitEnt,vr_total:r2(vrUnitEnt*safeFloat(item.cantidad)),apu:apuEnt,calc:calcEnt};
+      var aiuPctE=(p&&p.aiu_override&&p.aiu_override.activo)?
+        (safeFloat(p.aiu_override.pct_a)||0)+(safeFloat(p.aiu_override.pct_i)||0)+(safeFloat(p.aiu_override.pct_u)||0):
+        (safeFloat(config.pct_administracion)||0)+(safeFloat(config.pct_imprevistos)||0)+(safeFloat(config.pct_utilidad)||0);
+      var vrUnit=apuEnt&&calcEnt?r2(calcEnt.totalDirecto*(1+aiuPctE/100)):vrUnitEnt;
+      return{vr_unit:vrUnit,vr_total:r2(vrUnit*safeFloat(item.cantidad)),apu:apuEnt,calc:calcEnt};
     }
     if(!item.apu_id)return{vr_unit:0,vr_total:0,apu:null,calc:null};
     var snap=(p&&p.apus_snap)||[];

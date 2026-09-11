@@ -366,7 +366,7 @@ const IDB_DB='CIVILMANAGER_DB2';
 
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 
-const safeFloat=v=>{const s=String(v).replace(/,/g,'.');if(s===''||s==='.'||s==='-')return s;const n=parseFloat(s);return isNaN(n)?0:n};
+const safeFloat=v=>{const s=String(v).replace(/,/g,'.');if(s===''||s==='.'||s==='-')return 0;const n=parseFloat(s);return isNaN(n)?0:n};
 
 const numVal=(v,fmt)=>{const s=String(v).replace(/,/g,'.');if(s===''||s==='.'||s==='-')return s;const n=parseFloat(s);if(isNaN(n))return s;return fmt?n.toLocaleString('en-US'):String(v)};
 
@@ -8314,6 +8314,7 @@ function _xmlEscapeAttr(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'
 function _xmlEscapeText(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
 /* Número seguro para <v>: NaN/Infinity/undefined → 0 (evita XLSX corrupto) */
 function _xmlNum(v){var n=Number(v);return isFinite(n)?n:0}
+function _colToNum(col){var n=0;for(var i=0;i<col.length;i++){n=n*26+(col.charCodeAt(i)-64)}return n}
 /* Valida que un string sea XML bien formado (detecta tags cruzados/duplicados) */
 function _xmlIsWellFormed(xmlStr){
   try{
@@ -8458,7 +8459,7 @@ var exportarFormularioLlenoGlobal=async function(pres,calcItemVal,setPendientesF
     var cellTags=rowXml.match(/<c\s[^>]*r="[A-Z]+\d+"[^>]*>/g)||[];
     for(var i=0;i<cellTags.length;i++){
       var tm=cellTags[i].match(/r="([A-Z]+)(\d+)"/);
-      if(tm&&tm[2]===cellRowNum&&tm[1]>cellCol){
+      if(tm&&tm[2]===cellRowNum&&_colToNum(tm[1])>_colToNum(cellCol)){
         var insertIdx=rowXml.indexOf(cellTags[i]);
         return rowXml.substring(0,insertIdx)+cellXml+rowXml.substring(insertIdx);
       }
@@ -8894,6 +8895,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
   var idxPres=presupuestos.indexOf(pres);
 
   var saveItems=function(arr,extra){
+    if(idxPres<0)return;
     var n=presupuestos.slice();n[idxPres]=Object.assign({},n[idxPres],Object.assign({items:recalcCapitulos(arr)},extra||{}));
     onChange(Object.assign({},data,{presupuestos:n}));
   };
@@ -8942,6 +8944,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
   };
   var updItem=function(i,k,v){
     if(readOnly)return;
+    if(typeof i!=='number'||i<0||i>=pres.items.length)return;
     var arr=pres.items.slice();arr[i]=Object.assign({},arr[i]);arr[i][k]=v;
     if(k==='precioEntidad'&&tipoPrecioFormulario==='entidad'){
       var sinP=arr.filter(function(it){return!esCapituloFinal(it)&&(!it.precioEntidad||it.precioEntidad<=0)});
@@ -9126,7 +9129,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
     if(!(await askConfirm('⚠ ¿Eliminar el formulario de este presupuesto?\n\nSe borrarán TODOS los items, capítulos y el mapeo de columnas. Esta acción no se puede deshacer.')))return;
     if(!(await askConfirm('¿Está SEGURO? Se eliminarán '+(pres.items||[]).length+' items permanentemente.')))return;
     var n=presupuestos.slice();
-    n[idxPres]=Object.assign({},n[idxPres],{items:[],formulario_original:null,tipoPrecioFormulario:'apu',preciosEntidadOriginal:null,preciosApuOriginal:null,apus_snap:[],insumos_snap:[],equipos_snap:[],cargos_snap:[]});
+    n[idxPres]=Object.assign({},n[idxPres],{items:[],formulario_original:null,tipoPrecioFormulario:'apu',preciosEntidadOriginal:null,preciosApuOriginal:null,apus_snap:[],insumos_snap:[],equipos_snap:[],cargos_snap:[],cuadrillas_snap:[]});
     onChange(Object.assign({},data,{presupuestos:n}));
     setFase('inicio');
     showToast('Formulario eliminado.',{type:'ok'});
@@ -9263,9 +9266,17 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
 
     var n=presupuestos.slice();
     var idxPres=presupuestos.indexOf(pres);
+    var itemsReales=items.filter(function(it){return !esCapituloFinal(it)});
+    var alarma=null;
+    if(tipoPrecioFormulario==='entidad'){
+      var sinPrecio=itemsReales.filter(function(it){return!it.precioEntidad||it.precioEntidad<=0});
+      if(sinPrecio.length>0){alarma=sinPrecio.map(function(it){return it.num_item||it.descripcion})}
+    }
+    setAlarmasPrecioFaltante(alarma);
     n[idxPres]=Object.assign({},n[idxPres],{
       items:items,
       tipoPrecioFormulario:tipoPrecioFormulario,
+      alarmasPrecioFaltante:alarma,
       formulario_original:{
         archivo_b64:b64,
         archivo_adjunto:b64!=null,
@@ -9277,31 +9288,12 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
       }
     });
     onChange(Object.assign({},data,{presupuestos:n}));
-
-    var itemsReales=items.filter(function(it){return !esCapituloFinal(it)});
     if(archivoDemasiadoGrande){
       showToast('Items importados. El archivo original supera 4MB y no se pudo adjuntar — la exportación de "formulario lleno" no estará disponible.',{type:'warn',dur:6000});
     }else{
       showToast('Importado: '+itemsReales.length+' items, '+(items.length-itemsReales.length)+' capitulos detectados. Formulario adjuntado a '+n[idxPres].codigo+'.',{type:'ok',dur:4000});
     }
-    if(tipoPrecioFormulario==='entidad'){
-      var sinPrecio=itemsReales.filter(function(it){return!it.precioEntidad||it.precioEntidad<=0});
-      if(sinPrecio.length>0){
-        var alarma=sinPrecio.map(function(it){return it.num_item||it.descripcion});
-        setAlarmasPrecioFaltante(alarma);
-        n[idxPres]=Object.assign({},n[idxPres],{alarmasPrecioFaltante:alarma});
-        onChange(Object.assign({},data,{presupuestos:n}));
-        showToast('⚠ '+sinPrecio.length+' item(s) sin precio unitario. Verifique la columna "Vr. Unitario" en el Excel.',{type:'warn',dur:8000});
-      }else{
-        setAlarmasPrecioFaltante(null);
-        n[idxPres]=Object.assign({},n[idxPres],{alarmasPrecioFaltante:null});
-        onChange(Object.assign({},data,{presupuestos:n}));
-      }
-    }else{
-      setAlarmasPrecioFaltante(null);
-      n[idxPres]=Object.assign({},n[idxPres],{alarmasPrecioFaltante:null});
-      onChange(Object.assign({},data,{presupuestos:n}));
-    }
+    if(alarma){showToast('⚠ '+alarma.length+' item(s) sin precio unitario. Verifique la columna "Vr. Unitario" en el Excel.',{type:'warn',dur:8000})}
     setArchivoRaw(null);setB64Original(null);setPreviewFilas([]);setPreviewMerges([]);
     setFase('revision');
   };
@@ -9329,7 +9321,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
         setConCodigo2(fo.mapeo&&fo.mapeo.col_codigo_2!=null);
         setFase('mapeo');
       }catch(err){
-        toast('Error al cargar el archivo: '+err.message,'err');
+        showToast('Error al cargar el archivo: '+err.message,{type:'err',dur:8000});
       }
     }
   };

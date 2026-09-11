@@ -7706,9 +7706,11 @@ function PresProyectosPanel({presupuestos,selPresIdx,setSelPresIdx,data,onChange
               <div style={{fontWeight:700,color:'var(--tx)',fontSize:11,marginBottom:4}}>💲 Tipo de Precio</div>
               <div>
                 <span>La columna </span><span style={{color:'#00e5ff',fontWeight:600}}>"Tipo Precio"</span><span> en el catálogo indica cómo se calculan los ítems:</span><br/>
-                <span><span style={{color:'var(--ac)',fontWeight:700}}>APU</span> — precios desde Análisis de Precios Unitarios (materiales + mano de obra + equipos).</span><br/>
+                <span><span style={{color:'var(--ac)',fontWeight:700}}>APU</span> — precios desde Análisis de Precios Unitarios.</span><br/>
                 <span><span style={{color:'#fbbf24',fontWeight:700}}>Entidad</span> — precios fijos del cliente, sin APU requerido.</span><br/>
-                <span style={{color:'var(--tx3)',fontSize:9}}>Se define al importar el formulario. No se puede cambiar después.</span>
+                <span><span style={{color:'#fb923c',fontWeight:700}}>APU ⚠</span> — convertido desde Entidad, falta asignar APU a ítems.</span><br/>
+                <span><span style={{color:'#fb923c',fontWeight:700}}>Entidad ⚠</span> — revertido desde APU, falta precio en ítems.</span><br/>
+                <span style={{color:'var(--tx3)',fontSize:9}}>Puede alternar entre modos con los botones "🔄 Convertir" del formulario.</span>
               </div>
             </div>
           </div>
@@ -7841,7 +7843,7 @@ function PresProyectosPanel({presupuestos,selPresIdx,setSelPresIdx,data,onChange
                     <td style={{textAlign:'center'}}>{isEdit?<input className="ni" type="number" value={p.plazo||''} onChange={function(e){updField(i,'plazo',e.target.value)}} style={{width:'100%',textAlign:'center'}}/>:<span>{p.plazo?p.plazo+' d':'—'}</span>}</td>
                     <td style={{textAlign:'center'}}>{esSub?<span style={{color:'var(--muted)'}}>{'—'}</span>:isEdit?<select className="ni sel" value={p.con_sub_proyectos?'1':'0'} onChange={function(e){updField(i,'con_sub_proyectos',e.target.value==='1')}}><option value='0'>No</option><option value='1'>Si</option></select>:p.con_sub_proyectos?<button onClick={function(){setEditIdx(presupuestos.length);addSubProyecto(i)}} title="Agregar sub-proyecto" style={{background:'transparent',border:'none',color:'var(--ok)',fontWeight:700,fontSize:19,lineHeight:'1',padding:0,cursor:'pointer'}}>{'+'}</button>:<span style={{color:'var(--muted)',fontSize:10}}>No</span>}</td>
                     <td>{isEdit?<input className="ni" value={p.tipo_proyecto||''} onChange={function(e){updField(i,'tipo_proyecto',e.target.value)}}/>:<span style={{padding:'0 6px'}}>{p.tipo_proyecto||'—'}</span>}</td>
-                    <td style={{textAlign:'center',fontSize:9,fontWeight:600,color:(p.tipoPrecioFormulario||'apu')==='entidad'?'#fbbf24':p.preciosEntidadOriginal&&((p.items||[]).some(function(it){return it.tipoPrecio==='entidad'&&!it.apu_id}))?'#fb923c':'var(--ac)'}}>{(p.tipoPrecioFormulario||'apu')==='entidad'?'Entidad':p.preciosEntidadOriginal&&((p.items||[]).some(function(it){return it.tipoPrecio==='entidad'&&!it.apu_id}))?'APU ⚠':'APU'}</td>
+                    <td style={{textAlign:'center',fontSize:9,fontWeight:600,color:(p.tipoPrecioFormulario||'apu')==='entidad'?(p.preciosApuOriginal&&((p.items||[]).some(function(it){return it.tipoPrecio==='entidad'&&(it.precioEntidad==null||it.precioEntidad<=0)}))?'#fb923c':'#fbbf24'):p.preciosEntidadOriginal&&((p.items||[]).some(function(it){return it.tipoPrecio==='entidad'&&!it.apu_id}))?'#fb923c':'var(--ac)'}}>{(p.tipoPrecioFormulario||'apu')==='entidad'?(p.preciosApuOriginal&&((p.items||[]).some(function(it){return it.tipoPrecio==='entidad'&&(it.precioEntidad==null||it.precioEntidad<=0)}))?'Entidad ⚠':'Entidad'):p.preciosEntidadOriginal&&((p.items||[]).some(function(it){return it.tipoPrecio==='entidad'&&!it.apu_id}))?'APU ⚠':'APU'}</td>
                     <td className="col-act" style={{textAlign:'center'}}>
                       <span style={{display:'inline-flex',alignItems:'center',gap:4}}>
                         <button className="btn-edit" title={isEdit?'Listo':'Editar'} onClick={function(){setEditIdx(isEdit?null:i)}} style={{background:'none',border:'none',cursor:'pointer',padding:0}}>{isEdit?<span style={{fontSize:9,color:'var(--ok)',fontWeight:700}}>Listo</span>:<IconEdit/>}</button>
@@ -7859,7 +7861,7 @@ function PresProyectosPanel({presupuestos,selPresIdx,setSelPresIdx,data,onChange
           <input className="ni" style={{width:150,height:22,fontSize:11,border:'1px solid var(--ac)',borderRadius:4}} placeholder="Buscar por Cliente..." value={searchCliente} onChange={function(e){setSearchCliente(e.target.value)}}/>
           <input className="ni" style={{width:170,height:22,fontSize:11,border:'1px solid var(--ac)',borderRadius:4}} placeholder="Buscar por Tipo de Proyecto..." value={searchTipo} onChange={function(e){setSearchTipo(e.target.value)}}/>
         </CrudFooter>
-        {presupuestos.some(function(p){return p.preciosEntidadOriginal&&(p.items||[]).some(function(it){return it.tipoPrecio==='entidad'&&!it.apu_id})})&&(
+        {(presupuestos.some(function(p){return p.preciosEntidadOriginal&&(p.items||[]).some(function(it){return it.tipoPrecio==='entidad'&&!it.apu_id})})||presupuestos.some(function(p){return p.preciosApuOriginal&&(p.items||[]).some(function(it){return it.tipoPrecio==='entidad'&&(it.precioEntidad==null||it.precioEntidad<=0)})}))&&(
           <div style={{fontSize:9,color:'var(--tx3)',padding:'4px 0',display:'flex',alignItems:'center',gap:12}}>
             <span style={{fontWeight:600,color:'var(--tx2)'}}>📌 Tipo Precio:</span>
             <span><span style={{color:'var(--ac)',fontWeight:600}}>APU</span> = precios calculados desde APU</span>
@@ -7867,6 +7869,8 @@ function PresProyectosPanel({presupuestos,selPresIdx,setSelPresIdx,data,onChange
             <span><span style={{color:'#fbbf24',fontWeight:600}}>Entidad</span> = precios fijos del cliente</span>
             <span>·</span>
             <span><span style={{color:'#fb923c',fontWeight:600}}>APU ⚠</span> = tipo modificado, falta asignar</span>
+            <span>·</span>
+            <span><span style={{color:'#fb923c',fontWeight:600}}>Entidad ⚠</span> = revertido desde APU, falta precio</span>
           </div>
         )}
         <ExcelPreviewModal excel={presupuestosExcel}/>
@@ -9092,6 +9096,31 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
     showToast('Formulario convertido a modo APU. Asigne APU a cada ítem.',{type:'ok',dur:4000});
   };
 
+  var convertirApuAentidad=async function(){
+    if(readOnly)return;
+    if(tipoPrecioFormulario!=='apu')return;
+    if(!(await askConfirm('¿Convertir a modo Entidad?\n\n• Los APU se conservan como referencia\n• Los precios se fijan en "Vr. Unit" (amarillo)\n• Podrá ajustar precios manualmente')))return;
+    var arr=pres.items.slice();
+    var snap=pres.apus_snap||[];
+    arr.forEach(function(it,idx){
+      if(esCapituloFinal(it))return;
+      if(it.precioEntidad!=null&&it.precioEntidad>0)return;
+      if(it.apu_id){
+        var apu=snap.find(function(a){return a.id===it.apu_id});
+        if(!apu){for(var j=0;j<apus.length;j++){if(apus[j].id===it.apu_id){apu=apus[j];break}}}
+        if(apu){
+          var c=calcAPU(apu,cargosCalcSnap,equiposSnapEfectivo,insumosSnapEfectivo,abCalcList,herrPct,factorPrestSnap,usarFpEnApu,esHora,personMapSnap,eqMapSnap,insMapSnap);
+          arr[idx]=Object.assign({},it,{tipoPrecio:'entidad',precioEntidad:r2(c.totalDirecto)});
+        }
+      }
+    });
+    var apuSnapshot={};
+    arr.forEach(function(it){if(it.apu_id)apuSnapshot[it.id]=it.apu_id});
+    saveItems(arr,{tipoPrecioFormulario:'entidad',preciosEntidadOriginal:null,preciosApuOriginal:apuSnapshot});
+    setTipoPrecioFormulario('entidad');
+    showToast('Formulario convertido a modo Entidad. Los APU se conservan.',{type:'ok',dur:4000});
+  };
+
   var eliminarFormulario=async function(){
     if(readOnly)return;
     if(!(await askConfirm('⚠ ¿Eliminar el formulario de este presupuesto?\n\nSe borrarán TODOS los items, capítulos y el mapeo de columnas. Esta acción no se puede deshacer.')))return;
@@ -9902,8 +9931,8 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
                         placeholder="0" step="0.01" inputMode="decimal"/>
                       :(apu||it.tipoPrecio==='entidad')?fmt(c.vr_unit):'-'}</td>
                     <td style={{textAlign:'right',fontWeight:600}}>{(apu||it.tipoPrecio==='entidad')?fmt(c.vr_total):'-'}</td>
-                    <td style={{textAlign:'center',fontSize:9,fontWeight:600,color:it.tipoPrecio==='entidad'?(pres.preciosEntidadOriginal?'#fb923c':'#fbbf24'):'var(--ac)'}}>
-                      {it.tipoPrecio==='entidad'?(pres.preciosEntidadOriginal?'⚠ Pendiente':'Entidad'):'APU'}
+                    <td style={{textAlign:'center',fontSize:9,fontWeight:600,color:it.tipoPrecio==='entidad'?((pres.preciosEntidadOriginal||pres.preciosApuOriginal)?'#fb923c':'#fbbf24'):'var(--ac)'}}>
+                      {it.tipoPrecio==='entidad'?((pres.preciosEntidadOriginal||pres.preciosApuOriginal)?'⚠ Pendiente':'Entidad'):'APU'}
                     </td>
                     <td className="col-act" style={{textAlign:'center',whiteSpace:'nowrap',boxSizing:'border-box',height:'inherit'}}>
                       <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100%'}}>
@@ -9934,6 +9963,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
           {!readOnly&&tipoPrecioFormulario==='apu'&&<button className="btn" onClick={function(){setShowImportApuPres(true)}} style={{fontSize:9,padding:'3px 8px',border:'1px solid var(--ac)',borderRadius:4,background:'rgba(77,143,247,.08)',color:'var(--ac)',cursor:'pointer'}}>📥 Importar APU (Excel)</button>}
           {fo&&<button className="btn" onClick={exportarFormularioRapido} style={{fontSize:9,padding:'3px 8px',border:'1px solid var(--ok)',borderRadius:4,background:'rgba(74,222,128,.06)',color:'var(--ok)',cursor:'pointer'}}>📤 Exportar Formulario (Excel)</button>}
           {!readOnly&&fo&&tipoPrecioFormulario==='entidad'&&<button className="btn" onClick={convertirEntidadAapu} style={{fontSize:9,padding:'3px 8px',border:'1px solid #a78bfa',borderRadius:4,background:'rgba(167,139,250,.08)',color:'#a78bfa',cursor:'pointer',fontWeight:600}}>🔄 Convertir Precio a Tipo APU</button>}
+          {!readOnly&&fo&&tipoPrecioFormulario==='apu'&&<button className="btn" onClick={convertirApuAentidad} style={{fontSize:9,padding:'3px 8px',border:'1px solid #fbbf24',borderRadius:4,background:'rgba(251,191,36,.08)',color:'#fbbf24',cursor:'pointer',fontWeight:600}}>🔄 Convertir a Tipo Entidad</button>}
           {!readOnly&&<button className="btn" onClick={reimportar} style={{fontSize:9,padding:'3px 8px',border:'1px solid var(--bdr)',borderRadius:4,background:'none',color:'var(--tx2)',cursor:'pointer'}}>↩ Reimportar Formulario</button>}
           {!readOnly&&fo&&<button className="btn" onClick={eliminarFormulario} style={{fontSize:9,padding:'3px 8px',border:'1px solid #f87171',borderRadius:4,background:'rgba(248,113,113,.08)',color:'#f87171',cursor:'pointer'}}>🗑 Eliminar Formulario</button>}
         </div>
@@ -9943,6 +9973,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
           <span style={{fontSize:11,fontWeight:700,color:fo.archivo_adjunto?'var(--ok)':'var(--warn)'}}>{fo.archivo_adjunto?'✓ Formulario cargado':'⚠ Ítems importados sin archivo adjunto'}</span>
           <span style={{fontSize:10,color:'var(--tx)',fontWeight:600}}>{fo.nombre_archivo} — {fmtDate(fo.fecha_importacion)} — {fo.total_filas} filas · {itemsReales.length} ítems · {nCapitulos} capítulos</span>
           {pres.preciosEntidadOriginal&&<span style={{fontSize:9,padding:'1px 6px',borderRadius:3,border:'1px solid rgba(167,139,250,.4)',color:'#a78bfa',fontWeight:600}}>Convertido desde Entidad</span>}
+          {pres.preciosApuOriginal&&<span style={{fontSize:9,padding:'1px 6px',borderRadius:3,border:'1px solid rgba(251,191,36,.4)',color:'#fbbf24',fontWeight:600}}>Convertido desde APU</span>}
         </div>
       }
       {showImportApuPres&&(function(){
@@ -10866,6 +10897,7 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
       )}
       {(function(){
         if(pres.estado==='borrador')return null;
+        if(pres.tipoPrecioFormulario==='entidad')return null;
         var pendientes=(pres.items||[]).filter(function(it){return!esCapituloFinal(it)&&it.tipoPrecio==='entidad'&&!it.apu_id});
         if(!pendientes.length)return null;
         return(
@@ -11694,6 +11726,7 @@ function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,i
       cuadrillas_snap:[],
       apus_snap:[],
       preciosEntidadOriginal:null,
+      preciosApuOriginal:null,
       perfil_pais_snap:Object.assign({},getPaisData(config.pais,data.config_listas&&data.config_listas.perfiles_pais))
     };
     var n=presupuestos.concat([nuevo]);
@@ -11787,7 +11820,8 @@ function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,i
       factores_snap:(origen.factores_snap||[]).map(function(x){return Object.assign({},x)}),
       perfil_pais_snap:origen.perfil_pais_snap?Object.assign({},origen.perfil_pais_snap):null,
       aiu_override:Object.assign({},origen.aiu_override),
-      preciosEntidadOriginal:origen.preciosEntidadOriginal?Object.assign({},origen.preciosEntidadOriginal):null
+      preciosEntidadOriginal:origen.preciosEntidadOriginal?Object.assign({},origen.preciosEntidadOriginal):null,
+      preciosApuOriginal:origen.preciosApuOriginal?Object.assign({},origen.preciosApuOriginal):null
     });
     var n=presupuestos.concat([clon]);
     onChange(Object.assign({},data,{presupuestos:n}));

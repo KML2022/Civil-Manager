@@ -8863,10 +8863,8 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
   var hijos=(presupuestos||[]).filter(function(p){return p.parent_id===pres.id});
   var esContenedor=hijos.length>0;
   var vistaPadreState=useState('subproyectos');var vistaPadre=vistaPadreState[0],setVistaPadre=vistaPadreState[1]; /* 'subproyectos' | 'matriz' */
-  var colapsadosInit={};hijos.forEach(function(h){colapsadosInit[h.id]=true});
-  var[colapsados,setColapsados]=useState(colapsadosInit); /* {hijo_id:true} = colapsado */
-  var visColsInit={};hijos.forEach(function(h){visColsInit[h.id]=true});
-  var[visibilidadCols,setVisibilidadCols]=useState(visColsInit); /* {hijo_id:false} = columna oculta */
+  var[colapsados,setColapsados]=useState(function(){var c={};hijos.forEach(function(h){c[h.id]=true});return c});
+  var[visibilidadCols,setVisibilidadCols]=useState(function(){var c={};hijos.forEach(function(h){c[h.id]=true});return c});
   useEffect(function(){if(vistaPadre==='matriz'){var c={};hijos.forEach(function(h){c[h.id]=false});setColapsados(c)}},[vistaPadre]);
 
   useEffect(function(){setPage(0)},[presId]);
@@ -8892,7 +8890,6 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
   if(!pres)return <PresBannerProyecto pres={pres} presupuestos={presupuestos} setTab={setTab}/>;
 
   var readOnly=pres.estado==='cerrado';
-  var preciosFijos=pres.estado!=='borrador';
   var idxPres=presupuestos.indexOf(pres);
 
   var saveItems=function(arr,extra){
@@ -9662,7 +9659,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
     for(var _ci=0;_ci<maxCols;_ci++)_previewW+=_anchoCol(_ci);
 
     /* ── Ancho para bloques de mapeo (mismo que tabla) ── */
-    var _formW=Math.max(_previewW,_previewW);
+    var _formW=_previewW;
 
     return(
       <div style={{display:'flex',flexDirection:'column',gap:6}}>

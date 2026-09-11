@@ -9126,7 +9126,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
     if(!(await askConfirm('⚠ ¿Eliminar el formulario de este presupuesto?\n\nSe borrarán TODOS los items, capítulos y el mapeo de columnas. Esta acción no se puede deshacer.')))return;
     if(!(await askConfirm('¿Está SEGURO? Se eliminarán '+(pres.items||[]).length+' items permanentemente.')))return;
     var n=presupuestos.slice();
-    n[idxPres]=Object.assign({},n[idxPres],{items:[],formulario_original:null,tipoPrecioFormulario:'apu',preciosEntidadOriginal:null,apus_snap:[],insumos_snap:[],equipos_snap:[],cargos_snap:[]});
+    n[idxPres]=Object.assign({},n[idxPres],{items:[],formulario_original:null,tipoPrecioFormulario:'apu',preciosEntidadOriginal:null,preciosApuOriginal:null,apus_snap:[],insumos_snap:[],equipos_snap:[],cargos_snap:[]});
     onChange(Object.assign({},data,{presupuestos:n}));
     setFase('inicio');
     showToast('Formulario eliminado.',{type:'ok'});

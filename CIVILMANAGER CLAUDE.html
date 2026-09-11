@@ -9819,7 +9819,8 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
   var fo=pres.formulario_original;
   var itemsReales=itemsArr.filter(function(it){return !esCapituloFinal(it)});
   var nCapitulos=itemsArr.length-itemsReales.length;
-  var cdTotal=resumenPres.cdTotal;
+  var cdTotal=0;
+  for(var ii=0;ii<itemsArr.length;ii++){cdTotal+=calcItemVal(itemsArr[ii]).vr_total}
 
   var itemsFiltrados=itemsArr.filter(function(it){
     if(!busq)return true;

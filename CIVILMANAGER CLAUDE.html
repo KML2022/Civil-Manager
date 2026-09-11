@@ -8835,7 +8835,7 @@ function ResumenLateralFormulario({pres,calcItemVal,data,presupuestos,selPresIdx
   );
 }
 
-function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModal,setApuModal,apus,categorias_apu,calcItemVal,setTab,estadoLabel,estadoColor,cargosCalc,cargosCalcSnap,personMap,esHora,eqMap,insMap,factorPrest,factorPrestSnap,usarFpEnApu,equipos,insumos,apusBasico,calcResumenFor,calcItemValFor,buildSnapCtx}){
+function PresFormularioPanelInner({pres,presupuestos,selPresIdx,data,onChange,apuModal,setApuModal,apus,categorias_apu,calcItemVal,setTab,estadoLabel,estadoColor,cargosCalc,cargosCalcSnap,personMap,esHora,eqMap,insMap,factorPrest,factorPrestSnap,usarFpEnApu,equipos,insumos,apusBasico,calcResumenFor,calcItemValFor,buildSnapCtx}){
   var faseState=useState('inicio');var fase=faseState[0],setFase=faseState[1];
   var tipoPrecioFormularioState=useState('apu');var tipoPrecioFormulario=tipoPrecioFormularioState[0],setTipoPrecioFormulario=tipoPrecioFormularioState[1];
   var alarmasPrecioFaltanteState=useState(null);var alarmasPrecioFaltante=alarmasPrecioFaltanteState[0],setAlarmasPrecioFaltante=alarmasPrecioFaltanteState[1];
@@ -8851,6 +8851,8 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
   var busqState=useState('');var busq=busqState[0],setBusq=busqState[1];
   var pageState=useState(0);var page=pageState[0],setPage=pageState[1];
   var editIdxState=useState(null);var editIdx=editIdxState[0],setEditIdx=editIdxState[1];
+  var editingCellState=useState(null);var editingCell=editingCellState[0],setEditingCell=editingCellState[1];
+  var editingCellRef=React.useRef(null);editingCellRef.current=editingCell;
   var apuSelState=useState(null);var apuSel=apuSelState[0],setApuSel=apuSelState[1];
   var showImportApuPresState=useState(false);var showImportApuPres=showImportApuPresState[0],setShowImportApuPres=showImportApuPresState[1];
   var showAsignarApuTodosState=useState(false);var showAsignarApuTodos=showAsignarApuTodosState[0],setShowAsignarApuTodos=showAsignarApuTodosState[1];
@@ -8886,6 +8888,8 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
       setAlarmasPrecioFaltante(null);
     }
   },[presId]);
+
+  useEffect(function(){if(editingCellRef.current)commitEditCell()},[editIdx]);
 
   if(!pres)return <PresBannerProyecto pres={pres} presupuestos={presupuestos} setTab={setTab}/>;
 
@@ -8953,6 +8957,14 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
       saveItems(arr);
     }
   };
+  var startEditCell=function(i,k,v){if(!readOnly)setEditingCell({idx:i,field:k,value:v==null?'':v})};
+  var commitEditCell=function(){
+    var cell=editingCellRef.current;
+    if(!cell)return;
+    updItem(cell.idx,cell.field,cell.value);
+    setEditingCell(null);
+  };
+  var cancelEditCell=function(){setEditingCell(null)};
   var openApuModal=function(i){if(!readOnly){setApuModal({open:true,itemIdx:i,search:'',catFilter:''});setApuSel(null)}};
   var closeApuModal=function(){setApuModal({open:false,itemIdx:null,search:'',catFilter:''});setApuSel(null)};
   var filteredApus=function(){
@@ -9893,8 +9905,8 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
                   <tr key={it.id} style={{background:'#1E3A5F'}} onBlur={function(e){if(!e.currentTarget.contains(e.relatedTarget))setEditIdx(null)}}>
                     <td style={{textAlign:'center',color:'#fff'}}>{i+1}</td>
                     {tipoPrecioFormulario==='apu'&&<td/>}
-                    <td style={{color:'#fff',fontWeight:700,textAlign:'center'}}>{isEdit?<input className="ni" value={it.num_item} onChange={function(e){updItem(i,'num_item',e.target.value)}} style={{width:'100%',fontSize:10,background:'transparent',color:'#fff',fontWeight:700,textAlign:'center'}} autoFocus/>:it.num_item}</td>
-                    <td style={{color:'#fff',fontWeight:700,whiteSpace:'normal',wordBreak:'break-word'}} colSpan={6}>{isEdit?<input className="ni" value={it.descripcion} onChange={function(e){updItem(i,'descripcion',e.target.value)}} style={{width:'100%',fontSize:10,background:'transparent',color:'#fff',fontWeight:700}} placeholder="Descripcion"/>:it.descripcion}</td>
+                    <td style={{color:'#fff',fontWeight:700,textAlign:'center'}}>{isEdit?<input className="ni" value={editingCell&&editingCell.idx===i&&editingCell.field==='num_item'?editingCell.value:it.num_item} onChange={function(e){startEditCell(i,'num_item',e.target.value)}} onBlur={commitEditCell} onKeyDown={function(e){if(e.key==='Enter')commitEditCell();if(e.key==='Escape')cancelEditCell()}} style={{width:'100%',fontSize:10,background:'transparent',color:'#fff',fontWeight:700,textAlign:'center'}} autoFocus/>:it.num_item}</td>
+                    <td style={{color:'#fff',fontWeight:700,whiteSpace:'normal',wordBreak:'break-word'}} colSpan={6}>{isEdit?<input className="ni" value={editingCell&&editingCell.idx===i&&editingCell.field==='descripcion'?editingCell.value:it.descripcion} onChange={function(e){startEditCell(i,'descripcion',e.target.value)}} onBlur={commitEditCell} onKeyDown={function(e){if(e.key==='Enter')commitEditCell();if(e.key==='Escape')cancelEditCell()}} style={{width:'100%',fontSize:10,background:'transparent',color:'#fff',fontWeight:700}} placeholder="Descripcion"/>:it.descripcion}</td>
                     <td className="col-act" style={{textAlign:'center',whiteSpace:'nowrap',background:'#1E3A5F',boxSizing:'border-box',height:'inherit'}}>
                       <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100%'}}>
                         <span style={{width:24,display:'inline-flex',justifyContent:'center'}}>{!readOnly&&<button onClick={function(){setEditIdx(isEdit?null:i)}} title="Editar" style={{background:'none',border:'none',cursor:'pointer',padding:0,color:'#fff'}}><IconEdit/></button>}</span>
@@ -9913,13 +9925,14 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
                       :it.alerta_sin_apu?<span style={{fontSize:9,color:'#f87171',fontWeight:600}}>🔴 Sin APU</span>
                       :<span style={{fontSize:9,color:'var(--err)'}}>Sin asignar</span>}
                     </td>}
-                    <td style={{textAlign:'center'}}>{isEdit?<input className="ni" value={it.num_item} onChange={function(e){updItem(i,'num_item',e.target.value)}} style={{width:'100%',fontSize:10,textAlign:'center'}} autoFocus/>:it.num_item}</td>
-                    <td style={{whiteSpace:'normal',wordBreak:'break-word'}}>{isEdit?<input className="ni" value={it.descripcion} onChange={function(e){updItem(i,'descripcion',e.target.value)}} style={{width:'100%',fontSize:10}} placeholder="Descripcion"/>:it.descripcion}</td>
-                    <td style={{textAlign:'center'}}>{isEdit?<input className="ni" value={it.unidad} onChange={function(e){updItem(i,'unidad',e.target.value)}} style={{width:'100%',fontSize:10,textAlign:'center'}}/>:it.unidad}</td>
+                    <td style={{textAlign:'center'}}>{isEdit?<input className="ni" value={editingCell&&editingCell.idx===i&&editingCell.field==='num_item'?editingCell.value:it.num_item} onChange={function(e){startEditCell(i,'num_item',e.target.value)}} onBlur={commitEditCell} onKeyDown={function(e){if(e.key==='Enter')commitEditCell();if(e.key==='Escape')cancelEditCell()}} style={{width:'100%',fontSize:10,textAlign:'center'}} autoFocus/>:it.num_item}</td>
+                    <td style={{whiteSpace:'normal',wordBreak:'break-word'}}>{isEdit?<input className="ni" value={editingCell&&editingCell.idx===i&&editingCell.field==='descripcion'?editingCell.value:it.descripcion} onChange={function(e){startEditCell(i,'descripcion',e.target.value)}} onBlur={commitEditCell} onKeyDown={function(e){if(e.key==='Enter')commitEditCell();if(e.key==='Escape')cancelEditCell()}} style={{width:'100%',fontSize:10}} placeholder="Descripcion"/>:it.descripcion}</td>
+                    <td style={{textAlign:'center'}}>{isEdit?<input className="ni" value={editingCell&&editingCell.idx===i&&editingCell.field==='unidad'?editingCell.value:it.unidad} onChange={function(e){startEditCell(i,'unidad',e.target.value)}} onBlur={commitEditCell} onKeyDown={function(e){if(e.key==='Enter')commitEditCell();if(e.key==='Escape')cancelEditCell()}} style={{width:'100%',fontSize:10,textAlign:'center'}}/>:it.unidad}</td>
                     <td style={{textAlign:'right'}}>{isEdit?<NumInput step=".01" inputMode="decimal" value={it.cantidad} onChange={function(v){updItem(i,'cantidad',v)}} style={{width:'100%',fontSize:10,textAlign:'right'}} decimals={2}/>:fmt(it.cantidad)}</td>
                     <td style={{textAlign:'right'}}>{(it.tipoPrecio==='entidad'&&!readOnly&&isEdit)?
-                      <input type="number" value={it.precioEntidad==null?'':it.precioEntidad}
-                        onChange={function(e){var val=e.target.value===''?null:parseFloat(e.target.value)||0;updItem(i,'precioEntidad',val)}}
+                      <input type="number" value={editingCell&&editingCell.idx===i&&editingCell.field==='precioEntidad'?editingCell.value:(it.precioEntidad==null?'':it.precioEntidad)}
+                        onChange={function(e){var val=e.target.value===''?null:parseFloat(e.target.value)||0;startEditCell(i,'precioEntidad',val)}}
+                        onBlur={commitEditCell} onKeyDown={function(e){if(e.key==='Enter')commitEditCell();if(e.key==='Escape')cancelEditCell()}}
                         style={{width:'100%',fontSize:10,textAlign:'right',background:'rgba(251,191,36,.08)',color:'#fbbf24',border:'1px solid rgba(251,191,36,.3)',borderRadius:3,padding:'1px 4px',boxSizing:'border-box',MozAppearance:'textfield',appearance:'textfield'}}
                         placeholder="0" step="0.01" inputMode="decimal"/>
                       :(apu||it.tipoPrecio==='entidad')?fmt(c.vr_unit):'-'}</td>
@@ -10118,11 +10131,14 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
       })()}
       {apuModal.open&&(function(){
         var itemActual=apuModal.itemIdx!==null?itemsArr[apuModal.itemIdx]:null;
-        var apuSeleccionado=apuSel?filteredApus().find(function(a){return apuKey(a)===apuSel}):null;
+        var _filteredApus=filteredApus();
+        var apuSeleccionado=apuSel?_filteredApus.find(function(a){return apuKey(a)===apuSel}):null;
         var esEntidad=itemActual&&itemActual.tipoPrecio==='entidad';
         var precioTecho=esEntidad?((pres.preciosEntidadOriginal&&pres.preciosEntidadOriginal[itemActual.id]!=null)?r2(parseFloat(pres.preciosEntidadOriginal[itemActual.id])):r2(parseFloat(itemActual.precioEntidad)||0)):0;
         var costoDirectoSel=esEntidad&&apuSeleccionado?r2(totalDirectoDeApu(apuSeleccionado)):0;
         var exacto=esEntidad?costoDirectoSel===precioTecho:true;
+        var numProy=_filteredApus.filter(function(x){return x._origen==='proyecto'}).length;
+        var numCat=_filteredApus.filter(function(x){return x._origen==='catalogo'}).length;
         return(
         <div className="modal-overlay" onClick={closeApuModal}>
           <div className="modal-box" style={{width:1530,maxWidth:'97vw',maxHeight:'85vh',display:'flex',flexDirection:'column'}} onClick={function(e){e.stopPropagation()}}>
@@ -10156,14 +10172,12 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
                     <colgroup><col style={{width:90}}/><col style={{width:420}}/><col style={{width:60}}/></colgroup>
                     <thead style={{position:'sticky',top:0,background:'var(--bg3)'}}><tr><th style={{padding:'4px 8px'}}>Codigo</th><th style={{padding:'4px 8px',textAlign:'left'}}>Nombre</th><th style={{padding:'4px 8px'}}>UN</th></tr></thead>
                     <tbody>
-                      {filteredApus().length===0&&<tr><td colSpan={3} style={{textAlign:'center',padding:'20px',color:'var(--tx3)'}}>Sin resultados</td></tr>}
-                      {filteredApus().map(function(a,ai){
+                      {_filteredApus.length===0&&<tr><td colSpan={3} style={{textAlign:'center',padding:'20px',color:'var(--tx3)'}}>Sin resultados</td></tr>}
+                      {_filteredApus.map(function(a,ai){
                         var activo=apuSel===apuKey(a);
                         var bgActivo=activo?'rgba(77,143,247,.32)':'transparent';
                         var esProyecto=a._origen==='proyecto';
-                        var numProy=filteredApus().filter(function(x){return x._origen==='proyecto'}).length;
-                        var numCat=filteredApus().filter(function(x){return x._origen==='catalogo'}).length;
-                        var mostrarSeparador=ai===0||(filteredApus()[ai-1]._origen!==a._origen);
+                        var mostrarSeparador=ai===0||(_filteredApus[ai-1]._origen!==a._origen);
                         return(
                           <React.Fragment key={(a.id||a.codigo||'')+'_'+ai}>
                             {mostrarSeparador&&(
@@ -10184,7 +10198,7 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
                 </div>
               </div>
               <div style={{flex:1,border:'1px solid var(--bdr)',borderRadius:4,minHeight:0}}>
-                <ApuDetallePreview apu={apuSel?filteredApus().find(function(a){return apuKey(a)===apuSel}):null} cargosCalc={cargosCalc} personMap={personMap} eqMap={eqMap} insMap={insMap} equipos={equipos} insumos={insumos} factorPrest={factorPrest} usarFpEnApu={usarFpEnApu} esHora={esHora} herrPct={herrPct} apusBasico={apusBasico}/>
+                <ApuDetallePreview apu={apuSel?_filteredApus.find(function(a){return apuKey(a)===apuSel}):null} cargosCalc={cargosCalc} personMap={personMap} eqMap={eqMap} insMap={insMap} equipos={equipos} insumos={insumos} factorPrest={factorPrest} usarFpEnApu={usarFpEnApu} esHora={esHora} herrPct={herrPct} apusBasico={apusBasico}/>
               </div>
             </div>
             <div className="modal-foot">
@@ -10203,6 +10217,21 @@ function PresFormularioPanel({pres,presupuestos,selPresIdx,data,onChange,apuModa
     </div>
   );
 }
+var PresFormularioPanel=React.memo(PresFormularioPanelInner,function(prev,next){
+  if(prev.pres!==next.pres)return false;
+  if(prev.apuModal!==next.apuModal)return false;
+  if(prev.data!==next.data)return false;
+  if(prev.cargosCalcSnap!==next.cargosCalcSnap)return false;
+  if(prev.factorPrestSnap!==next.factorPrestSnap)return false;
+  if(prev.personMap!==next.personMap)return false;
+  if(prev.esHora!==next.esHora)return false;
+  if(prev.eqMap!==next.eqMap)return false;
+  if(prev.insMap!==next.insMap)return false;
+  if(prev.equipos!==next.equipos)return false;
+  if(prev.insumos!==next.insumos)return false;
+  if(prev.usarFpEnApu!==next.usarFpEnApu)return false;
+  return true;
+});
 
 /* Adaptador de datos: hace que los editores REALES del catalogo global (InsumosTab/EquiposTab/
    FactorPrestacionalTab/APUTab/CuadrillasTab) operen sobre el snapshot de un proyecto sin saber

@@ -1526,15 +1526,15 @@ function CuadrillasTab({data,onChange,cargosCalc,cargoMap,esHora,selCuadrillaIdx
 
   useEffect(function(){if(selCuadrillaIdx!==null&&selCuadrillaIdx<cuadrillas.length){setSelectedIdx(selCuadrillaIdx);setEditCuadIdx(selCuadrillaIdx)}setShowApuList(false);setApuWarnMsg('');setApuWarnFn(null);setPendingQty(null)},[selCuadrillaIdx,cuadrillas.length]);
 
-  var updCuad=function(i,k,v){var n=[].concat(cuadrillas);n[i]=Object.assign({},n[i]);n[i][k]=v;onChange(Object.assign({},data,{cuadrillas:n}))};
+  var updCuad=useCallback(function(i,k,v){var n=[].concat(cuadrillas);n[i]=Object.assign({},n[i]);n[i][k]=v;onChange(Object.assign({},data,{cuadrillas:n}))},[cuadrillas,data,onChange]);
 
-  var addCuad=function(){setCuadDelErr('');if(selCuad&&(selCuad.integrantes||[]).length===0){setCuadEmptyErr('La cuadrilla "'+selCuad.codigo+'" no tiene integrantes. Complete antes de crear otra.');return}setCuadEmptyErr('');var d=dataRef.current;var cs=d.cuadrillas||[];var nn=cs.concat([{id:uid(),codigo:genCodeFor(cs,'CU'),descripcion:'',integrantes:[]}]);onChange(Object.assign({},d,{cuadrillas:nn}));setSelectedIdx(nn.length-1);setEditCuadIdx(nn.length-1);setEditName(true)};
+  var addCuad=useCallback(function(){setCuadDelErr('');if(selCuad&&(selCuad.integrantes||[]).length===0){setCuadEmptyErr('La cuadrilla "'+selCuad.codigo+'" no tiene integrantes. Complete antes de crear otra.');return}setCuadEmptyErr('');var d=dataRef.current;var cs=d.cuadrillas||[];var nn=cs.concat([{id:uid(),codigo:genCodeFor(cs,'CU'),descripcion:'',integrantes:[]}]);onChange(Object.assign({},d,{cuadrillas:nn}));setSelectedIdx(nn.length-1);setEditCuadIdx(nn.length-1);setEditName(true)},[selCuad,onChange]);
 
-  var closeDetail=function(){if(selCuad&&(selCuad.integrantes||[]).length===0){setCuadEmptyErr('La cuadrilla no tiene integrantes. Agregue al menos un integrante antes de cerrar.');return}setCuadEmptyErr('');setSelectedIdx(null);setEditCuadIdx(null);setEditIntIdx(null);setEditName(false);setApuWarnMsg('');setApuWarnFn(null);setPendingQty(null);if(prevTab!==undefined&&prevTab!==null&&prevTab!==1){setTab(prevTab);setSelCuadrillaIdx(null);setPrevTab(undefined)}else{setSelCuadrillaIdx(null);setPrevTab(undefined)}};
+  var closeDetail=useCallback(function(){if(selCuad&&(selCuad.integrantes||[]).length===0){setCuadEmptyErr('La cuadrilla no tiene integrantes. Agregue al menos un integrante antes de cerrar.');return}setCuadEmptyErr('');setSelectedIdx(null);setEditCuadIdx(null);setEditIntIdx(null);setEditName(false);setApuWarnMsg('');setApuWarnFn(null);setPendingQty(null);if(prevTab!==undefined&&prevTab!==null&&prevTab!==1){setTab(prevTab);setSelCuadrillaIdx(null);setPrevTab(undefined)}else{setSelCuadrillaIdx(null);setPrevTab(undefined)}},[selCuad,prevTab,setTab]);
 
-  var cancelCuadCreation=function(){if(selectedIdx===null)return;var nn=cuadrillas.filter(function(_,j){return j!==selectedIdx});onChange(Object.assign({},data,{cuadrillas:nn}));setSelectedIdx(null);setEditCuadIdx(null);setEditIntIdx(null);setEditName(false);setCuadEmptyErr('');setApuWarnMsg('');setApuWarnFn(null);setPendingQty(null)};
+  var cancelCuadCreation=useCallback(function(){if(selectedIdx===null)return;var nn=cuadrillas.filter(function(_,j){return j!==selectedIdx});onChange(Object.assign({},data,{cuadrillas:nn}));setSelectedIdx(null);setEditCuadIdx(null);setEditIntIdx(null);setEditName(false);setCuadEmptyErr('');setApuWarnMsg('');setApuWarnFn(null);setPendingQty(null)},[selectedIdx,cuadrillas,data,onChange]);
 
-  var delCuad=async function(i){var cuadId='CU-'+cuadrillas[i].id;var enAPU=(data.apus||[]).reduce(function(s,a){return s+(a.recursos_mo||[]).filter(function(r){return r.cargo_id===cuadId}).length},0);if(enAPU>0){setCuadDelErr('Esta cuadrilla se usa en '+enAPU+' APU. No se puede eliminar.');return}setCuadDelErr('');if(!(await askConfirm('¿Desea eliminar "'+(cuadrillas[i].descripcion||cuadrillas[i].codigo)+'"? Esta acción no se puede deshacer.')))return;if(selectedIdx===i){setSelectedIdx(null);setEditCuadIdx(null);setEditIntIdx(null);setEditName(false)}else if(selectedIdx!==null&&selectedIdx>i){setSelectedIdx(selectedIdx-1);setEditCuadIdx(null);setEditIntIdx(null);setEditName(false)}onChange(Object.assign({},data,{cuadrillas:cuadrillas.filter(function(_,j){return j!==i})}))};
+  var delCuad=useCallback(async function(i){var cuadId='CU-'+cuadrillas[i].id;var enAPU=(data.apus||[]).reduce(function(s,a){return s+(a.recursos_mo||[]).filter(function(r){return r.cargo_id===cuadId}).length},0);if(enAPU>0){setCuadDelErr('Esta cuadrilla se usa en '+enAPU+' APU. No se puede eliminar.');return}setCuadDelErr('');if(!(await askConfirm('¿Desea eliminar "'+(cuadrillas[i].descripcion||cuadrillas[i].codigo)+'"? Esta acción no se puede deshacer.')))return;if(selectedIdx===i){setSelectedIdx(null);setEditCuadIdx(null);setEditIntIdx(null);setEditName(false)}else if(selectedIdx!==null&&selectedIdx>i){setSelectedIdx(selectedIdx-1);setEditCuadIdx(null);setEditIntIdx(null);setEditName(false)}onChange(Object.assign({},data,{cuadrillas:cuadrillas.filter(function(_,j){return j!==i})}))},[cuadrillas,data,selectedIdx,onChange]);
 
   var [apuWarnMsg,setApuWarnMsg]=useState('');
 
@@ -1542,25 +1542,25 @@ function CuadrillasTab({data,onChange,cargosCalc,cargoMap,esHora,selCuadrillaIdx
 
   var [pendingQty,setPendingQty]=useState(null);
 
-  var apuWarnConfirm=function(){if(pendingQty){updInt(pendingQty.qi,pendingQty.ii,'cantidad',pendingQty.val);setPendingQty(null)}else if(apuWarnFn){apuWarnFn()}setApuWarnMsg('');setApuWarnFn(null)};
+  var apuWarnConfirm=useCallback(function(){if(pendingQty){updInt(pendingQty.qi,pendingQty.ii,'cantidad',pendingQty.val);setPendingQty(null)}else if(apuWarnFn){apuWarnFn()}setApuWarnMsg('');setApuWarnFn(null)},[pendingQty,apuWarnFn]);
 
-  var apuWarnCancel=function(){setPendingQty(null);setApuWarnMsg('');setApuWarnFn(null)};
+  var apuWarnCancel=useCallback(function(){setPendingQty(null);setApuWarnMsg('');setApuWarnFn(null)},[]);
 
-  var countCuadApuRefs=function(){if(selectedIdx===null||!cuadrillas[selectedIdx])return 0;var cid='CU-'+cuadrillas[selectedIdx].id;return(data.apus||[]).reduce(function(s,a){return s+(a.recursos_mo||[]).filter(function(r){return r.cargo_id===cid}).length},0)};
+  var countCuadApuRefs=useCallback(function(){if(selectedIdx===null||!cuadrillas[selectedIdx])return 0;var cid='CU-'+cuadrillas[selectedIdx].id;return(data.apus||[]).reduce(function(s,a){return s+(a.recursos_mo||[]).filter(function(r){return r.cargo_id===cid}).length},0)},[selectedIdx,cuadrillas,data]);
 
-  var _doAddInt=function(qi){var nn=[].concat(cuadrillas);nn[qi]=Object.assign({},nn[qi]);nn[qi].integrantes=[].concat(nn[qi].integrantes,[{id:uid(),cargo_id:'',cantidad:1}]);onChange(Object.assign({},data,{cuadrillas:nn}));setCuadEmptyErr('');setEditCuadIdx(qi);setEditIntIdx(nn[qi].integrantes.length-1)};
+  var _doAddInt=useCallback(function(qi){var nn=[].concat(cuadrillas);nn[qi]=Object.assign({},nn[qi]);nn[qi].integrantes=[].concat(nn[qi].integrantes,[{id:uid(),cargo_id:'',cantidad:1}]);onChange(Object.assign({},data,{cuadrillas:nn}));setCuadEmptyErr('');setEditCuadIdx(qi);setEditIntIdx(nn[qi].integrantes.length-1)},[cuadrillas,data,onChange]);
 
-  var _doDelInt=function(qi,ii){var nn=[].concat(cuadrillas);nn[qi]=Object.assign({},nn[qi]);nn[qi].integrantes=nn[qi].integrantes.filter(function(_,j){return j!==ii});onChange(Object.assign({},data,{cuadrillas:nn}));setCuadEmptyErr('');if(editIntIdx===ii)setEditIntIdx(null);else if(editIntIdx!==null&&editIntIdx>ii)setEditIntIdx(editIntIdx-1)};
+  var _doDelInt=useCallback(function(qi,ii){var nn=[].concat(cuadrillas);nn[qi]=Object.assign({},nn[qi]);nn[qi].integrantes=nn[qi].integrantes.filter(function(_,j){return j!==ii});onChange(Object.assign({},data,{cuadrillas:nn}));setCuadEmptyErr('');if(editIntIdx===ii)setEditIntIdx(null);else if(editIntIdx!==null&&editIntIdx>ii)setEditIntIdx(editIntIdx-1)},[cuadrillas,data,onChange,editIntIdx]);
 
-  var addInt=function(qi){var n=countCuadApuRefs();if(n>0){setApuWarnMsg('Este cambio afectar\u00e1 a '+n+' APU. \u00bfDesea continuar?');setApuWarnFn(function(){return function(){_doAddInt(qi)}});return}_doAddInt(qi)};
+  var addInt=useCallback(function(qi){var n=countCuadApuRefs();if(n>0){setApuWarnMsg('Este cambio afectar\u00e1 a '+n+' APU. \u00bfDesea continuar?');setApuWarnFn(function(){return function(){_doAddInt(qi)}});return}_doAddInt(qi)},[countCuadApuRefs,_doAddInt]);
 
-  var delInt=async function(qi,ii){var n=countCuadApuRefs();if(n>0){setApuWarnMsg('Este cambio afectar\u00e1 a '+n+' APU. \u00bfDesea continuar?');setApuWarnFn(function(){return function(){_doDelInt(qi,ii)}});return}if(!(await askConfirm('¿Desea eliminar este integrante? Esta acción no se puede deshacer.')))return;_doDelInt(qi,ii)};
+  var delInt=useCallback(async function(qi,ii){var n=countCuadApuRefs();if(n>0){setApuWarnMsg('Este cambio afectar\u00e1 a '+n+' APU. \u00bfDesea continuar?');setApuWarnFn(function(){return function(){_doDelInt(qi,ii)}});return}if(!(await askConfirm('¿Desea eliminar este integrante? Esta acción no se puede deshacer.')))return;_doDelInt(qi,ii)},[countCuadApuRefs,_doDelInt]);
 
-  var updInt=function(qi,ii,k,v){var nn=[].concat(cuadrillas);var ints=[].concat(nn[qi].integrantes);ints[ii]=Object.assign({},ints[ii]);ints[ii][k]=v;nn[qi]=Object.assign({},nn[qi],{integrantes:ints});onChange(Object.assign({},data,{cuadrillas:nn}));setCuadEmptyErr('')};
+  var updInt=useCallback(function(qi,ii,k,v){var nn=[].concat(cuadrillas);var ints=[].concat(nn[qi].integrantes);ints[ii]=Object.assign({},ints[ii]);ints[ii][k]=v;nn[qi]=Object.assign({},nn[qi],{integrantes:ints});onChange(Object.assign({},data,{cuadrillas:nn}));setCuadEmptyErr('')},[cuadrillas,data,onChange]);
 
-  var updIntQty=function(qi,ii,v){var n=countCuadApuRefs();if(n>0){setPendingQty({qi:qi,ii:ii,val:v});setApuWarnMsg('Este cambio afectar\u00e1 a '+n+' APU. \u00bfDesea continuar?');setApuWarnFn(null);return}updInt(qi,ii,'cantidad',v)};
+  var updIntQty=useCallback(function(qi,ii,v){var n=countCuadApuRefs();if(n>0){setPendingQty({qi:qi,ii:ii,val:v});setApuWarnMsg('Este cambio afectar\u00e1 a '+n+' APU. \u00bfDesea continuar?');setApuWarnFn(null);return}updInt(qi,ii,'cantidad',v)},[countCuadApuRefs,updInt]);
 
-  var updIntConfirm=function(qi,ii,k,v){var n=countCuadApuRefs();if(n>0){setApuWarnMsg('Este cambio afectar\u00e1 a '+n+' APU. \u00bfDesea continuar?');setApuWarnFn(function(){return function(){updInt(qi,ii,k,v)}});return}updInt(qi,ii,k,v)};
+  var updIntConfirm=useCallback(function(qi,ii,k,v){var n=countCuadApuRefs();if(n>0){setApuWarnMsg('Este cambio afectar\u00e1 a '+n+' APU. \u00bfDesea continuar?');setApuWarnFn(function(){return function(){updInt(qi,ii,k,v)}});return}updInt(qi,ii,k,v)},[countCuadApuRefs,updInt]);
 
   /* Export/import de Cuadrillas con detalle: cada cuadrilla se exporta seguida de su propia
      sub-tabla de integrantes (Codigo/Descripcion/Cantidad/Costo/Vr.Parcial), con la misma
@@ -8914,14 +8914,14 @@ function PresFormularioPanelInner({pres,presupuestos,selPresIdx,data,onChange,ap
       if(enGlobal)cuadrillasSnapArr.push(Object.assign({},enGlobal));
     });
   };
-  var addCapitulo=function(){
+  var addCapitulo=useCallback(function(){
     if(readOnly)return;
     var arr=pres.items.slice();
     arr.push({id:uid(),num_item:String(arr.length+1),capitulo:'',descripcion:'Nuevo capitulo',unidad:'',cantidad:0,apu_id:null,vr_unitario:0,vr_total:0,tiene_apu:false,alerta_sin_apu:false,es_capitulo_manual:true});
     saveItems(arr);
     setEditIdx(arr.length-1);
-  };
-  var addItemEnCapitulo=function(capIdx){
+  },[readOnly,pres,saveItems,setEditIdx]);
+  var addItemEnCapitulo=useCallback(function(capIdx){
     if(readOnly)return;
     var arr=pres.items.slice();
     var insertAt=capIdx+1;
@@ -8929,8 +8929,8 @@ function PresFormularioPanelInner({pres,presupuestos,selPresIdx,data,onChange,ap
     arr.splice(insertAt,0,{id:uid(),num_item:'',capitulo:'',descripcion:'',unidad:'un',cantidad:1,apu_id:null,vr_unitario:0,vr_total:0,tiene_apu:false,alerta_sin_apu:false,tipoPrecio:(pres.tipoPrecioFormulario||'apu'),precioEntidad:null});
     saveItems(arr);
     setEditIdx(insertAt);
-  };
-  var toggleCapituloManual=function(itemId){
+  },[readOnly,pres,saveItems,setEditIdx]);
+  var toggleCapituloManual=useCallback(function(itemId){
     if(readOnly)return;
     var arr=pres.items.slice();
     var idx=arr.findIndex(function(it){return it.id===itemId});
@@ -8938,14 +8938,14 @@ function PresFormularioPanelInner({pres,presupuestos,selPresIdx,data,onChange,ap
     var it=arr[idx];
     arr[idx]=Object.assign({},it,{es_capitulo_manual:!esCapituloFinal(it)});
     saveItems(arr);
-  };
-  var delItem=async function(i){
+  },[readOnly,pres,saveItems]);
+  var delItem=useCallback(async function(i){
     if(readOnly)return;if(!(await askConfirm('¿Desea eliminar "'+(pres.items[i].descripcion||'este ítem')+'"? Esta acción no se puede deshacer.')))return;
     var arr=pres.items.filter(function(_,j){return j!==i});
     saveItems(arr);
     if(editIdx===i)setEditIdx(null);
-  };
-  var updItem=function(i,k,v){
+  },[readOnly,pres,saveItems,editIdx,setEditIdx]);
+  var updItem=useCallback(function(i,k,v){
     if(readOnly)return;
     if(typeof i!=='number'||i<0||i>=pres.items.length)return;
     var arr=pres.items.slice();arr[i]=Object.assign({},arr[i]);arr[i][k]=v;
@@ -8957,17 +8957,17 @@ function PresFormularioPanelInner({pres,presupuestos,selPresIdx,data,onChange,ap
     }else{
       saveItems(arr);
     }
-  };
-  var startEditCell=function(i,k,v){if(!readOnly)setEditingCell({idx:i,field:k,value:v==null?'':v})};
-  var commitEditCell=function(){
+  },[readOnly,pres,saveItems,tipoPrecioFormulario,setAlarmasPrecioFaltante]);
+  var startEditCell=useCallback(function(i,k,v){if(!readOnly)setEditingCell({idx:i,field:k,value:v==null?'':v})},[readOnly]);
+  var commitEditCell=useCallback(function(){
     var cell=editingCellRef.current;
     if(!cell)return;
     updItem(cell.idx,cell.field,cell.value);
     setEditingCell(null);
-  };
-  var cancelEditCell=function(){setEditingCell(null)};
-  var openApuModal=function(i){if(!readOnly){setApuModal({open:true,itemIdx:i,search:'',catFilter:''});setApuSel(null)}};
-  var closeApuModal=function(){setApuModal({open:false,itemIdx:null,search:'',catFilter:''});setApuSel(null)};
+  },[updItem]);
+  var cancelEditCell=useCallback(function(){setEditingCell(null)},[]);
+  var openApuModal=useCallback(function(i){if(!readOnly){setApuModal({open:true,itemIdx:i,search:'',catFilter:''});setApuSel(null)}},[readOnly]);
+  var closeApuModal=useCallback(function(){setApuModal({open:false,itemIdx:null,search:'',catFilter:''});setApuSel(null)},[]);
   var filteredApus=function(){
     if(!apuModal.open)return[];
     var sn=apuModal.search?norm(apuModal.search):'';
@@ -9001,7 +9001,7 @@ function PresFormularioPanelInner({pres,presupuestos,selPresIdx,data,onChange,ap
     }
     return result;
   };
-  var assignApu=function(aid){
+  var assignApu=useCallback(function(aid){
     if(apuModal.itemIdx===null||aid===undefined)return;
     var i=apuModal.itemIdx;
     // Caso A: el APU ya está en el snapshot del proyecto
@@ -9048,10 +9048,10 @@ function PresFormularioPanelInner({pres,presupuestos,selPresIdx,data,onChange,ap
     saveItems(arr,{apus_snap:snap,insumos_snap:insumosSnap,equipos_snap:equiposSnap,cargos_snap:cargosSnap,cuadrillas_snap:cuadrillasSnap});
     closeApuModal();
     showToast('APU asignado',{type:'ok',dur:2000});
-  };
+  },[apuModal,pres,data,apus,saveItems,closeApuModal]);
   function apuKey(a){return a&&(a.id!=null?'id:'+a.id:'cod:'+(a.codigo||''))}
-  var totalDirectoDeApu=function(a){return a?calcAPU(a,cargosCalc,equipos,insumos,apusBasico,herrPct,factorPrest,usarFpEnApu,esHora,personMap,eqMap,insMap).totalDirecto:0};
-  var confirmarAsignacion=function(){
+  var totalDirectoDeApu=useCallback(function(a){return a?calcAPU(a,cargosCalc,equipos,insumos,apusBasico,herrPct,factorPrest,usarFpEnApu,esHora,personMap,eqMap,insMap).totalDirecto:0},[cargosCalc,equipos,insumos,apusBasico,herrPct,factorPrest,usarFpEnApu,esHora,personMap,eqMap,insMap]);
+  var confirmarAsignacion=useCallback(function(){
     if(!apuSel)return;
     var found=filteredApus().find(function(a){return apuKey(a)===apuSel});
     if(!found)return;
@@ -9066,15 +9066,15 @@ function PresFormularioPanelInner({pres,presupuestos,selPresIdx,data,onChange,ap
       }
     }
     assignApu(found.id);
-  };
-  var unassignApu=async function(i){
+  },[apuSel,apuModal,itemsArr,pres,assignApu,totalDirectoDeApu,filteredApus]);
+  var unassignApu=useCallback(async function(i){
     if(readOnly)return;if(!(await askConfirm('¿Desea quitar el APU asignado a este ítem? Esta acción no se puede deshacer.')))return;
     var arr=pres.items.slice();arr[i]=Object.assign({},arr[i],{apu_id:null,tiene_apu:false,alerta_sin_apu:true,tipoPrecio:'entidad'});
     saveItems(arr);
     showToast('APU removido',{type:'ok',dur:2000});
-  };
+  },[readOnly,pres,saveItems]);
 
-  var siguienteEstado=async function(){
+  var siguienteEstado=useCallback(async function(){
     var next=pres.estado==='borrador'?'en_revision':pres.estado==='en_revision'?'cerrado':null;
     if(!next)return;
     if(pres.estado==='borrador'){
@@ -9093,9 +9093,9 @@ function PresFormularioPanelInner({pres,presupuestos,selPresIdx,data,onChange,ap
     n[idxPres]=Object.assign({},n[idxPres],{estado:next,fecha_cierre:next==='cerrado'?new Date().toISOString().slice(0,10):null});
     onChange(Object.assign({},data,{presupuestos:n}));
     showToast('Estado cambiado a: '+estadoLabel(next),{type:'ok'});
-  };
+  },[pres,presupuestos,idxPres,data,onChange]);
 
-  var convertirEntidadAapu=async function(){
+  var convertirEntidadAapu=useCallback(async function(){
     if(readOnly)return;
     if(tipoPrecioFormulario!=='entidad')return;
     if(!(await askConfirm('¿Convertir formulario a modo APU?\n\n• Se guardará una copia de los precios Entidad como referencia\n• Podrá asignar APU a cada ítem\n• Los ítems sin APU conservarán su precio Entidad como precio de venta')))return;
@@ -9108,9 +9108,9 @@ function PresFormularioPanelInner({pres,presupuestos,selPresIdx,data,onChange,ap
     onChange(Object.assign({},data,{presupuestos:n}));
     setTipoPrecioFormulario('apu');
     showToast('Formulario convertido a modo APU. Asigne APU a cada ítem.',{type:'ok',dur:4000});
-  };
+  },[readOnly,tipoPrecioFormulario,pres,presupuestos,idxPres,data,onChange]);
 
-  var convertirApuAentidad=async function(){
+  var convertirApuAentidad=useCallback(async function(){
     if(readOnly)return;
     if(tipoPrecioFormulario!=='apu')return;
     if(!(await askConfirm('¿Convertir a modo Entidad?\n\n• Los APU se conservan como referencia\n• Los precios se fijan en "Vr. Unit" (amarillo)\n• Podrá ajustar precios manualmente')))return;
@@ -9133,9 +9133,9 @@ function PresFormularioPanelInner({pres,presupuestos,selPresIdx,data,onChange,ap
     saveItems(arr,{tipoPrecioFormulario:'entidad',preciosEntidadOriginal:null,preciosApuOriginal:apuSnapshot});
     setTipoPrecioFormulario('entidad');
     showToast('Formulario convertido a modo Entidad. Los APU se conservan.',{type:'ok',dur:4000});
-  };
+  },[readOnly,tipoPrecioFormulario,pres,apus,saveItems]);
 
-  var eliminarFormulario=async function(){
+  var eliminarFormulario=useCallback(async function(){
     if(readOnly)return;
     if(!(await askConfirm('⚠ ¿Eliminar el formulario de este presupuesto?\n\nSe borrarán TODOS los items, capítulos y el mapeo de columnas. Esta acción no se puede deshacer.')))return;
     if(!(await askConfirm('¿Está SEGURO? Se eliminarán '+(pres.items||[]).length+' items permanentemente.')))return;
@@ -9144,15 +9144,15 @@ function PresFormularioPanelInner({pres,presupuestos,selPresIdx,data,onChange,ap
     onChange(Object.assign({},data,{presupuestos:n}));
     setFase('inicio');
     showToast('Formulario eliminado.',{type:'ok'});
-  };
+  },[readOnly,pres,presupuestos,idxPres,data,onChange]);
 
-  var exportarFormularioRapido=function(){
+  var exportarFormularioRapido=useCallback(function(){
     if(!fo||!fo.archivo_b64){showToast('No hay formulario para exportar',{type:'warn'});return}
     var useOv=pres.aiu_override&&pres.aiu_override.activo;
     var cfg=data.config||{};
     var aiuC={pctA:useOv?(safeFloat(pres.aiu_override.pct_a)||0):(safeFloat(cfg.pct_administracion)||0),pctI:useOv?(safeFloat(pres.aiu_override.pct_i)||0):(safeFloat(cfg.pct_imprevistos)||0),pctU:useOv?(safeFloat(pres.aiu_override.pct_u)||0):(safeFloat(cfg.pct_utilidad)||0),tieneIva:useOv?!!(pres.aiu_override.tiene_iva):false,ivaBase:useOv?(pres.aiu_override.iva_base||'utilidad'):'utilidad',ivaPct:useOv?(safeFloat(pres.aiu_override.iva_pct)||19):19};
     exportarFormularioLlenoGlobal(pres,calcItemVal,null,aiuC);
-  };
+  },[fo,pres,data]);
 
   var mapeosGuardados=(data.config_listas&&data.config_listas.mapeos_formulario)||[];
 
@@ -10329,7 +10329,7 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
   var[cuadrillaLocalIdx,setCuadrillaLocalIdx]=useState(null);
   var[prevTipo,setPrevTipo]=useState(undefined);
 
-  var cambiarTipo=function(t){setTipo(t);setCuadrillaLocalIdx(null);setPrevTipo(undefined)};
+  var cambiarTipo=useCallback(function(t){setTipo(t);setCuadrillaLocalIdx(null);setPrevTipo(undefined)},[]);
 
   var analisis=useMemo(function(){return pres?analizarActualizacionCatalogo(pres,data):{porId:[],porCodigo:[],huerfanos:[]}},[pres,data]);
   var pendientesReparar=useMemo(function(){return pres?repararRecursosFaltantesDeApus(pres,data).resumen.completados:0},[pres,data]);

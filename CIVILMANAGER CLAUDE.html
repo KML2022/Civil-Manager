@@ -1524,7 +1524,7 @@ function CuadrillasTab({data,onChange,cargosCalc,cargoMap,esHora,selCuadrillaIdx
 
   dataRef.current=data;
 
-  useEffect(function(){if(selCuadrillaIdx!==null&&selCuadrillaIdx<cuadrillas.length){setSelectedIdx(selCuadrillaIdx);setEditCuadIdx(selCuadrillaIdx)}setShowApuList(false);setApuWarnMsg('');setApuWarnFn(null);setPendingQty(null)},[selCuadrillaIdx]);
+  useEffect(function(){if(selCuadrillaIdx!==null&&selCuadrillaIdx<cuadrillas.length){setSelectedIdx(selCuadrillaIdx);setEditCuadIdx(selCuadrillaIdx)}setShowApuList(false);setApuWarnMsg('');setApuWarnFn(null);setPendingQty(null)},[selCuadrillaIdx,cuadrillas.length]);
 
   var updCuad=function(i,k,v){var n=[].concat(cuadrillas);n[i]=Object.assign({},n[i]);n[i][k]=v;onChange(Object.assign({},data,{cuadrillas:n}))};
 
@@ -4062,7 +4062,7 @@ function ImportApuModal({repositorio,contextoCalc,onAplicar,onClose,origenProyec
     });
     setExpandidos(iniciales);
     setSelCampos(selIniciales);
-  },[st.fase]);
+  },[st.fase,st.recursosUnicos]);
 
   var toggleExpandido=function(uidRu){
     setExpandidos(function(prev){var next=new Set(prev);if(next.has(uidRu))next.delete(uidRu);else next.add(uidRu);return next});
@@ -8867,16 +8867,17 @@ function PresFormularioPanelInner({pres,presupuestos,selPresIdx,data,onChange,ap
   var vistaPadreState=useState('subproyectos');var vistaPadre=vistaPadreState[0],setVistaPadre=vistaPadreState[1]; /* 'subproyectos' | 'matriz' */
   var[colapsados,setColapsados]=useState(function(){var c={};hijos.forEach(function(h){c[h.id]=true});return c});
   var[visibilidadCols,setVisibilidadCols]=useState(function(){var c={};hijos.forEach(function(h){c[h.id]=true});return c});
-  useEffect(function(){if(vistaPadre==='matriz'){var c={};hijos.forEach(function(h){c[h.id]=false});setColapsados(c)}},[vistaPadre]);
+  useEffect(function(){if(vistaPadre==='matriz'){var c={};hijos.forEach(function(h){c[h.id]=false});setColapsados(c)}},[vistaPadre,hijos]);
 
   useEffect(function(){setPage(0)},[presId]);
+  var itemsLength=(pres&&pres.items||[]).length;
   useEffect(function(){
     var arr=(pres&&pres.items||[]);
     var b=busq?norm(busq):'';
     var len=b?arr.filter(function(it){return norm(it.descripcion||'').indexOf(b)>=0||norm(it.capitulo||'').indexOf(b)>=0||norm(it.num_item||'').indexOf(b)>=0}).length:arr.length;
     var tot=Math.max(1,Math.ceil(len/50));
     if(page>=tot) setPage(Math.max(0,tot-1));
-  },[presId,busq,page,(pres&&pres.items||[]).length]);
+  },[presId,busq,page,itemsLength]);
   useEffect(function(){
     setFase(pres&&(pres.formulario_original||(pres.items||[]).length>0)?'revision':'inicio');
     setTipoPrecioFormulario(((pres&&pres.tipoPrecioFormulario)==='entidad'||(pres&&pres.tipoPrecioFormulario)==='apu')?(pres&&pres.tipoPrecioFormulario):'apu');
@@ -8887,9 +8888,9 @@ function PresFormularioPanelInner({pres,presupuestos,selPresIdx,data,onChange,ap
     }else{
       setAlarmasPrecioFaltante(null);
     }
-  },[presId]);
+  },[presId,pres]);
 
-  useEffect(function(){if(editingCellRef.current)commitEditCell()},[editIdx]);
+  useEffect(function(){if(editingCellRef.current)commitEditCell()},[editIdx,commitEditCell]);
 
   if(!pres)return <PresBannerProyecto pres={pres} presupuestos={presupuestos} setTab={setTab}/>;
 

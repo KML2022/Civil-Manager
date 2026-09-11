@@ -568,12 +568,22 @@ function getTipoProyecto(p,presupuestos){
 
 function flattenPresupuestos(presupuestos){
   var result=[];
-  var principales=presupuestos.filter(function(p){return !p.parent_id});
-  principales.forEach(function(p){
-    result.push({pres:p,level:0});
-    var hijos=presupuestos.filter(function(x){return x.parent_id===p.id});
-    hijos.forEach(function(h){result.push({pres:h,level:1})});
-  });
+  var byParent={};
+  for(var i=0;i<presupuestos.length;i++){
+    var p=presupuestos[i];
+    var pid=p.parent_id||'_root';
+    if(!byParent[pid])byParent[pid]=[];
+    byParent[pid].push(p);
+  }
+  var principales=byParent['_root']||[];
+  for(var j=0;j<principales.length;j++){
+    var pr=principales[j];
+    result.push({pres:pr,level:0});
+    var hijos=byParent[pr.id]||[];
+    for(var k=0;k<hijos.length;k++){
+      result.push({pres:hijos[k],level:1});
+    }
+  }
   return result;
 }
 
@@ -1691,9 +1701,9 @@ function CuadrillasTab({data,onChange,cargosCalc,cargoMap,esHora,selCuadrillaIdx
 
   var selCostoHH=selCuad?calcCuadrillaCost(selCuad,cargoMap,data.config.dias_mes||30,data.config.horas_mes||182,esHora).costoHora:0;
 
-  var cuadApuCount=selCuad?(data.apus||[]).reduce(function(s,a){return s+(a.recursos_mo||[]).filter(function(r){return r.cargo_id==='CU-'+selCuad.id}).length},0):0;
+  var cuadApuCount=useMemo(function(){if(!selCuad)return 0;var cid='CU-'+selCuad.id;return(data.apus||[]).reduce(function(s,a){return s+(a.recursos_mo||[]).filter(function(r){return r.cargo_id===cid}).length},0)},[selCuad,data.apus]);
 
-  var cuadApuNames=selCuad?(data.apus||[]).filter(function(a){return(a.recursos_mo||[]).some(function(r){return r.cargo_id==='CU-'+selCuad.id})}).map(function(a){return a.codigo||a.nombre||'\u2014'}):[];
+  var cuadApuNames=useMemo(function(){if(!selCuad)return[];var cid='CU-'+selCuad.id;return(data.apus||[]).filter(function(a){return(a.recursos_mo||[]).some(function(r){return r.cargo_id===cid})}).map(function(a){return a.codigo||a.nombre||'\u2014'})},[selCuad,data.apus]);
 
   return(<React.Fragment>
 
@@ -9830,16 +9840,17 @@ function PresFormularioPanelInner({pres,presupuestos,selPresIdx,data,onChange,ap
   /* fase === 'revision': tabla unica de items, sea que vengan de importar Excel o se hayan creado a mano */
   var itemsArr=pres.items||[];
   var fo=pres.formulario_original;
-  var itemsReales=itemsArr.filter(function(it){return !esCapituloFinal(it)});
+  var itemsReales=useMemo(function(){return itemsArr.filter(function(it){return !esCapituloFinal(it)})},[itemsArr]);
   var nCapitulos=itemsArr.length-itemsReales.length;
-  var cdTotal=0;
-  for(var ii=0;ii<itemsArr.length;ii++){cdTotal+=calcItemVal(itemsArr[ii]).vr_total}
+  var cdTotal=useMemo(function(){var t=0;for(var ii=0;ii<itemsArr.length;ii++){t+=calcItemVal(itemsArr[ii]).vr_total}return t},[itemsArr,calcItemVal]);
 
-  var itemsFiltrados=itemsArr.filter(function(it){
-    if(!busq)return true;
+  var itemsFiltrados=useMemo(function(){
+    if(!busq)return itemsArr;
     var b=norm(busq);
-    return norm(it.descripcion||'').indexOf(b)>=0||norm(it.capitulo||'').indexOf(b)>=0||norm(it.num_item||'').indexOf(b)>=0;
-  });
+    return itemsArr.filter(function(it){
+      return norm(it.descripcion||'').indexOf(b)>=0||norm(it.capitulo||'').indexOf(b)>=0||norm(it.num_item||'').indexOf(b)>=0;
+    });
+  },[itemsArr,busq]);
   var PAGE_SIZE=50;
   var totalPaginas=Math.max(1,Math.ceil(itemsFiltrados.length/PAGE_SIZE));
   var pageSafe=page>=totalPaginas?Math.max(0,totalPaginas-1):page;

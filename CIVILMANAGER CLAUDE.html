@@ -1504,7 +1504,7 @@ function FactorPrestacionalTab({data,onChange,factorPrest,cargosCalc,cargoMap,es
 
 
 
-function CuadrillasTab({data,onChange,cargosCalc,cargoMap,esHora,selCuadrillaIdx,setSelCuadrillaIdx,setTab,prevTab,setPrevTab,readOnly}){
+var CuadrillasTabInner=function CuadrillasTab({data,onChange,cargosCalc,cargoMap,esHora,selCuadrillaIdx,setSelCuadrillaIdx,setTab,prevTab,setPrevTab,readOnly}){
 
   var cuadrillas=data.cuadrillas||[];
 
@@ -2071,7 +2071,9 @@ const ExcelPreviewModal=React.memo(function ExcelPreviewModal({excel}){
 
 
 
-function EquiposTab({data,onChange,provMap,_unidades,contextoProyecto,readOnly}){
+var CuadrillasTab=React.memo(CuadrillasTabInner);
+
+function EquiposTabInner({data,onChange,provMap,_unidades,contextoProyecto,readOnly}){
 
   var proveedores=data.proveedores;
 
@@ -2287,9 +2289,11 @@ function EquiposTab({data,onChange,provMap,_unidades,contextoProyecto,readOnly})
 
 }
 
+var EquiposTab=React.memo(EquiposTabInner);
 
 
-function InsumosTab({data,onChange,provMap,cargosCalc,cargoMap,esHora,_unidades,equipos,factorPrest,usarFpEnApu,apusBasico,contextoProyecto,readOnly}){
+
+function InsumosTabInner({data,onChange,provMap,cargosCalc,cargoMap,esHora,_unidades,equipos,factorPrest,usarFpEnApu,apusBasico,contextoProyecto,readOnly}){
 
   var tituloExportIns=contextoProyecto?'CATALOGO DE INSUMOS — '+contextoProyecto.codigo+' '+contextoProyecto.nombre:'CATALOGO DE INSUMOS';
   var filenameExportIns=contextoProyecto?'insumos_'+contextoProyecto.codigo+'.xlsx':'catalogo_insumos.xlsx';
@@ -2621,9 +2625,11 @@ function InsumosTab({data,onChange,provMap,cargosCalc,cargoMap,esHora,_unidades,
 
 }
 
+var InsumosTab=React.memo(InsumosTabInner);
 
 
-function ProveedoresTab({data,onChange}){
+
+function ProveedoresTabInner({data,onChange}){
 
   var{items:proveedores,editIdx,setEditIdx,search,setSearch,upd,add,del,filtered:hookFiltered,handleKeyDown,excel:provExcel}=useCrudTable({data,onChange,dataKey:'proveedores',prefix:'PR',defaultItem:function(){return{id:uid(),codigo:genCodeFor(data.proveedores,'PR'),nombre:'',nit:'',contacto:'',tel1:'',tel2:'',email:'',direccion:'',ciudad:'',tipo:['Insumo'],notas:'',activo:true}},searchKeys:['codigo','nombre','nit'],confirmDel:"Eliminar este proveedor?",excelConfig:{title:'CATALOGO DE PROVEEDORES',sheetName:'Proveedores',filename:'catalogo_proveedores.xlsx',headers:['Codigo','Nombre','NIT','Contacto','Tel 1','Tel 2','Email','Direccion','Ciudad','Tipo','Notas','Activo'],colWidths:[{wch:10},{wch:30},{wch:16},{wch:16},{wch:14},{wch:14},{wch:24},{wch:24},{wch:16},{wch:12},{wch:24},{wch:8}],mapRow:function(p){return[p.codigo||'',p.nombre||'',p.nit||'',p.contacto||'',p.tel1||'',p.tel2||'',p.email||'',p.direccion||'',p.ciudad||'',(Array.isArray(p.tipo)?p.tipo:[p.tipo||'']).join(', '),p.notas||'',p.activo?'Si':'No']},parseRow:function(r){return[String(r[0]||'').trim(),String(r[1]||'').trim(),String(r[2]||'').trim(),String(r[3]||'').trim(),String(r[4]||'').trim(),String(r[5]||'').trim(),String(r[6]||'').trim(),String(r[7]||'').trim(),String(r[8]||'').trim(),String(r[9]||'insumo').trim(),String(r[10]||'').trim(),String(r[11]||'Si').trim()]},buildItem:function(r,idx,existing,genCode){var tipoArr=(r[9]||'Insumo').split(',').map(function(s){return s.trim()}).filter(function(s){return s}).map(function(s){return s.charAt(0).toUpperCase()+s.slice(1).toLowerCase()});return{codigo:idx>=0?existing[idx].codigo:genCode(),id:idx>=0?existing[idx].id:uid(),nombre:r[1]||'',nit:r[2]||'',contacto:r[3]||'',tel1:r[4]||'',tel2:r[5]||'',email:r[6]||'',direccion:r[7]||'',ciudad:r[8]||'',tipo:tipoArr,notas:r[10]||'',activo:(r[11]||'Si').toLowerCase()!=='no'}}}});
 
@@ -2898,6 +2904,8 @@ function ProveedoresTab({data,onChange}){
   );
 
 }
+
+var ProveedoresTab=React.memo(ProveedoresTabInner);
 
 
 
@@ -7937,7 +7945,7 @@ function PresProyectosPanel({presupuestos,selPresIdx,setSelPresIdx,data,onChange
 }
 
 /* ══════════════════ 4. EXPORTAR / ENTREGABLES (sub-componente de PresupuestosTab) ══════════════════ */
-function PresEntregablesPanel({pres,presupuestos,calcResumenPres,calcItemVal,calcResumenFor,calcItemValFor,buildSnapCtx,setTab,estadoLabel,estadoColor}){
+function PresEntregablesPanelInner({pres,presupuestos,calcResumenPres,calcItemVal,calcResumenFor,calcItemValFor,buildSnapCtx,setTab,estadoLabel,estadoColor}){
   var pendientesState=useState(null);var pendientes=pendientesState[0],setPendientes=pendientesState[1];
   if(!pres)return <PresBannerProyecto pres={pres} presupuestos={presupuestos} setTab={setTab}/>;
   var r=calcResumenPres();
@@ -8282,6 +8290,8 @@ function TituloSubTab({pres,presupuestos,tituloSubTab,extra,width,stacked}){
     </div>
   );
 }
+
+var PresEntregablesPanel=React.memo(PresEntregablesPanelInner);
 
 function PresBannerProyecto({pres,presupuestos,setTab}){
   if(pres){
@@ -10313,7 +10323,7 @@ var FIRMA_LABEL={
 };
 function etiquetaFirma(firma){return FIRMA_LABEL[firma]||'⚠ Múltiples diferencias ('+firma+')'};
 
-function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
+function PresCatalogoProyectoPanelInner({pres,presupuestos,selPresIdx,data,onChange,
   cargosCalcSnap,cuadrillasCalcSnap,equiposSnapEfectivo,insumosSnapEfectivo,factorPrestSnap,personMapSnap,
   eqMapSnap,insMapSnap,herrPct,usarFpEnApu,esHora,abCalcList,apusBasico,provMap,_unidades,cambiarPerfilPais,estadoLabel,estadoColor,setTab,calcResumenFor,calcItemValFor,buildSnapCtx}){
 
@@ -11685,6 +11695,8 @@ function PresCatalogoProyectoPanel({pres,presupuestos,selPresIdx,data,onChange,
     </React.Fragment>
   );
 }
+
+var PresCatalogoProyectoPanel=React.memo(PresCatalogoProyectoPanelInner);
 
 function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,insMap,factorPrest,usarFpEnApu,equipos,insumos,apusBasico,categorias_apu,tab,setTab,provMap,_unidades}){
   data=data||{};

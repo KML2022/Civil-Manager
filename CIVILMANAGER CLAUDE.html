@@ -9201,7 +9201,14 @@ function PresFormularioPanelInner({pres,presupuestos,selPresIdx,data,onChange,ap
     showToast('APU asignado',{type:'ok',dur:2000});
   };
   function apuKey(a){return a&&(a.id!=null?'id:'+a.id:'cod:'+(a.codigo||''))}
-  var totalDirectoDeApu=function(a){return a?calcAPU(a,cargosCalc,equipos,insumos,apusBasico,herrPct,factorPrest,usarFpEnApu,esHora,personMap,eqMap,insMap).totalDirecto:0};
+  /* F2: costo directo calculado sobre los SNAP del proyecto (misma base que itemValMap,
+     no el catalogo global — evita divergencia en el banner "precio techo" del modal) */
+  var totalDirectoDeApu=function(a){
+    if(!a)return 0;
+    var sc=buildSnapCtx(pres);
+    var abL=(apusBasico||[]).map(function(ba){return calcAPU(ba,cargosCalc,equipos,insumos,null,herrPct,factorPrest,usarFpEnApu,esHora,personMap,eqMap,insMap)});
+    return calcAPU(a,sc.cargosCalcSnap,sc.equiposSnap,sc.insumosSnap,abL,herrPct,sc.factorPrestSnap,usarFpEnApu,esHora,sc.personMapSnap,sc.eqMapSnap,sc.insMapSnap).totalDirecto;
+  };
   var confirmarAsignacion=function(){
     if(!apuSel)return;
     var found=filteredApus().find(function(a){return apuKey(a)===apuSel});
@@ -11972,9 +11979,6 @@ function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,i
   var itemValMap=useMemo(function(){
     var map=new Map();
     var itemsArr=(pres&&pres.items)||[];
-    var aiuPct=(pres&&pres.aiu_override&&pres.aiu_override.activo)?
-      (safeFloat(pres.aiu_override.pct_a)||0)+(safeFloat(pres.aiu_override.pct_i)||0)+(safeFloat(pres.aiu_override.pct_u)||0):
-      (safeFloat(config.pct_administracion)||0)+(safeFloat(config.pct_imprevistos)||0)+(safeFloat(config.pct_utilidad)||0);
     var snap=(pres&&pres.apus_snap)||[];
     itemsArr.forEach(function(item){
       if(item.tipoPrecio==='entidad'){
@@ -11985,7 +11989,9 @@ function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,i
           if(!apuEnt){for(var f=0;f<apus.length;f++){if(apus[f].id===item.apu_id){apuEnt=apus[f];break}}}
         }
         var calcEnt=apuEnt?calcAPU(apuEnt,cargosCalcSnap,equiposSnapEfectivo,insumosSnapEfectivo,abCalcList,herrPct,factorPrestSnap,usarFpEnApu,esHora,personMapSnap,eqMapSnap,insMapSnap):null;
-        var vrUnit=apuEnt&&calcEnt?r2(calcEnt.totalDirecto*(1+aiuPct/100)):vrUnitEnt;
+        /* F2: los precios por item son COSTO DIRECTO — el AIU/IVA se aplica UNA sola vez en el resumen.
+           Antes: totalDirecto*(1+aiuPct/100) provocaba doble aplicacion con resumenPres. */
+        var vrUnit=apuEnt&&calcEnt?r2(calcEnt.totalDirecto):vrUnitEnt;
         map.set(item.id,{vr_unit:vrUnit,vr_total:r2(vrUnit*safeFloat(item.cantidad)),apu:apuEnt,calc:calcEnt});
         return;
       }
@@ -11995,11 +12001,12 @@ function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,i
       if(!apu){for(var j=0;j<apus.length;j++){if(apus[j].id===item.apu_id){apu=apus[j];break}}}
       if(!apu){map.set(item.id,{vr_unit:0,vr_total:0,apu:null,calc:null});return}
       var c=calcAPU(apu,cargosCalcSnap,equiposSnapEfectivo,insumosSnapEfectivo,abCalcList,herrPct,factorPrestSnap,usarFpEnApu,esHora,personMapSnap,eqMapSnap,insMapSnap);
-      var vrUnit=r2(c.totalDirecto*(1+aiuPct/100));
+      /* F2: precio por item = CD crudo (AIU/IVA una sola vez en el resumen) */
+      var vrUnit=r2(c.totalDirecto);
       map.set(item.id,{vr_unit:vrUnit,vr_total:r2(vrUnit*safeFloat(item.cantidad)),apu:apu,calc:c});
     });
     return map;
-  },[pres&&pres.items,pres&&pres.aiu_override,pres&&pres.apus_snap,apus,cargosCalcSnap,equiposSnapEfectivo,insumosSnapEfectivo,abCalcList,herrPct,factorPrestSnap,usarFpEnApu,esHora,personMapSnap,eqMapSnap,insMapSnap,config.pct_administracion,config.pct_imprevistos,config.pct_utilidad]);
+  },[pres&&pres.items,pres&&pres.apus_snap,apus,cargosCalcSnap,equiposSnapEfectivo,insumosSnapEfectivo,abCalcList,herrPct,factorPrestSnap,usarFpEnApu,esHora,personMapSnap,eqMapSnap,insMapSnap]);
 
   function calcItemVal(item){
     return itemValMap.get(item.id)||{vr_unit:0,vr_total:0,apu:null,calc:null};
@@ -12062,10 +12069,8 @@ function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,i
       var ctxE=snapCtx||buildSnapCtx(p);
       var apuEnt=null;if(item.apu_id){var snapE=(p&&p.apus_snap)||[];for(var e=0;e<snapE.length;e++){if(snapE[e].id===item.apu_id){apuEnt=snapE[e];break}}if(!apuEnt){for(var f=0;f<apus.length;f++){if(apus[f].id===item.apu_id){apuEnt=apus[f];break}}}}
       var calcEnt=apuEnt?calcAPU(apuEnt,ctxE.cargosCalcSnap,ctxE.equiposSnap,ctxE.insumosSnap,abCalcList,herrPct,ctxE.factorPrestSnap,usarFpEnApu,esHora,ctxE.personMapSnap,ctxE.eqMapSnap,ctxE.insMapSnap):null;
-      var aiuPctE=(p&&p.aiu_override&&p.aiu_override.activo)?
-        (safeFloat(p.aiu_override.pct_a)||0)+(safeFloat(p.aiu_override.pct_i)||0)+(safeFloat(p.aiu_override.pct_u)||0):
-        (safeFloat(config.pct_administracion)||0)+(safeFloat(config.pct_imprevistos)||0)+(safeFloat(config.pct_utilidad)||0);
-      var vrUnit=apuEnt&&calcEnt?r2(calcEnt.totalDirecto*(1+aiuPctE/100)):vrUnitEnt;
+      /* F2: precio por item = CD crudo (AIU/IVA una sola vez en el resumen) */
+      var vrUnit=apuEnt&&calcEnt?r2(calcEnt.totalDirecto):vrUnitEnt;
       return{vr_unit:vrUnit,vr_total:r2(vrUnit*safeFloat(item.cantidad)),apu:apuEnt,calc:calcEnt};
     }
     if(!item.apu_id)return{vr_unit:0,vr_total:0,apu:null,calc:null};
@@ -12074,12 +12079,9 @@ function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,i
     for(var i=0;i<snap.length;i++){if(snap[i].id===item.apu_id){apu=snap[i];break}}
     if(!apu){for(var j=0;j<apus.length;j++){if(apus[j].id===item.apu_id){apu=apus[j];break}}}
     if(!apu)return{vr_unit:0,vr_total:0,apu:null,calc:null};
-    var aiuPct=(p&&p.aiu_override&&p.aiu_override.activo)?
-      (safeFloat(p.aiu_override.pct_a)||0)+(safeFloat(p.aiu_override.pct_i)||0)+(safeFloat(p.aiu_override.pct_u)||0):
-      (safeFloat(config.pct_administracion)||0)+(safeFloat(config.pct_imprevistos)||0)+(safeFloat(config.pct_utilidad)||0);
     var ctx=snapCtx||buildSnapCtx(p);
     var c=calcAPU(apu,ctx.cargosCalcSnap,ctx.equiposSnap,ctx.insumosSnap,abCalcList,herrPct,ctx.factorPrestSnap,usarFpEnApu,esHora,ctx.personMapSnap,ctx.eqMapSnap,ctx.insMapSnap);
-    var vrUnit=r2(c.totalDirecto*(1+aiuPct/100));
+    var vrUnit=r2(c.totalDirecto);
     return{vr_unit:vrUnit,vr_total:r2(vrUnit*safeFloat(item.cantidad)),apu:apu,calc:c};
   }
 

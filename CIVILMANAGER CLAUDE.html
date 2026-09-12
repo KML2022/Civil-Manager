@@ -993,6 +993,17 @@ const fmtPct=v=>Number(v).toFixed(2)+'%';
 
 const TIPO_OPTIONS=['Insumo','Equipo'];
 
+/* Hook: [valorDebounced, setValor] — el valor debounced se actualiza `delay` ms despues del ultimo cambio */
+function useDebouncedValue(initialValue,delay){
+  var[value,setValue]=useState(initialValue);
+  var[debounced,setDebounced]=useState(initialValue);
+  useEffect(function(){
+    var t=setTimeout(function(){setDebounced(value)},delay||300);
+    return function(){clearTimeout(t)};
+  },[value,delay]);
+  return[debounced,setValue];
+}
+
 
 
 const SecHdr=React.memo(function SecHdr({cls,label,onAdd,addTxt,subLabel,subVal,isEditing}){
@@ -1154,6 +1165,7 @@ function useCrudTable({data,onChange,dataKey,prefix,defaultItem,searchKeys,confi
   var [editIdx,setEditIdx]=useState(null);
 
   var [search,setSearch]=useState('');
+  var debSearch=useDebouncedValue(search,300)[0];
 
   var upd=useCallback(function(i,k,v){var n=[].concat(items);n[i]=Object.assign({},n[i]);n[i][k]=v;onChange(Object.assign({},data,{[dataKey]:n}))},[items,data,onChange,dataKey]);
 
@@ -1190,7 +1202,7 @@ function useCrudTable({data,onChange,dataKey,prefix,defaultItem,searchKeys,confi
     setSeleccionados(new Set());
   },[seleccionados,items,data,onChange,dataKey,esReferenciado]);
 
-  var filtered=useMemo(function(){return search?items.filter(function(item){return searchKeys.some(function(k){return norm(item[k]||'').includes(norm(search))})}):items},[items,search,searchKeys]);
+  var filtered=useMemo(function(){return debSearch?items.filter(function(item){return searchKeys.some(function(k){return norm(item[k]||'').includes(norm(debSearch))})}):items},[items,debSearch,searchKeys]);
 
   var handleKeyDown=handleTabKeyDown(setEditIdx);
 
@@ -8869,6 +8881,8 @@ function PresFormularioPanelInner({pres,presupuestos,selPresIdx,data,onChange,ap
   var fuenteApuState=useState('item');var fuenteApu=fuenteApuState[0],setFuenteApu=fuenteApuState[1];
   var campoActivoState=useState(null);var campoActivo=campoActivoState[0],setCampoActivo=campoActivoState[1];
   var busqState=useState('');var busq=busqState[0],setBusq=busqState[1];
+  var busqDeb=useDebouncedValue(busq,300)[0];
+  var apuSearchDeb=useDebouncedValue(apuModal.search,300)[0];
   var pageState=useState(0);var page=pageState[0],setPage=pageState[1];
   var editIdxState=useState(null);var editIdx=editIdxState[0],setEditIdx=editIdxState[1];
   var editingCellState=useState(null);var editingCell=editingCellState[0],setEditingCell=editingCellState[1];
@@ -8893,11 +8907,11 @@ function PresFormularioPanelInner({pres,presupuestos,selPresIdx,data,onChange,ap
   var itemsLength=(pres&&pres.items||[]).length;
   useEffect(function(){
     var arr=(pres&&pres.items||[]);
-    var b=busq?norm(busq):'';
+    var b=busqDeb?norm(busqDeb):'';
     var len=b?arr.filter(function(it){return norm(it.descripcion||'').indexOf(b)>=0||norm(it.capitulo||'').indexOf(b)>=0||norm(it.num_item||'').indexOf(b)>=0}).length:arr.length;
     var tot=Math.max(1,Math.ceil(len/50));
     if(page>=tot) setPage(Math.max(0,tot-1));
-  },[presId,busq,page,itemsLength]);
+  },[presId,busqDeb,page,itemsLength]);
   useEffect(function(){
     setFase(pres&&(pres.formulario_original||(pres.items||[]).length>0)?'revision':'inicio');
     setTipoPrecioFormulario(((pres&&pres.tipoPrecioFormulario)==='entidad'||(pres&&pres.tipoPrecioFormulario)==='apu')?(pres&&pres.tipoPrecioFormulario):'apu');
@@ -8917,12 +8931,12 @@ function PresFormularioPanelInner({pres,presupuestos,selPresIdx,data,onChange,ap
   var itemsReales=useMemo(function(){return itemsArr.filter(function(it){return !esCapituloFinal(it)})},[itemsArr]);
   var cdTotal=useMemo(function(){var t=0;for(var ii=0;ii<itemsArr.length;ii++){t+=calcItemVal(itemsArr[ii]).vr_total}return t},[itemsArr,calcItemVal]);
   var itemsFiltrados=useMemo(function(){
-    if(!busq)return itemsArr;
-    var b=norm(busq);
+    if(!busqDeb)return itemsArr;
+    var b=norm(busqDeb);
     return itemsArr.filter(function(it){
       return norm(it.descripcion||'').indexOf(b)>=0||norm(it.capitulo||'').indexOf(b)>=0||norm(it.num_item||'').indexOf(b)>=0;
     });
-  },[itemsArr,busq]);
+  },[itemsArr,busqDeb]);
 
   if(!pres)return <PresBannerProyecto pres={pres} presupuestos={presupuestos} setTab={setTab}/>;
 
@@ -9002,7 +9016,7 @@ function PresFormularioPanelInner({pres,presupuestos,selPresIdx,data,onChange,ap
   var closeApuModal=function(){setApuModal({open:false,itemIdx:null,search:'',catFilter:''});setApuSel(null)};
   var filteredApus=function(){
     if(!apuModal.open)return[];
-    var sn=apuModal.search?norm(apuModal.search):'';
+    var sn=apuSearchDeb?norm(apuSearchDeb):'';
     var cf=apuModal.catFilter;
     var snap=(pres.apus_snap||[]);
     var catalogo=apus||[];

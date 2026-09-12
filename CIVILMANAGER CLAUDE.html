@@ -8912,6 +8912,18 @@ function PresFormularioPanelInner({pres,presupuestos,selPresIdx,data,onChange,ap
 
   useEffect(function(){if(editingCellRef.current)commitEditCell()},[editIdx,commitEditCell]);
 
+  /* Hooks derivados de items - DEBEN declararse ANTES del early return (reglas de hooks, React #310) */
+  var itemsArr=(pres&&pres.items)||[];
+  var itemsReales=useMemo(function(){return itemsArr.filter(function(it){return !esCapituloFinal(it)})},[itemsArr]);
+  var cdTotal=useMemo(function(){var t=0;for(var ii=0;ii<itemsArr.length;ii++){t+=calcItemVal(itemsArr[ii]).vr_total}return t},[itemsArr,calcItemVal]);
+  var itemsFiltrados=useMemo(function(){
+    if(!busq)return itemsArr;
+    var b=norm(busq);
+    return itemsArr.filter(function(it){
+      return norm(it.descripcion||'').indexOf(b)>=0||norm(it.capitulo||'').indexOf(b)>=0||norm(it.num_item||'').indexOf(b)>=0;
+    });
+  },[itemsArr,busq]);
+
   if(!pres)return <PresBannerProyecto pres={pres} presupuestos={presupuestos} setTab={setTab}/>;
 
   var readOnly=pres.estado==='cerrado';
@@ -8934,14 +8946,14 @@ function PresFormularioPanelInner({pres,presupuestos,selPresIdx,data,onChange,ap
       if(enGlobal)cuadrillasSnapArr.push(Object.assign({},enGlobal));
     });
   };
-  var addCapitulo=useCallback(function(){
+  var addCapitulo=function(){
     if(readOnly)return;
     var arr=pres.items.slice();
     arr.push({id:uid(),num_item:String(arr.length+1),capitulo:'',descripcion:'Nuevo capitulo',unidad:'',cantidad:0,apu_id:null,vr_unitario:0,vr_total:0,tiene_apu:false,alerta_sin_apu:false,es_capitulo_manual:true});
     saveItems(arr);
     setEditIdx(arr.length-1);
-  },[readOnly,pres,saveItems,setEditIdx]);
-  var addItemEnCapitulo=useCallback(function(capIdx){
+  };
+  var addItemEnCapitulo=function(capIdx){
     if(readOnly)return;
     var arr=pres.items.slice();
     var insertAt=capIdx+1;
@@ -8949,8 +8961,8 @@ function PresFormularioPanelInner({pres,presupuestos,selPresIdx,data,onChange,ap
     arr.splice(insertAt,0,{id:uid(),num_item:'',capitulo:'',descripcion:'',unidad:'un',cantidad:1,apu_id:null,vr_unitario:0,vr_total:0,tiene_apu:false,alerta_sin_apu:false,tipoPrecio:(pres.tipoPrecioFormulario||'apu'),precioEntidad:null});
     saveItems(arr);
     setEditIdx(insertAt);
-  },[readOnly,pres,saveItems,setEditIdx]);
-  var toggleCapituloManual=useCallback(function(itemId){
+  };
+  var toggleCapituloManual=function(itemId){
     if(readOnly)return;
     var arr=pres.items.slice();
     var idx=arr.findIndex(function(it){return it.id===itemId});
@@ -8958,14 +8970,14 @@ function PresFormularioPanelInner({pres,presupuestos,selPresIdx,data,onChange,ap
     var it=arr[idx];
     arr[idx]=Object.assign({},it,{es_capitulo_manual:!esCapituloFinal(it)});
     saveItems(arr);
-  },[readOnly,pres,saveItems]);
-  var delItem=useCallback(async function(i){
+  };
+  var delItem=async function(i){
     if(readOnly)return;if(!(await askConfirm('¿Desea eliminar "'+(pres.items[i].descripcion||'este ítem')+'"? Esta acción no se puede deshacer.')))return;
     var arr=pres.items.filter(function(_,j){return j!==i});
     saveItems(arr);
     if(editIdx===i)setEditIdx(null);
-  },[readOnly,pres,saveItems,editIdx,setEditIdx]);
-  var updItem=useCallback(function(i,k,v){
+  };
+  var updItem=function(i,k,v){
     if(readOnly)return;
     if(typeof i!=='number'||i<0||i>=pres.items.length)return;
     var arr=pres.items.slice();arr[i]=Object.assign({},arr[i]);arr[i][k]=v;
@@ -8977,17 +8989,17 @@ function PresFormularioPanelInner({pres,presupuestos,selPresIdx,data,onChange,ap
     }else{
       saveItems(arr);
     }
-  },[readOnly,pres,saveItems,tipoPrecioFormulario,setAlarmasPrecioFaltante]);
-  var startEditCell=useCallback(function(i,k,v){if(!readOnly)setEditingCell({idx:i,field:k,value:v==null?'':v})},[readOnly]);
-  var commitEditCell=useCallback(function(){
+  };
+  var startEditCell=function(i,k,v){if(!readOnly)setEditingCell({idx:i,field:k,value:v==null?'':v})};
+  var commitEditCell=function(){
     var cell=editingCellRef.current;
     if(!cell)return;
     updItem(cell.idx,cell.field,cell.value);
     setEditingCell(null);
-  },[updItem]);
-  var cancelEditCell=useCallback(function(){setEditingCell(null)},[]);
-  var openApuModal=useCallback(function(i){if(!readOnly){setApuModal({open:true,itemIdx:i,search:'',catFilter:''});setApuSel(null)}},[readOnly]);
-  var closeApuModal=useCallback(function(){setApuModal({open:false,itemIdx:null,search:'',catFilter:''});setApuSel(null)},[]);
+  };
+  var cancelEditCell=function(){setEditingCell(null)};
+  var openApuModal=function(i){if(!readOnly){setApuModal({open:true,itemIdx:i,search:'',catFilter:''});setApuSel(null)}};
+  var closeApuModal=function(){setApuModal({open:false,itemIdx:null,search:'',catFilter:''});setApuSel(null)};
   var filteredApus=function(){
     if(!apuModal.open)return[];
     var sn=apuModal.search?norm(apuModal.search):'';
@@ -9021,7 +9033,7 @@ function PresFormularioPanelInner({pres,presupuestos,selPresIdx,data,onChange,ap
     }
     return result;
   };
-  var assignApu=useCallback(function(aid){
+  var assignApu=function(aid){
     if(apuModal.itemIdx===null||aid===undefined)return;
     var i=apuModal.itemIdx;
     // Caso A: el APU ya está en el snapshot del proyecto
@@ -9068,10 +9080,10 @@ function PresFormularioPanelInner({pres,presupuestos,selPresIdx,data,onChange,ap
     saveItems(arr,{apus_snap:snap,insumos_snap:insumosSnap,equipos_snap:equiposSnap,cargos_snap:cargosSnap,cuadrillas_snap:cuadrillasSnap});
     closeApuModal();
     showToast('APU asignado',{type:'ok',dur:2000});
-  },[apuModal,pres,data,apus,saveItems,closeApuModal]);
+  };
   function apuKey(a){return a&&(a.id!=null?'id:'+a.id:'cod:'+(a.codigo||''))}
-  var totalDirectoDeApu=useCallback(function(a){return a?calcAPU(a,cargosCalc,equipos,insumos,apusBasico,herrPct,factorPrest,usarFpEnApu,esHora,personMap,eqMap,insMap).totalDirecto:0},[cargosCalc,equipos,insumos,apusBasico,herrPct,factorPrest,usarFpEnApu,esHora,personMap,eqMap,insMap]);
-  var confirmarAsignacion=useCallback(function(){
+  var totalDirectoDeApu=function(a){return a?calcAPU(a,cargosCalc,equipos,insumos,apusBasico,herrPct,factorPrest,usarFpEnApu,esHora,personMap,eqMap,insMap).totalDirecto:0};
+  var confirmarAsignacion=function(){
     if(!apuSel)return;
     var found=filteredApus().find(function(a){return apuKey(a)===apuSel});
     if(!found)return;
@@ -9086,15 +9098,15 @@ function PresFormularioPanelInner({pres,presupuestos,selPresIdx,data,onChange,ap
       }
     }
     assignApu(found.id);
-  },[apuSel,apuModal,itemsArr,pres,assignApu,totalDirectoDeApu,filteredApus]);
-  var unassignApu=useCallback(async function(i){
+  };
+  var unassignApu=async function(i){
     if(readOnly)return;if(!(await askConfirm('¿Desea quitar el APU asignado a este ítem? Esta acción no se puede deshacer.')))return;
     var arr=pres.items.slice();arr[i]=Object.assign({},arr[i],{apu_id:null,tiene_apu:false,alerta_sin_apu:true,tipoPrecio:'entidad'});
     saveItems(arr);
     showToast('APU removido',{type:'ok',dur:2000});
-  },[readOnly,pres,saveItems]);
+  };
 
-  var siguienteEstado=useCallback(async function(){
+  var siguienteEstado=async function(){
     var next=pres.estado==='borrador'?'en_revision':pres.estado==='en_revision'?'cerrado':null;
     if(!next)return;
     if(pres.estado==='borrador'){
@@ -9113,9 +9125,9 @@ function PresFormularioPanelInner({pres,presupuestos,selPresIdx,data,onChange,ap
     n[idxPres]=Object.assign({},n[idxPres],{estado:next,fecha_cierre:next==='cerrado'?new Date().toISOString().slice(0,10):null});
     onChange(Object.assign({},data,{presupuestos:n}));
     showToast('Estado cambiado a: '+estadoLabel(next),{type:'ok'});
-  },[pres,presupuestos,idxPres,data,onChange]);
+  };
 
-  var convertirEntidadAapu=useCallback(async function(){
+  var convertirEntidadAapu=async function(){
     if(readOnly)return;
     if(tipoPrecioFormulario!=='entidad')return;
     if(!(await askConfirm('¿Convertir formulario a modo APU?\n\n• Se guardará una copia de los precios Entidad como referencia\n• Podrá asignar APU a cada ítem\n• Los ítems sin APU conservarán su precio Entidad como precio de venta')))return;
@@ -9128,9 +9140,9 @@ function PresFormularioPanelInner({pres,presupuestos,selPresIdx,data,onChange,ap
     onChange(Object.assign({},data,{presupuestos:n}));
     setTipoPrecioFormulario('apu');
     showToast('Formulario convertido a modo APU. Asigne APU a cada ítem.',{type:'ok',dur:4000});
-  },[readOnly,tipoPrecioFormulario,pres,presupuestos,idxPres,data,onChange]);
+  };
 
-  var convertirApuAentidad=useCallback(async function(){
+  var convertirApuAentidad=async function(){
     if(readOnly)return;
     if(tipoPrecioFormulario!=='apu')return;
     if(!(await askConfirm('¿Convertir a modo Entidad?\n\n• Los APU se conservan como referencia\n• Los precios se fijan en "Vr. Unit" (amarillo)\n• Podrá ajustar precios manualmente')))return;
@@ -9153,9 +9165,9 @@ function PresFormularioPanelInner({pres,presupuestos,selPresIdx,data,onChange,ap
     saveItems(arr,{tipoPrecioFormulario:'entidad',preciosEntidadOriginal:null,preciosApuOriginal:apuSnapshot});
     setTipoPrecioFormulario('entidad');
     showToast('Formulario convertido a modo Entidad. Los APU se conservan.',{type:'ok',dur:4000});
-  },[readOnly,tipoPrecioFormulario,pres,apus,saveItems]);
+  };
 
-  var eliminarFormulario=useCallback(async function(){
+  var eliminarFormulario=async function(){
     if(readOnly)return;
     if(!(await askConfirm('⚠ ¿Eliminar el formulario de este presupuesto?\n\nSe borrarán TODOS los items, capítulos y el mapeo de columnas. Esta acción no se puede deshacer.')))return;
     if(!(await askConfirm('¿Está SEGURO? Se eliminarán '+(pres.items||[]).length+' items permanentemente.')))return;
@@ -9164,15 +9176,15 @@ function PresFormularioPanelInner({pres,presupuestos,selPresIdx,data,onChange,ap
     onChange(Object.assign({},data,{presupuestos:n}));
     setFase('inicio');
     showToast('Formulario eliminado.',{type:'ok'});
-  },[readOnly,pres,presupuestos,idxPres,data,onChange]);
+  };
 
-  var exportarFormularioRapido=useCallback(function(){
+  var exportarFormularioRapido=function(){
     if(!fo||!fo.archivo_b64){showToast('No hay formulario para exportar',{type:'warn'});return}
     var useOv=pres.aiu_override&&pres.aiu_override.activo;
     var cfg=data.config||{};
     var aiuC={pctA:useOv?(safeFloat(pres.aiu_override.pct_a)||0):(safeFloat(cfg.pct_administracion)||0),pctI:useOv?(safeFloat(pres.aiu_override.pct_i)||0):(safeFloat(cfg.pct_imprevistos)||0),pctU:useOv?(safeFloat(pres.aiu_override.pct_u)||0):(safeFloat(cfg.pct_utilidad)||0),tieneIva:useOv?!!(pres.aiu_override.tiene_iva):false,ivaBase:useOv?(pres.aiu_override.iva_base||'utilidad'):'utilidad',ivaPct:useOv?(safeFloat(pres.aiu_override.iva_pct)||19):19};
     exportarFormularioLlenoGlobal(pres,calcItemVal,null,aiuC);
-  },[fo,pres,data]);
+  };
 
   var mapeosGuardados=(data.config_listas&&data.config_listas.mapeos_formulario)||[];
 
@@ -9848,19 +9860,8 @@ function PresFormularioPanelInner({pres,presupuestos,selPresIdx,data,onChange,ap
   }
 
   /* fase === 'revision': tabla unica de items, sea que vengan de importar Excel o se hayan creado a mano */
-  var itemsArr=pres.items||[];
   var fo=pres.formulario_original;
-  var itemsReales=useMemo(function(){return itemsArr.filter(function(it){return !esCapituloFinal(it)})},[itemsArr]);
   var nCapitulos=itemsArr.length-itemsReales.length;
-  var cdTotal=useMemo(function(){var t=0;for(var ii=0;ii<itemsArr.length;ii++){t+=calcItemVal(itemsArr[ii]).vr_total}return t},[itemsArr,calcItemVal]);
-
-  var itemsFiltrados=useMemo(function(){
-    if(!busq)return itemsArr;
-    var b=norm(busq);
-    return itemsArr.filter(function(it){
-      return norm(it.descripcion||'').indexOf(b)>=0||norm(it.capitulo||'').indexOf(b)>=0||norm(it.num_item||'').indexOf(b)>=0;
-    });
-  },[itemsArr,busq]);
   var PAGE_SIZE=50;
   var totalPaginas=Math.max(1,Math.ceil(itemsFiltrados.length/PAGE_SIZE));
   var pageSafe=page>=totalPaginas?Math.max(0,totalPaginas-1):page;

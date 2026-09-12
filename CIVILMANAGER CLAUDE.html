@@ -8874,6 +8874,88 @@ function ResumenLateralFormulario({pres,calcItemVal,data,presupuestos,selPresIdx
   );
 }
 
+function ApuAsignacionModal({apuModal,setApuModal,apuSel,setApuSel,getFilteredApus,itemsArr,pres,categorias_apu,apuKey,totalDirectoDeApu,confirmarAsignacion,closeApuModal,cargosCalc,personMap,eqMap,insMap,equipos,insumos,factorPrest,usarFpEnApu,esHora,herrPct,apusBasico}){
+  if(!apuModal.open)return null;
+  var itemActual=apuModal.itemIdx!==null?itemsArr[apuModal.itemIdx]:null;
+  var _filteredApus=getFilteredApus();
+  var apuSeleccionado=apuSel?_filteredApus.find(function(a){return apuKey(a)===apuSel}):null;
+  var esEntidad=itemActual&&itemActual.tipoPrecio==='entidad';
+  var precioTecho=esEntidad?((pres.preciosEntidadOriginal&&pres.preciosEntidadOriginal[itemActual.id]!=null)?r2(parseFloat(pres.preciosEntidadOriginal[itemActual.id])):r2(parseFloat(itemActual.precioEntidad)||0)):0;
+  var costoDirectoSel=esEntidad&&apuSeleccionado?r2(totalDirectoDeApu(apuSeleccionado)):0;
+  var exacto=esEntidad?costoDirectoSel===precioTecho:true;
+  var numProy=_filteredApus.filter(function(x){return x._origen==='proyecto'}).length;
+  var numCat=_filteredApus.filter(function(x){return x._origen==='catalogo'}).length;
+  return(
+  <div className="modal-overlay" onClick={closeApuModal}>
+    <div className="modal-box" style={{width:1530,maxWidth:'97vw',maxHeight:'85vh',display:'flex',flexDirection:'column'}} onClick={function(e){e.stopPropagation()}}>
+      <div className="modal-hdr">
+        <span className="title">Asignar APU al item</span>
+        {itemActual&&<span style={{fontSize:12,fontWeight:700,color:'var(--tx)',marginLeft:12}}>Item {itemActual.num_item} — {itemActual.descripcion} <span style={{fontSize:11,fontWeight:600,color:'var(--tx2)'}}>&middot; Unidad: {itemActual.unidad} &middot; Cant: {fmt(itemActual.cantidad)}</span></span>}
+        <button onClick={closeApuModal} style={{background:'none',border:'none',cursor:'pointer',padding:2,color:'var(--ok)'}}><IconX/></button>
+      </div>
+      {esEntidad&&(
+        <div style={{padding:'6px 14px',display:'flex',alignItems:'center',gap:16,flexWrap:'wrap',fontSize:11,
+          background:!apuSeleccionado?'transparent':exacto?'rgba(74,222,128,.08)':'rgba(251,191,36,.1)',
+          borderBottom:'1px solid '+(!apuSeleccionado?'var(--bdr)':exacto?'var(--ok)':'#fbbf24')}}>
+          <span style={{color:'var(--tx2)'}}>🎯 Precio techo (entidad): <strong style={{color:'#fbbf24'}}>{fmt(precioTecho)}</strong></span>
+          {apuSeleccionado&&<span style={{color:exacto?'var(--ok)':'#fbbf24'}}>Costo directo del APU seleccionado: <strong>{fmt(costoDirectoSel)}</strong></span>}
+          {apuSeleccionado&&<span style={{fontWeight:700,color:exacto?'var(--ok)':'#fbbf24'}}>
+            {exacto?'🟢 Igual al precio de la entidad':costoDirectoSel>precioTecho?'⚠ EXCEDE en '+fmt(costoDirectoSel-precioTecho):'⚠ Falta '+fmt(precioTecho-costoDirectoSel)+' para igualar'}
+          </span>}
+        </div>
+      )}
+      <div className="modal-body" style={{display:'flex',gap:10,flex:1,minHeight:0}}>
+        <div style={{width:590,flexShrink:0,display:'flex',flexDirection:'column',minHeight:0,gap:8}}>
+          <div style={{display:'flex',gap:6,alignItems:'center'}}>
+            <select className="ni" value={apuModal.catFilter} onChange={function(e){setApuModal(Object.assign({},apuModal,{catFilter:e.target.value}))}} style={{width:150,height:22,fontSize:11,border:'1px solid var(--ac)',borderRadius:4}}>
+              <option value=''>Todas las categorias</option>
+              {(categorias_apu||[]).map(function(c){return <option key={c.codigo} value={c.categoria}>{c.categoria}</option>})}
+            </select>
+            <input className="ni" placeholder="Buscar APU..." value={apuModal.search} onChange={function(e){setApuModal(Object.assign({},apuModal,{search:e.target.value}))}} style={{flex:1,height:22,fontSize:11,border:'1px solid var(--ok)',borderRadius:4}} autoFocus/>
+          </div>
+          <div className="xl-scroll" style={{flex:1,overflowY:'auto',border:'1px solid var(--bdr)',borderRadius:4}}>
+            <table style={{tableLayout:'fixed',width:'100%',fontSize:10}}>
+              <colgroup><col style={{width:90}}/><col style={{width:420}}/><col style={{width:60}}/></colgroup>
+              <thead style={{position:'sticky',top:0,background:'var(--bg3)'}}><tr><th style={{padding:'4px 8px'}}>Codigo</th><th style={{padding:'4px 8px',textAlign:'left'}}>Nombre</th><th style={{padding:'4px 8px'}}>UN</th></tr></thead>
+              <tbody>
+                {_filteredApus.length===0&&<tr><td colSpan={3} style={{textAlign:'center',padding:'20px',color:'var(--tx3)'}}>Sin resultados</td></tr>}
+                {_filteredApus.map(function(a,ai){
+                  var activo=apuSel===apuKey(a);
+                  var bgActivo=activo?'rgba(77,143,247,.32)':'transparent';
+                  var esProyecto=a._origen==='proyecto';
+                  var mostrarSeparador=ai===0||(_filteredApus[ai-1]._origen!==a._origen);
+                  return(
+                    <React.Fragment key={(a.id||a.codigo||'')+'_'+ai}>
+                      {mostrarSeparador&&(
+                        <tr><td colSpan={3} style={{padding:'4px 8px',fontSize:9,fontWeight:700,color:esProyecto?'var(--ok)':'var(--ac)',background:esProyecto?'rgba(74,222,128,.06)':'rgba(77,143,247,.06)',borderTop:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'}}>
+                          {esProyecto?'▸ Del proyecto ('+numProy+')':'▸ Catálogo general ('+numCat+')'}
+                        </td></tr>
+                      )}
+                      <tr onClick={function(){setApuSel(apuKey(a))}} style={{cursor:'pointer'}}>
+                        <td style={{padding:'4px 8px',fontWeight:600,color:esProyecto?'var(--ok)':'var(--ac)',background:bgActivo}}>{a.codigo||'-'}</td>
+                        <td style={{padding:'4px 8px',whiteSpace:'normal',wordBreak:'break-word',background:bgActivo}}>{a.nombre||'-'}</td>
+                        <td style={{padding:'4px 8px',textAlign:'center',background:bgActivo}}>{a.unidad||'-'}</td>
+                      </tr>
+                    </React.Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div style={{flex:1,border:'1px solid var(--bdr)',borderRadius:4,minHeight:0}}>
+          <ApuDetallePreview apu={apuSeleccionado} cargosCalc={cargosCalc} personMap={personMap} eqMap={eqMap} insMap={insMap} equipos={equipos} insumos={insumos} factorPrest={factorPrest} usarFpEnApu={usarFpEnApu} esHora={esHora} herrPct={herrPct} apusBasico={apusBasico}/>
+        </div>
+      </div>
+      <div className="modal-foot">
+        <button className="btn" onClick={closeApuModal} style={{fontSize:11,padding:'6px 14px',border:'1px solid var(--bdr)',borderRadius:4,background:'none',color:'var(--tx2)',cursor:'pointer'}}>Cancelar</button>
+        <button className="btn" disabled={!apuSel} onClick={confirmarAsignacion} style={{fontSize:11,padding:'6px 14px',border:'1px solid var(--ok)',borderRadius:4,color:apuSel?'var(--ok)':'var(--tx3)',background:apuSel?'rgba(74,222,128,.08)':'transparent',cursor:apuSel?'pointer':'not-allowed'}} title={esEntidad&&!exacto?'El costo directo del APU difiere del precio de entidad':''}>✓ Asignar este APU</button>
+      </div>
+    </div>
+  </div>
+  );
+}
+
 function PresFormularioPanelInner({pres,presupuestos,selPresIdx,data,onChange,apuModal,setApuModal,apus,categorias_apu,calcItemVal,setTab,estadoLabel,estadoColor,cargosCalc,cargosCalcSnap,personMap,esHora,eqMap,insMap,factorPrest,factorPrestSnap,usarFpEnApu,equipos,insumos,apusBasico,calcResumenFor,calcItemValFor,buildSnapCtx}){
   var faseState=useState('inicio');var fase=faseState[0],setFase=faseState[1];
   var tipoPrecioFormularioState=useState('apu');var tipoPrecioFormulario=tipoPrecioFormularioState[0],setTipoPrecioFormulario=tipoPrecioFormularioState[1];
@@ -10173,86 +10255,7 @@ function PresFormularioPanelInner({pres,presupuestos,selPresIdx,data,onChange,ap
         </div>
         );
       })()}
-      {apuModal.open&&(function(){
-        var itemActual=apuModal.itemIdx!==null?itemsArr[apuModal.itemIdx]:null;
-        var _filteredApus=filteredApus();
-        var apuSeleccionado=apuSel?_filteredApus.find(function(a){return apuKey(a)===apuSel}):null;
-        var esEntidad=itemActual&&itemActual.tipoPrecio==='entidad';
-        var precioTecho=esEntidad?((pres.preciosEntidadOriginal&&pres.preciosEntidadOriginal[itemActual.id]!=null)?r2(parseFloat(pres.preciosEntidadOriginal[itemActual.id])):r2(parseFloat(itemActual.precioEntidad)||0)):0;
-        var costoDirectoSel=esEntidad&&apuSeleccionado?r2(totalDirectoDeApu(apuSeleccionado)):0;
-        var exacto=esEntidad?costoDirectoSel===precioTecho:true;
-        var numProy=_filteredApus.filter(function(x){return x._origen==='proyecto'}).length;
-        var numCat=_filteredApus.filter(function(x){return x._origen==='catalogo'}).length;
-        return(
-        <div className="modal-overlay" onClick={closeApuModal}>
-          <div className="modal-box" style={{width:1530,maxWidth:'97vw',maxHeight:'85vh',display:'flex',flexDirection:'column'}} onClick={function(e){e.stopPropagation()}}>
-            <div className="modal-hdr">
-              <span className="title">Asignar APU al item</span>
-              {itemActual&&<span style={{fontSize:12,fontWeight:700,color:'var(--tx)',marginLeft:12}}>Item {itemActual.num_item} — {itemActual.descripcion} <span style={{fontSize:11,fontWeight:600,color:'var(--tx2)'}}>&middot; Unidad: {itemActual.unidad} &middot; Cant: {fmt(itemActual.cantidad)}</span></span>}
-              <button onClick={closeApuModal} style={{background:'none',border:'none',cursor:'pointer',padding:2,color:'var(--ok)'}}><IconX/></button>
-            </div>
-            {esEntidad&&(
-              <div style={{padding:'6px 14px',display:'flex',alignItems:'center',gap:16,flexWrap:'wrap',fontSize:11,
-                background:!apuSeleccionado?'transparent':exacto?'rgba(74,222,128,.08)':'rgba(251,191,36,.1)',
-                borderBottom:'1px solid '+(!apuSeleccionado?'var(--bdr)':exacto?'var(--ok)':'#fbbf24')}}>
-                <span style={{color:'var(--tx2)'}}>🎯 Precio techo (entidad): <strong style={{color:'#fbbf24'}}>{fmt(precioTecho)}</strong></span>
-                {apuSeleccionado&&<span style={{color:exacto?'var(--ok)':'#fbbf24'}}>Costo directo del APU seleccionado: <strong>{fmt(costoDirectoSel)}</strong></span>}
-                {apuSeleccionado&&<span style={{fontWeight:700,color:exacto?'var(--ok)':'#fbbf24'}}>
-                  {exacto?'🟢 Igual al precio de la entidad':costoDirectoSel>precioTecho?'⚠ EXCEDE en '+fmt(costoDirectoSel-precioTecho):'⚠ Falta '+fmt(precioTecho-costoDirectoSel)+' para igualar'}
-                </span>}
-              </div>
-            )}
-            <div className="modal-body" style={{display:'flex',gap:10,flex:1,minHeight:0}}>
-              <div style={{width:590,flexShrink:0,display:'flex',flexDirection:'column',minHeight:0,gap:8}}>
-                <div style={{display:'flex',gap:6,alignItems:'center'}}>
-                  <select className="ni" value={apuModal.catFilter} onChange={function(e){setApuModal(Object.assign({},apuModal,{catFilter:e.target.value}))}} style={{width:150,height:22,fontSize:11,border:'1px solid var(--ac)',borderRadius:4}}>
-                    <option value=''>Todas las categorias</option>
-                    {(categorias_apu||[]).map(function(c){return <option key={c.codigo} value={c.categoria}>{c.categoria}</option>})}
-                  </select>
-                  <input className="ni" placeholder="Buscar APU..." value={apuModal.search} onChange={function(e){setApuModal(Object.assign({},apuModal,{search:e.target.value}))}} style={{flex:1,height:22,fontSize:11,border:'1px solid var(--ok)',borderRadius:4}} autoFocus/>
-                </div>
-                <div className="xl-scroll" style={{flex:1,overflowY:'auto',border:'1px solid var(--bdr)',borderRadius:4}}>
-                  <table style={{tableLayout:'fixed',width:'100%',fontSize:10}}>
-                    <colgroup><col style={{width:90}}/><col style={{width:420}}/><col style={{width:60}}/></colgroup>
-                    <thead style={{position:'sticky',top:0,background:'var(--bg3)'}}><tr><th style={{padding:'4px 8px'}}>Codigo</th><th style={{padding:'4px 8px',textAlign:'left'}}>Nombre</th><th style={{padding:'4px 8px'}}>UN</th></tr></thead>
-                    <tbody>
-                      {_filteredApus.length===0&&<tr><td colSpan={3} style={{textAlign:'center',padding:'20px',color:'var(--tx3)'}}>Sin resultados</td></tr>}
-                      {_filteredApus.map(function(a,ai){
-                        var activo=apuSel===apuKey(a);
-                        var bgActivo=activo?'rgba(77,143,247,.32)':'transparent';
-                        var esProyecto=a._origen==='proyecto';
-                        var mostrarSeparador=ai===0||(_filteredApus[ai-1]._origen!==a._origen);
-                        return(
-                          <React.Fragment key={(a.id||a.codigo||'')+'_'+ai}>
-                            {mostrarSeparador&&(
-                              <tr><td colSpan={3} style={{padding:'4px 8px',fontSize:9,fontWeight:700,color:esProyecto?'var(--ok)':'var(--ac)',background:esProyecto?'rgba(74,222,128,.06)':'rgba(77,143,247,.06)',borderTop:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)'}}>
-                                {esProyecto?'▸ Del proyecto ('+numProy+')':'▸ Catálogo general ('+numCat+')'}
-                              </td></tr>
-                            )}
-                            <tr onClick={function(){setApuSel(apuKey(a))}} style={{cursor:'pointer'}}>
-                              <td style={{padding:'4px 8px',fontWeight:600,color:esProyecto?'var(--ok)':'var(--ac)',background:bgActivo}}>{a.codigo||'-'}</td>
-                              <td style={{padding:'4px 8px',whiteSpace:'normal',wordBreak:'break-word',background:bgActivo}}>{a.nombre||'-'}</td>
-                              <td style={{padding:'4px 8px',textAlign:'center',background:bgActivo}}>{a.unidad||'-'}</td>
-                            </tr>
-                          </React.Fragment>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-              <div style={{flex:1,border:'1px solid var(--bdr)',borderRadius:4,minHeight:0}}>
-                <ApuDetallePreview apu={apuSel?_filteredApus.find(function(a){return apuKey(a)===apuSel}):null} cargosCalc={cargosCalc} personMap={personMap} eqMap={eqMap} insMap={insMap} equipos={equipos} insumos={insumos} factorPrest={factorPrest} usarFpEnApu={usarFpEnApu} esHora={esHora} herrPct={herrPct} apusBasico={apusBasico}/>
-              </div>
-            </div>
-            <div className="modal-foot">
-              <button className="btn" onClick={closeApuModal} style={{fontSize:11,padding:'6px 14px',border:'1px solid var(--bdr)',borderRadius:4,background:'none',color:'var(--tx2)',cursor:'pointer'}}>Cancelar</button>
-              <button className="btn" disabled={!apuSel} onClick={confirmarAsignacion} style={{fontSize:11,padding:'6px 14px',border:'1px solid var(--ok)',borderRadius:4,color:apuSel?'var(--ok)':'var(--tx3)',background:apuSel?'rgba(74,222,128,.08)':'transparent',cursor:apuSel?'pointer':'not-allowed'}} title={esEntidad&&!exacto?'El costo directo del APU difiere del precio de entidad':''}>✓ Asignar este APU</button>
-            </div>
-          </div>
-        </div>
-        );
-      })()}
+      <ApuAsignacionModal apuModal={apuModal} setApuModal={setApuModal} apuSel={apuSel} setApuSel={setApuSel} getFilteredApus={filteredApus} itemsArr={itemsArr} pres={pres} categorias_apu={categorias_apu} apuKey={apuKey} totalDirectoDeApu={totalDirectoDeApu} confirmarAsignacion={confirmarAsignacion} closeApuModal={closeApuModal} cargosCalc={cargosCalc} personMap={personMap} eqMap={eqMap} insMap={insMap} equipos={equipos} insumos={insumos} factorPrest={factorPrest} usarFpEnApu={usarFpEnApu} esHora={esHora} herrPct={herrPct} apusBasico={apusBasico}/>
     </div>
     {/* Panel derecho — Resumen Financiero en tiempo real */}
     <div style={{width:340,flexShrink:0,display:'flex',flexDirection:'column',gap:8,height:'100%',overflowY:'auto'}}>

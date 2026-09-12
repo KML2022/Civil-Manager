@@ -7696,7 +7696,7 @@ function PresProyectosPanel({presupuestos,selPresIdx,setSelPresIdx,data,onChange
     var padre=p.parent_id?presupuestos.find(function(x){return x.id===p.parent_id}):null;
     return[p.codigo||'',p.nombre||'',p.fecha_creacion||'',p.estado||'borrador',p.elaborado_por||'',p.entidad||'',p.con_sub_proyectos?'Si':'No',p.tipo_proyecto||'',p.observaciones||'',padre?padre.codigo:''];
   },parseRow:function(r){return[String(r[0]||'').trim(),String(r[1]||'').trim(),String(r[2]||'').trim(),String(r[3]||'borrador').trim(),String(r[4]||'').trim(),String(r[5]||'').trim(),String(r[6]||'No').trim(),String(r[7]||'').trim(),String(r[8]||'').trim(),String(r[9]||'').trim()]},buildItem:function(r,idx,existing,genCode){
-    var base=idx>=0?existing[idx]:{id:uid(),fecha_cierre:null,items:[],aiu_override:{activo:false,pct_a:0,pct_i:0,pct_u:0,tiene_iva:false,iva_base:'utilidad',iva_pct:19,vr_resumido:false,usar_en_cada_apu:true},factores_snap:(data.factoresPrestaciones||[]).map(function(f){return Object.assign({},f)}),cargos_snap:[],insumos_snap:[],equipos_snap:[],cuadrillas_snap:[],apus_snap:[],activo:false,contrato:'',objeto:'',plazo:0,ciudad:'',departamento:'',parent_id:null,perfil_pais_snap:Object.assign({},getPaisData(config.pais,data.config_listas&&data.config_listas.perfiles_pais))};
+    var base=idx>=0?existing[idx]:{id:uid(),fecha_cierre:null,items:[],aiu_override:{activo:false,pct_a:0,pct_i:0,pct_u:0,tiene_iva:false,iva_base:'utilidad',iva_pct:19,vr_resumido:false,usar_en_cada_apu:true},factores_snap:(data.factoresPrestaciones||[]).map(function(f){return Object.assign({},f)}),cargos_snap:[],insumos_snap:[],equipos_snap:[],cuadrillas_snap:[],apus_snap:[],activo:false,contrato:'',objeto:'',plazo:0,ciudad:'',departamento:'',parent_id:null,perfil_pais_snap:Object.assign({},getPaisData(data.config&&data.config.pais,data.config_listas&&data.config_listas.perfiles_pais))};
     var codigoPadre=String(r[9]||'').trim();
     var padreObj=codigoPadre?existing.find(function(e){return(e.codigo||'').toLowerCase()===codigoPadre.toLowerCase()}):null;
     return Object.assign({},base,{codigo:idx>=0?existing[idx].codigo:(r[0]||genCode()),nombre:r[1]||'',fecha_creacion:r[2]||base.fecha_creacion||new Date().toISOString().slice(0,10),estado:r[3]||'borrador',elaborado_por:r[4]||'',entidad:r[5]||'',con_sub_proyectos:(r[6]||'').toLowerCase()==='si',tipo_proyecto:r[7]||'',observaciones:r[8]||'',parent_id:codigoPadre?(padreObj?padreObj.id:base.parent_id||null):null});
@@ -8105,7 +8105,7 @@ function PresEntregablesPanelInner({pres,presupuestos,calcResumenPres,calcItemVa
       var c=cv.calc||{};
       var rIdx2=rows2.length;
       rows2.push([it.num_item,cv.apu.codigo,cv.apu.nombre,cv.apu.categoria,c.subPers||0,c.subEq||0,c.subIns||0,c.subTrans||0,c.totalDirecto||0,safeFloat(it.cantidad),'']);
-      rows2[rIdx2][10]='=ROUND('+ce(rIdx2,8)+'*'+ce(rIdx2,9)+',2)';
+      rows2[rIdx2][10]='=ROUND('+ceCons(rIdx2,8)+'*'+ceCons(rIdx2,9)+',2)';
     });
     var ws2=XLSX.utils.aoa_to_sheet(rows2);
     convertirFormulasApuExcel(ws2);
@@ -8998,7 +8998,9 @@ function PresFormularioPanelInner({pres,presupuestos,selPresIdx,data,onChange,ap
   var presId=pres&&pres.id;
 
   /* ── Detección de proyecto contenedor (padre con subproyectos) ── */
-  var hijos=(presupuestos||[]).filter(function(p){return p.parent_id===pres.id});
+  /* F1: guard null en pres + useMemo — si fuese un array nuevo por render, el efecto de la
+     Vista Matriz dependiente de [vistaPadre,hijos] entra en bucle (re-render → hijos≠ → setColapsados → ...) */
+  var hijos=useMemo(function(){return (presupuestos||[]).filter(function(p){return p.parent_id===(pres?pres.id:null)})},[presupuestos,presId]);
   var esContenedor=hijos.length>0;
   var vistaPadreState=useState('subproyectos');var vistaPadre=vistaPadreState[0],setVistaPadre=vistaPadreState[1]; /* 'subproyectos' | 'matriz' */
   var[colapsados,setColapsados]=useState(function(){var c={};hijos.forEach(function(h){c[h.id]=true});return c});
@@ -9272,7 +9274,10 @@ function PresFormularioPanelInner({pres,presupuestos,selPresIdx,data,onChange,ap
         var apu=snap.find(function(a){return a.id===it.apu_id});
         if(!apu){for(var j=0;j<apus.length;j++){if(apus[j].id===it.apu_id){apu=apus[j];break}}}
         if(apu){
-          var c=calcAPU(apu,cargosCalcSnap,equiposSnapEfectivo,insumosSnapEfectivo,abCalcList,herrPct,factorPrestSnap,usarFpEnApu,esHora,personMapSnap,eqMapSnap,insMapSnap);
+          /* F1: vars de snap solo existen en PresupuestosTab — se derivan via buildSnapCtx (prop) */
+          var snapCtx=buildSnapCtx(pres);
+          var abL=(apusBasico||[]).map(function(a){return calcAPU(a,cargosCalc,equipos,insumos,null,herrPct,factorPrest,usarFpEnApu,esHora,personMap,eqMap,insMap)});
+          var c=calcAPU(apu,snapCtx.cargosCalcSnap,snapCtx.equiposSnap,snapCtx.insumosSnap,abL,herrPct,snapCtx.factorPrestSnap,usarFpEnApu,esHora,snapCtx.personMapSnap,snapCtx.eqMapSnap,snapCtx.insMapSnap);
           arr[idx]=Object.assign({},it,{tipoPrecio:'entidad',precioEntidad:r2(c.totalDirecto)});
         }
       }

@@ -971,6 +971,20 @@ const XLAct=React.memo(function XLAct({onEdit,onDelete}){return <td className="c
 
 const TD_R={padding:'0 6px',textAlign:'right',fontSize:10};
 
+/* ── Convenciones del archivo (auditoria W1/W3/W4/W8/W11/W12) ──
+ 1. HOOKS: declararlos SIEMPRE antes de cualquier early return condicional
+    del componente (regla de hooks, React #310).
+ 2. useCallback: solo para handlers pasados como props a componentes con
+    React.memo — handlers usados en JSX inline del mismo componente no
+    requieren wrapper (cerraria sobre el indice del loop).
+ 3. useMemo: para cadenas filter/map/sort ejecutadas en el render path
+    (especialmente O(n*m) sobre apus/insumos).
+ 4. useEffect: revisar deps completas (selCuadrillaIdx+puadrillas, fase+recursosUnicos...).
+    Evitar setState innecesario post-render: usar onBlur del input en vez de
+    effects de sincronizacion cuando sea posible.
+ 5. EDITAR ESTE ARCHIVO solo con node fs / edit tool — PowerShell (Get-Content/Set-Content)
+    corrompe los caracteres multibyte (acentos, em-dashes, emojis).
+
 const TD_C={padding:'0 6px',textAlign:'center',fontSize:10};
 
 const NI_S={textAlign:'right',width:'100%',fontSize:10};

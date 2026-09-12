@@ -1549,15 +1549,11 @@ var CuadrillasTabInner=function CuadrillasTab({data,onChange,cargosCalc,cargoMap
 
   var apuBtnRef=useRef(null);
 
-  var dataRef=useRef(data);
-
-  dataRef.current=data;
-
   useEffect(function(){if(selCuadrillaIdx!==null&&selCuadrillaIdx<cuadrillas.length){setSelectedIdx(selCuadrillaIdx);setEditCuadIdx(selCuadrillaIdx)}setShowApuList(false);setApuWarnMsg('');setApuWarnFn(null);setPendingQty(null)},[selCuadrillaIdx,cuadrillas.length]);
 
   var updCuad=useCallback(function(i,k,v){var n=[].concat(cuadrillas);n[i]=Object.assign({},n[i]);n[i][k]=v;onChange(Object.assign({},data,{cuadrillas:n}))},[cuadrillas,data,onChange]);
 
-  var addCuad=useCallback(function(){setCuadDelErr('');if(selCuad&&(selCuad.integrantes||[]).length===0){setCuadEmptyErr('La cuadrilla "'+selCuad.codigo+'" no tiene integrantes. Complete antes de crear otra.');return}setCuadEmptyErr('');var d=dataRef.current;var cs=d.cuadrillas||[];var nn=cs.concat([{id:uid(),codigo:genCodeFor(cs,'CU'),descripcion:'',integrantes:[]}]);onChange(Object.assign({},d,{cuadrillas:nn}));setSelectedIdx(nn.length-1);setEditCuadIdx(nn.length-1);setEditName(true)},[selCuad,onChange]);
+  var addCuad=useCallback(function(){setCuadDelErr('');if(selCuad&&(selCuad.integrantes||[]).length===0){setCuadEmptyErr('La cuadrilla "'+selCuad.codigo+'" no tiene integrantes. Complete antes de crear otra.');return}setCuadEmptyErr('');var d=data;var cs=d.cuadrillas||[];var nn=cs.concat([{id:uid(),codigo:genCodeFor(cs,'CU'),descripcion:'',integrantes:[]}]);onChange(Object.assign({},d,{cuadrillas:nn}));setSelectedIdx(nn.length-1);setEditCuadIdx(nn.length-1);setEditName(true)},[selCuad,data,onChange]);
 
   var closeDetail=useCallback(function(){if(selCuad&&(selCuad.integrantes||[]).length===0){setCuadEmptyErr('La cuadrilla no tiene integrantes. Agregue al menos un integrante antes de cerrar.');return}setCuadEmptyErr('');setSelectedIdx(null);setEditCuadIdx(null);setEditIntIdx(null);setEditName(false);setApuWarnMsg('');setApuWarnFn(null);setPendingQty(null);if(prevTab!==undefined&&prevTab!==null&&prevTab!==1){setTab(prevTab);setSelCuadrillaIdx(null);setPrevTab(undefined)}else{setSelCuadrillaIdx(null);setPrevTab(undefined)}},[selCuad,prevTab,setTab]);
 
@@ -1678,7 +1674,7 @@ var CuadrillasTabInner=function CuadrillasTab({data,onChange,cargosCalc,cargoMap
         var aoa=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
         var bloques=parseCuadrillasBloques(aoa);
         if(bloques.length===0){setCuadMsg({tipo:'err',texto:'No se encontraron cuadrillas validas en el archivo'});e.target.value='';return}
-        var dNow=dataRef.current;
+        var dNow=data;
         var cargosArr=dNow.cargos||[];
         function resolverCargoId(codigo,descripcion){
           if(codigo){
@@ -8893,7 +8889,6 @@ function PresFormularioPanelInner({pres,presupuestos,selPresIdx,data,onChange,ap
   var pageState=useState(0);var page=pageState[0],setPage=pageState[1];
   var editIdxState=useState(null);var editIdx=editIdxState[0],setEditIdx=editIdxState[1];
   var editingCellState=useState(null);var editingCell=editingCellState[0],setEditingCell=editingCellState[1];
-  var editingCellRef=React.useRef(null);editingCellRef.current=editingCell;
   var apuSelState=useState(null);var apuSel=apuSelState[0],setApuSel=apuSelState[1];
   var showImportApuPresState=useState(false);var showImportApuPres=showImportApuPresState[0],setShowImportApuPres=showImportApuPresState[1];
   var showAsignarApuTodosState=useState(false);var showAsignarApuTodos=showAsignarApuTodosState[0],setShowAsignarApuTodos=showAsignarApuTodosState[1];
@@ -8931,7 +8926,7 @@ function PresFormularioPanelInner({pres,presupuestos,selPresIdx,data,onChange,ap
     }
   },[presId,pres]);
 
-  useEffect(function(){if(editingCellRef.current)commitEditCell()},[editIdx,commitEditCell]);
+  useEffect(function(){if(editingCell)commitEditCell()},[editIdx,commitEditCell]);
 
   /* Hooks derivados de items - DEBEN declararse ANTES del early return (reglas de hooks, React #310) */
   var itemsArr=(pres&&pres.items)||[];
@@ -9013,7 +9008,7 @@ function PresFormularioPanelInner({pres,presupuestos,selPresIdx,data,onChange,ap
   };
   var startEditCell=function(i,k,v){if(!readOnly)setEditingCell({idx:i,field:k,value:v==null?'':v})};
   var commitEditCell=function(){
-    var cell=editingCellRef.current;
+    var cell=editingCell;
     if(!cell)return;
     updItem(cell.idx,cell.field,cell.value);
     setEditingCell(null);
@@ -10356,14 +10351,6 @@ function PresCatalogoProyectoPanelInner({pres,presupuestos,selPresIdx,data,onCha
   var[editSalSnap,setEditSalSnap]=useState(false);
   var[editHerrSnap,setEditHerrSnap]=useState(false);
   var[editAIUSnap,setEditAIUSnap]=useState(false);
-  var presRef=useRef(null);
-  var presupuestosRef=useRef(null);
-  var dataGlobalRef=useRef(null);
-  var selPresIdxRef=useRef(null);
-  presRef.current=pres;
-  presupuestosRef.current=presupuestos;
-  dataGlobalRef.current=data;
-  selPresIdxRef.current=selPresIdx;
   /* Cuadrillas — decision de la seccion 4 (Adaptador_Catalogos_Reales_Proyecto.md): CuadrillasTab
      se analizo y es autocontenido (opera 100% via data/onChange como los demas); su unico
      acoplamiento externo es el salto cruzado "clic en cuadrilla desde Colaboradores -> abre su
@@ -10848,13 +10835,13 @@ function PresCatalogoProyectoPanelInner({pres,presupuestos,selPresIdx,data,onCha
     setFpRowEditIdx(newIdx);
   };
   var eliminarFactorSnap=async function(idx){
-    var _pres=presRef.current;
+    var _pres=pres;
     var factores=_pres.factores_snap||[];
     if(!(await askConfirm('¿Desea eliminar "'+(factores[idx].nombre||'este factor')+'"? Esta acción no se puede deshacer.')))return;
     if(fpRowEditIdx===idx)setFpRowEditIdx(null);
-    var _presupuestos=presupuestosRef.current;
-    var _selPresIdx=selPresIdxRef.current;
-    var _data=dataGlobalRef.current;
+    var _presupuestos=presupuestos;
+    var _selPresIdx=selPresIdx;
+    var _data=data;
     var n=_presupuestos.slice();
     n[_selPresIdx]=Object.assign({},_pres,{factores_snap:factores.filter(function(_,j){return j!==idx})});
     onChange(Object.assign({},_data,{presupuestos:n}));
@@ -10892,10 +10879,10 @@ function PresCatalogoProyectoPanelInner({pres,presupuestos,selPresIdx,data,onCha
   };
   var restaurarFpDesdeGlobal=async function(){
     if(!(await askConfirm('¿Restaurar el Factor Prestacional de este proyecto desde el catálogo general?\n\nLos valores actuales del proyecto serán reemplazados por los del catálogo global.')))return;
-    var _pres=presRef.current;
-    var _presupuestos=presupuestosRef.current;
-    var _selPresIdx=selPresIdxRef.current;
-    var _data=dataGlobalRef.current;
+    var _pres=pres;
+    var _presupuestos=presupuestos;
+    var _selPresIdx=selPresIdx;
+    var _data=data;
     var n=_presupuestos.slice();
     n[_selPresIdx]=Object.assign({},_pres,{factores_snap:(_data.factoresPrestaciones||[]).map(function(f){return Object.assign({},f)})});
     onChange(Object.assign({},_data,{presupuestos:n}));

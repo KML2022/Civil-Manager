@@ -3309,6 +3309,22 @@ function crearRepositorio(contexto){
    en el snapshot de la categoria correspondiente, lo copia desde el catalogo global. Usada tanto
    al asignar un APU a un item (assignApu) como al reparar snapshots ya afectados por el bug donde
    assignApu no copiaba estos recursos (sincronizarSnapshotAditivo). Muta snapArr in-place. */
+/* F4: DRY — la derivación de A/I/U + IVA estaba copiada en ~6 sitios (resumenPres,
+   calcResumenFor, ResumenLateralFormulario, exportarFormularioRapido, entregables, visor). */
+function calcAiuConfig(pres,config){
+  var useOv=!!(pres&&pres.aiu_override&&pres.aiu_override.activo);
+  var cfg=useOv?(pres.aiu_override||{}):{};
+  var pctA=useOv?(safeFloat(cfg.pct_a)||0):(safeFloat(config&&config.pct_administracion)||0);
+  var pctI=useOv?(safeFloat(cfg.pct_i)||0):(safeFloat(config&&config.pct_imprevistos)||0);
+  var pctU=useOv?(safeFloat(cfg.pct_u)||0):(safeFloat(config&&config.pct_utilidad)||0);
+  return{
+    useOv:useOv,pctA:pctA,pctI:pctI,pctU:pctU,aiuPct:r2(pctA+pctI+pctU),
+    tieneIva:useOv&&!!(cfg.tiene_iva),
+    ivaBase:useOv?((cfg.iva_base)||'utilidad'):'utilidad',
+    ivaPct:useOv?(safeFloat(cfg.iva_pct)||19):19
+  };
+}
+
 function asegurarEnSnapshot(snapArr,catalogoGlobal,idCampo,recursos){
   (recursos||[]).forEach(function(r){
     var id=r[idCampo];
@@ -8792,15 +8808,9 @@ function ResumenLateralFormulario({pres,calcItemVal,data,presupuestos,selPresIdx
   var config=data.config||{};
   var itemsArr=(pres&&pres.items)||[];
   var cdTotal=0;
-  for(var i=0;i<itemsArr.length;i++){cdTotal+=calcItemVal(itemsArr[i]).vr_total}
-  var useOv=pres&&pres.aiu_override&&pres.aiu_override.activo;
-  var pctA=useOv?(safeFloat(pres.aiu_override.pct_a)||0):(safeFloat(config.pct_administracion)||0);
-  var pctI=useOv?(safeFloat(pres.aiu_override.pct_i)||0):(safeFloat(config.pct_imprevistos)||0);
-  var pctU=useOv?(safeFloat(pres.aiu_override.pct_u)||0):(safeFloat(config.pct_utilidad)||0);
-  var aiuPct=pctA+pctI+pctU;
-  var tieneIva=useOv&&!!(pres.aiu_override.tiene_iva);
-  var ivaBase=useOv?(pres.aiu_override.iva_base||'utilidad'):'utilidad';
-  var ivaPct=useOv?(safeFloat(pres.aiu_override.iva_pct)||19):19;
+    for(var i=0;i<itemsArr.length;i++){cdTotal+=calcItemVal(itemsArr[i]).vr_total}
+    /* F4: derivación AIU/IVA unificada (antes 8 líneas copiadas) */
+    var _aiu=calcAiuConfig(pres,config),useOv=_aiu.useOv,pctA=_aiu.pctA,pctI=_aiu.pctI,pctU=_aiu.pctU,aiuPct=_aiu.aiuPct,tieneIva=_aiu.tieneIva,ivaBase=_aiu.ivaBase,ivaPct=_aiu.ivaPct;
   var adm=r2(cdTotal*pctA/100),imp=r2(cdTotal*pctI/100),uti=r2(cdTotal*pctU/100);
   var aiuTotal=r2(adm+imp+uti);
   var ivaBase_=ivaBase==='cd'?cdTotal:uti;
@@ -9066,6 +9076,15 @@ function PresFormularioPanelInner({pres,presupuestos,selPresIdx,data,onChange,ap
       if(enGlobal)cuadrillasSnapArr.push(Object.assign({},enGlobal));
     });
   };
+  /* F4: DRY — bloque "asegurar insumos/equipos/transporte/cargos/cuadrillas de un APU en los snapshots"
+     repetido 4x (assignApu Caso A y B, ejecutarAsignacion x2). Muta los arrays in-place. */
+  var asegurarRecursosDeApuEnSnaps=function(insumosSnap,equiposSnap,cargosSnap,cuadrillasSnap,apuOClon){
+    asegurarEnSnapshot(insumosSnap,data.insumos||[],'insumo_id',apuOClon.recursos_ins);
+    asegurarEnSnapshot(equiposSnap,data.equipos||[],'equipo_id',apuOClon.recursos_eq);
+    asegurarEnSnapshot(equiposSnap,data.equipos||[],'equipo_id',apuOClon.recursos_transporte);
+    asegurarEnSnapshot(cargosSnap,data.cargos||[],'cargo_id',apuOClon.recursos_mo);
+    asegurarCuadrillasEnSnapshot(cuadrillasSnap,apuOClon.recursos_mo);
+  };
   var addCapitulo=function(){
     if(readOnly)return;
     var arr=pres.items.slice();
@@ -9166,11 +9185,7 @@ function PresFormularioPanelInner({pres,presupuestos,selPresIdx,data,onChange,ap
       var equiposSnapA=(pres.equipos_snap||[]).slice();
       var cargosSnapA=(pres.cargos_snap||[]).slice();
       var cuadrillasSnapA=(pres.cuadrillas_snap||[]).slice();
-      asegurarEnSnapshot(insumosSnapA,data.insumos||[],'insumo_id',apuSnap.recursos_ins);
-      asegurarEnSnapshot(equiposSnapA,data.equipos||[],'equipo_id',apuSnap.recursos_eq);
-      asegurarEnSnapshot(equiposSnapA,data.equipos||[],'equipo_id',apuSnap.recursos_transporte);
-      asegurarEnSnapshot(cargosSnapA,data.cargos||[],'cargo_id',apuSnap.recursos_mo);
-      asegurarCuadrillasEnSnapshot(cuadrillasSnapA,apuSnap.recursos_mo);
+      asegurarRecursosDeApuEnSnaps(insumosSnapA,equiposSnapA,cargosSnapA,cuadrillasSnapA,apuSnap);
       var arr=pres.items.slice();
       arr[i]=Object.assign({},arr[i],{apu_id:apuSnap.id,tiene_apu:true,alerta_sin_apu:false,tipoPrecio:'apu'});
       saveItems(arr,{insumos_snap:insumosSnapA,equipos_snap:equiposSnapA,cargos_snap:cargosSnapA,cuadrillas_snap:cuadrillasSnapA});
@@ -9191,11 +9206,7 @@ function PresFormularioPanelInner({pres,presupuestos,selPresIdx,data,onChange,ap
     var equiposSnap=(pres.equipos_snap||[]).slice();
     var cargosSnap=(pres.cargos_snap||[]).slice();
     var cuadrillasSnap=(pres.cuadrillas_snap||[]).slice();
-    asegurarEnSnapshot(insumosSnap,data.insumos||[],'insumo_id',clon.recursos_ins);
-    asegurarEnSnapshot(equiposSnap,data.equipos||[],'equipo_id',clon.recursos_eq);
-    asegurarEnSnapshot(equiposSnap,data.equipos||[],'equipo_id',clon.recursos_transporte);
-    asegurarEnSnapshot(cargosSnap,data.cargos||[],'cargo_id',clon.recursos_mo);
-    asegurarCuadrillasEnSnapshot(cuadrillasSnap,clon.recursos_mo);
+      asegurarRecursosDeApuEnSnaps(insumosSnap,equiposSnap,cargosSnap,cuadrillasSnap,clon);
     var arr=pres.items.slice();
       arr[i]=Object.assign({},arr[i],{apu_id:clon.id,tiene_apu:true,alerta_sin_apu:false,tipoPrecio:'apu'});
     saveItems(arr,{apus_snap:snap,insumos_snap:insumosSnap,equipos_snap:equiposSnap,cargos_snap:cargosSnap,cuadrillas_snap:cuadrillasSnap});
@@ -9311,9 +9322,8 @@ function PresFormularioPanelInner({pres,presupuestos,selPresIdx,data,onChange,ap
 
   var exportarFormularioRapido=function(){
     if(!fo||!fo.archivo_b64){showToast('No hay formulario para exportar',{type:'warn'});return}
-    var useOv=pres.aiu_override&&pres.aiu_override.activo;
     var cfg=data.config||{};
-    var aiuC={pctA:useOv?(safeFloat(pres.aiu_override.pct_a)||0):(safeFloat(cfg.pct_administracion)||0),pctI:useOv?(safeFloat(pres.aiu_override.pct_i)||0):(safeFloat(cfg.pct_imprevistos)||0),pctU:useOv?(safeFloat(pres.aiu_override.pct_u)||0):(safeFloat(cfg.pct_utilidad)||0),tieneIva:useOv?!!(pres.aiu_override.tiene_iva):false,ivaBase:useOv?(pres.aiu_override.iva_base||'utilidad'):'utilidad',ivaPct:useOv?(safeFloat(pres.aiu_override.iva_pct)||19):19};
+    var aiuC=calcAiuConfig(pres,cfg);
     exportarFormularioLlenoGlobal(pres,calcItemVal,null,aiuC);
   };
 
@@ -10221,11 +10231,7 @@ function PresFormularioPanelInner({pres,presupuestos,selPresIdx,data,onChange,ap
                 asegurarCuadrillasEnSnapshot(cuadrillasSnap,clon.recursos_mo);
                 arr[idx]=Object.assign({},it,{apu_id:clon.id,tiene_apu:true,alerta_sin_apu:false});
               }else{
-                asegurarEnSnapshot(insumosSnap,data.insumos||[],'insumo_id',apuEnSnap.recursos_ins);
-                asegurarEnSnapshot(equiposSnap,data.equipos||[],'equipo_id',apuEnSnap.recursos_eq);
-                asegurarEnSnapshot(equiposSnap,data.equipos||[],'equipo_id',apuEnSnap.recursos_transporte);
-                asegurarEnSnapshot(cargosSnap,data.cargos||[],'cargo_id',apuEnSnap.recursos_mo);
-                asegurarCuadrillasEnSnapshot(cuadrillasSnap,apuEnSnap.recursos_mo);
+      asegurarRecursosDeApuEnSnaps(insumosSnap,equiposSnap,cargosSnap,cuadrillasSnap,apuEnSnap);
                 arr[idx]=Object.assign({},it,{apu_id:apuEnSnap.id,tiene_apu:true,alerta_sin_apu:false});
               }
               asignados++;
@@ -12035,14 +12041,8 @@ function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,i
       cdTotal+=cv.vr_total;
       if(cv.apu){var cat=cv.apu.categoria||'Sin categoria';catDistrib[cat]=(catDistrib[cat]||0)+cv.vr_total}
     }
-    var useOv=pres&&pres.aiu_override&&pres.aiu_override.activo;
-    var pctA=useOv?(safeFloat(pres.aiu_override.pct_a)||0):(safeFloat(config.pct_administracion)||0);
-    var pctI=useOv?(safeFloat(pres.aiu_override.pct_i)||0):(safeFloat(config.pct_imprevistos)||0);
-    var pctU=useOv?(safeFloat(pres.aiu_override.pct_u)||0):(safeFloat(config.pct_utilidad)||0);
-    var aiuPct=pctA+pctI+pctU;
-    var tieneIva=useOv&&!!(pres.aiu_override.tiene_iva);
-    var ivaBase=useOv?(pres.aiu_override.iva_base||'utilidad'):'utilidad';
-    var ivaPct=useOv?(safeFloat(pres.aiu_override.iva_pct)||19):19;
+    /* F4: derivación AIU/IVA unificada (antes 7 líneas copiadas) */
+    var _aiu=calcAiuConfig(pres,config),pctA=_aiu.pctA,pctI=_aiu.pctI,pctU=_aiu.pctU,aiuPct=_aiu.aiuPct,tieneIva=_aiu.tieneIva,ivaBase=_aiu.ivaBase,ivaPct=_aiu.ivaPct;
     var adm=r2(cdTotal*pctA/100),imp=r2(cdTotal*pctI/100),uti=r2(cdTotal*pctU/100);
     var aiuTotal=r2(adm+imp+uti);
     var ivaBase_=ivaBase==='cd'?cdTotal:uti;
@@ -12104,13 +12104,8 @@ function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,i
     var snapCtxP=buildSnapCtx(p);
     var cdTotal=0;
     for(var i=0;i<itemsArrP.length;i++){cdTotal+=calcItemValFor(itemsArrP[i],p,snapCtxP).vr_total}
-    var useOv=p&&p.aiu_override&&p.aiu_override.activo;
-    var pctA=useOv?(safeFloat(p.aiu_override.pct_a)||0):(safeFloat(config.pct_administracion)||0);
-    var pctI=useOv?(safeFloat(p.aiu_override.pct_i)||0):(safeFloat(config.pct_imprevistos)||0);
-    var pctU=useOv?(safeFloat(p.aiu_override.pct_u)||0):(safeFloat(config.pct_utilidad)||0);
-    var tieneIvaP=useOv&&!!(p.aiu_override.tiene_iva);
-    var ivaBaseP=useOv?(p.aiu_override.iva_base||'utilidad'):'utilidad';
-    var ivaPct=useOv?(safeFloat(p.aiu_override.iva_pct)||19):19;
+    /* F4: derivación AIU/IVA unificada (antes 6 líneas copiadas) */
+    var _aiu=calcAiuConfig(p,config),pctA=_aiu.pctA,pctI=_aiu.pctI,pctU=_aiu.pctU,tieneIvaP=_aiu.tieneIva,ivaBaseP=_aiu.ivaBase,ivaPct=_aiu.ivaPct;
     var adm=r2(cdTotal*pctA/100),imp=r2(cdTotal*pctI/100),uti=r2(cdTotal*pctU/100);
     var aiuTotal=r2(adm+imp+uti);
     var ivaBase_P=ivaBaseP==='cd'?cdTotal:uti;

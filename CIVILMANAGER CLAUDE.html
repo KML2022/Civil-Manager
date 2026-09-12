@@ -8021,7 +8021,8 @@ function PresEntregablesPanelInner({pres,presupuestos,calcResumenPres,calcItemVa
     var rAdm=rows.length;rows.push(['','','','','','','','Administracion ('+rp.pctA.toFixed(2)+'%)','=ROUND('+ce2(rCd,8)+'*'+rp.pctA+'/100,2)']);
     var rImp=rows.length;rows.push(['','','','','','','','Imprevistos ('+rp.pctI.toFixed(2)+'%)','=ROUND('+ce2(rCd,8)+'*'+rp.pctI+'/100,2)']);
     var rUti=rows.length;rows.push(['','','','','','','','Utilidad ('+rp.pctU.toFixed(2)+'%)','=ROUND('+ce2(rCd,8)+'*'+rp.pctU+'/100,2)']);
-    var rIva=rows.length;rows.push(['','','','','','','','IVA sobre Utilidad ('+rp.ivaPct+'%)','=ROUND('+ce2(rUti,8)+'*'+rp.ivaPct+'/100,2)']);
+    var rIva=rows.length;rows.push(['','','','','','','','IVA sobre '+(rp.ivaBase==='cd'?'CD':'Utilidad')+' ('+rp.ivaPct+'%)',(rp.tieneIva?'=ROUND('+(rp.ivaBase==='cd'?ce2(rCd,8):ce2(rUti,8))+'*'+rp.ivaPct+'/100,2)':0)]);
+    /* F3: IVA respetaba tieneIva/ivaBase en pantalla pero el Excel lo incluía siempre */
     rows.push(['','','','','','','','VALOR TOTAL CONTRATO','=ROUND('+ce2(rCd,8)+'+'+ce2(rAdm,8)+'+'+ce2(rImp,8)+'+'+ce2(rUti,8)+'+'+ce2(rIva,8)+',2)']);
     var ws=XLSX.utils.aoa_to_sheet(rows);
     convertirFormulasApuExcel(ws);
@@ -8963,7 +8964,7 @@ function ApuAsignacionModal({apuModal,setApuModal,apuSel,setApuSel,getFilteredAp
       </div>
       <div className="modal-foot">
         <button className="btn" onClick={closeApuModal} style={{fontSize:11,padding:'6px 14px',border:'1px solid var(--bdr)',borderRadius:4,background:'none',color:'var(--tx2)',cursor:'pointer'}}>Cancelar</button>
-        <button className="btn" disabled={!apuSel} onClick={confirmarAsignacion} style={{fontSize:11,padding:'6px 14px',border:'1px solid var(--ok)',borderRadius:4,color:apuSel?'var(--ok)':'var(--tx3)',background:apuSel?'rgba(74,222,128,.08)':'transparent',cursor:apuSel?'pointer':'not-allowed'}} title={esEntidad&&!exacto?'El costo directo del APU difiere del precio de entidad':''}>✓ Asignar este APU</button>
+        <button className="btn" disabled={!apuSel||!apuSeleccionado} onClick={confirmarAsignacion} style={{fontSize:11,padding:'6px 14px',border:'1px solid var(--ok)',borderRadius:4,color:(apuSel&&apuSeleccionado)?'var(--ok)':'var(--tx3)',background:(apuSel&&apuSeleccionado)?'rgba(74,222,128,.08)':'transparent',cursor:(apuSel&&apuSeleccionado)?'pointer':'not-allowed'}} title={esEntidad&&!exacto?'El costo directo del APU difiere del precio de entidad':(!apuSel||!apuSeleccionado)?'Selecciona un APU de la lista':''}>✓ Asignar este APU</button>
       </div>
     </div>
   </div>
@@ -9104,7 +9105,8 @@ function PresFormularioPanelInner({pres,presupuestos,selPresIdx,data,onChange,ap
       var sinP=arr.filter(function(it){return!esCapituloFinal(it)&&(!it.precioEntidad||it.precioEntidad<=0)});
       var nuevaAlarma=sinP.length>0?sinP.map(function(it){return it.num_item||it.descripcion}):null;
       setAlarmasPrecioFaltante(nuevaAlarma);
-      saveItems(arr,{alarmasPrecioFaltante:nuevaAlarma});
+      /* F3: el campo alarmasPrecioFaltante en el presupuesto es write-only (la UI usa el estado local) — dejamos de persistirlo */
+      saveItems(arr);
     }else{
       saveItems(arr);
     }
@@ -9212,7 +9214,7 @@ function PresFormularioPanelInner({pres,presupuestos,selPresIdx,data,onChange,ap
   var confirmarAsignacion=function(){
     if(!apuSel)return;
     var found=filteredApus().find(function(a){return apuKey(a)===apuSel});
-    if(!found)return;
+    if(!found){showToast('El APU seleccionado ya no está en la lista (filtro/categoría cambió). Selecciona otro.',{type:'warn'});return}
     var itemActual=apuModal.itemIdx!==null?itemsArr[apuModal.itemIdx]:null;
     if(itemActual&&itemActual.tipoPrecio==='entidad'){
       var precioRef=(pres.preciosEntidadOriginal&&pres.preciosEntidadOriginal[itemActual.id]!=null)
@@ -9411,7 +9413,7 @@ function PresFormularioPanelInner({pres,presupuestos,selPresIdx,data,onChange,ap
         var cantRaw=String(fila[mapeoFinal.col_cantidad]||'').trim();
         var cant=parseCantidad(cantRaw);
         var precioEntidadImport=tipoPrecioFormulario==='entidad'&&mapeoFinal.col_vr_unitario!=null
-          ?(parseFloat(String(fila[mapeoFinal.col_vr_unitario]||'').replace(/[^0-9.,-]/g,'').replace(',',''))||null)
+          ?(parseCantidad(fila[mapeoFinal.col_vr_unitario])||null)
           :null;
         items.push({
           id:uid(),fila_original:i,es_capitulo:false,es_capitulo_manual:null,
@@ -9430,10 +9432,12 @@ function PresFormularioPanelInner({pres,presupuestos,selPresIdx,data,onChange,ap
       }
     }
 
+    var nuevosCL=null;
     if(mapeoFinal.nombre_mapeo&&mapeoFinal.nombre_mapeo.trim()){
       var mapeoGuardar=Object.assign({},mapeoFinal,{id:uid()});
-      var nuevosCL=Object.assign({},data.config_listas,{mapeos_formulario:((data.config_listas||{}).mapeos_formulario||[]).concat([mapeoGuardar])});
-      onChange(Object.assign({},data,{config_listas:nuevosCL}));
+      nuevosCL=Object.assign({},data.config_listas,{mapeos_formulario:((data.config_listas||{}).mapeos_formulario||[]).concat([mapeoGuardar])});
+      /* F3: un solo onChange con presupuestos+config_listas — antes dos onChange encadenados
+         pisaban el primero (el mapeo guardado nunca persistia) */
     }
 
     var n=presupuestos.slice();
@@ -9451,7 +9455,6 @@ function PresFormularioPanelInner({pres,presupuestos,selPresIdx,data,onChange,ap
     n[idxPres]=Object.assign({},n[idxPres],{
       items:items,
       tipoPrecioFormulario:tipoPrecioFormulario,
-      alarmasPrecioFaltante:alarma,
       formulario_original:{
         archivo_b64:b64,
         archivo_adjunto:b64!=null,
@@ -9462,7 +9465,9 @@ function PresFormularioPanelInner({pres,presupuestos,selPresIdx,data,onChange,ap
         mapeo:mapeoFinal
       }
     });
-    onChange(Object.assign({},data,{presupuestos:n}));
+    var patch={presupuestos:n};
+    if(nuevosCL)patch.config_listas=nuevosCL;
+    onChange(Object.assign({},data,patch));
     if(archivoDemasiadoGrande){
       showToast('Items importados. El archivo original supera 4MB y no se pudo adjuntar — la exportación de "formulario lleno" no estará disponible.',{type:'warn',dur:6000});
     }else{
@@ -11231,7 +11236,11 @@ function PresCatalogoProyectoPanelInner({pres,presupuestos,selPresIdx,data,onCha
                     <tr>
                       <td style={{padding:'2px 8px',borderBottom:'1px solid var(--bdr)',borderRight:'1px solid var(--bdr)',color:'var(--tx2)',fontSize:10,fontWeight:700}}>TOTAL AIU</td>
                       <td style={{padding:'2px 8px',borderBottom:'1px solid var(--bdr)',textAlign:'center',borderRight:'1px solid var(--bdr)',fontWeight:700,fontSize:10,color:'var(--warn)'}}>
-                        {(((pres.aiu_override&&pres.aiu_override.pct_a)||0)+((pres.aiu_override&&pres.aiu_override.pct_i)||0)+((pres.aiu_override&&pres.aiu_override.pct_u)||0)).toFixed(2)+'%'}
+                        {/* F3: respeta useOvCat — antes mostraba puros aiu_override(0.00%) cuando no estaba activo */}
+                        {((pres.aiu_override&&pres.aiu_override.activo)
+                          ?((Number(pres.aiu_override.pct_a)||0)+(Number(pres.aiu_override.pct_i)||0)+(Number(pres.aiu_override.pct_u)||0))
+                          :((safeFloat(data.config&&data.config.pct_administracion)||0)+(safeFloat(data.config&&data.config.pct_imprevistos)||0)+(safeFloat(data.config&&data.config.pct_utilidad)||0))
+                        ).toFixed(2)+'%'}
                       </td>
                       <td style={{padding:'2px 6px',borderBottom:'1px solid var(--bdr)'}}/>
                     </tr>
@@ -11894,10 +11903,15 @@ function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,i
       });
     });
     // Actualizar apu_id en items clonados
+    var itemIdMap={};
+    nuevosItems.forEach(function(it,ii){itemIdMap[(origen.items||[])[ii]&&origen.items[ii].id]=it.id});
     nuevosItems=nuevosItems.map(function(it){
       if(it.apu_id&&apuIdMap[it.apu_id])return Object.assign({},it,{apu_id:apuIdMap[it.apu_id]});
       return it;
     });
+    /* F3: remapear claves de precios*Original (were keyed by old item ids); sin esto
+       el clon pierde la referencia del "precio techo" y los badges Convertido quedan huerfanos */
+    var remapearClaves=function(mapOld){if(!mapOld)return null;var m={};Object.keys(mapOld).forEach(function(k){var nId=itemIdMap[k];if(nId)m[nId]=mapOld[k]});return m};
     var clon=Object.assign({},origen,{
       id:uid(),
       codigo:nuevoCodigo,
@@ -11916,8 +11930,8 @@ function PresupuestosTab({data,onChange,cargosCalc,cuadrillasCalc,esHora,eqMap,i
       factores_snap:(origen.factores_snap||[]).map(function(x){return Object.assign({},x)}),
       perfil_pais_snap:origen.perfil_pais_snap?Object.assign({},origen.perfil_pais_snap):null,
       aiu_override:Object.assign({},origen.aiu_override),
-      preciosEntidadOriginal:origen.preciosEntidadOriginal?Object.assign({},origen.preciosEntidadOriginal):null,
-      preciosApuOriginal:origen.preciosApuOriginal?Object.assign({},origen.preciosApuOriginal):null
+      preciosEntidadOriginal:remapearClaves(origen.preciosEntidadOriginal),
+      preciosApuOriginal:remapearClaves(origen.preciosApuOriginal)
     });
     var n=presupuestos.concat([clon]);
     onChange(Object.assign({},data,{presupuestos:n}));

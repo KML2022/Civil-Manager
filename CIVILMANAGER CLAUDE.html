@@ -8926,7 +8926,8 @@ function PresFormularioPanelInner({pres,presupuestos,selPresIdx,data,onChange,ap
     }
   },[presId,pres]);
 
-  useEffect(function(){if(editingCell)commitEditCell()},[editIdx,commitEditCell]);
+  /* W8: sin effect de commit en cambio de editIdx — el commit ocurre por onBlur del input
+     (blur siempre precede al click que cambia editIdx); evitamos setState post-render. */
 
   /* Hooks derivados de items - DEBEN declararse ANTES del early return (reglas de hooks, React #310) */
   var itemsArr=(pres&&pres.items)||[];

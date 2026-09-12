@@ -985,6 +985,13 @@ const DATA_COLS=[70,283,70,90,90,85,90,80];
 
 const ALT_ROW={background:'rgba(255,255,255,.04)'};
 
+/* W6: bases de estilo repetidas (usar con spread: style={{width:650,...ERR_BG}}) */
+const ERR_BG={color:'#f87171',background:'rgba(248,113,113,0.08)',border:'1px solid rgba(248,113,113,0.2)'};
+
+const SCROLL_272={maxHeight:'calc(100vh - 272px)'};
+
+const SCROLL_382={maxHeight:'calc(100vh - 382px)'};
+
 const EMPTY_OBJ={};
 
 const CELL_STYLE={padding:'0 6px',textAlign:'right'};
@@ -1362,13 +1369,13 @@ function FactorPrestacionalTab({data,onChange,factorPrest,cargosCalc,cargoMap,es
 
       </div>
 
-      {cargoDelErr&&<div style={{padding:'8px 10px',fontSize:12,color:'#f87171',background:'rgba(248,113,113,0.08)',border:'1px solid rgba(248,113,113,0.2)',borderRadius:4,marginBottom:8,width:tblW,display:'flex',alignItems:'center',justifyContent:'space-between'}}><span>{cargoDelErr}</span><button onClick={function(){setCargoDelErr('')}} style={{background:'none',border:'none',color:'#f87171',cursor:'pointer',fontSize:16,lineHeight:1,padding:'0 4px'}} title="Cerrar">✕</button></div>}
+      {cargoDelErr&&<div style={{padding:'8px 10px',fontSize:12,...ERR_BG,borderRadius:4,marginBottom:8,width:tblW,display:'flex',alignItems:'center',justifyContent:'space-between'}}><span>{cargoDelErr}</span><button onClick={function(){setCargoDelErr('')}} style={{background:'none',border:'none',color:'#f87171',cursor:'pointer',fontSize:16,lineHeight:1,padding:'0 4px'}} title="Cerrar">✕</button></div>}
 
-      {fpCuadDelErr&&<div style={{padding:'8px 10px',fontSize:12,color:'#f87171',background:'rgba(248,113,113,0.08)',border:'1px solid rgba(248,113,113,0.2)',borderRadius:4,marginBottom:8,width:tblW,display:'flex',alignItems:'center',justifyContent:'space-between'}}><span>{fpCuadDelErr}</span><button onClick={function(){setFpCuadDelErr('')}} style={{background:'none',border:'none',color:'#f87171',cursor:'pointer',fontSize:16,lineHeight:1,padding:'0 4px'}} title="Cerrar">✕</button></div>}
+      {fpCuadDelErr&&<div style={{padding:'8px 10px',fontSize:12,...ERR_BG,borderRadius:4,marginBottom:8,width:tblW,display:'flex',alignItems:'center',justifyContent:'space-between'}}><span>{fpCuadDelErr}</span><button onClick={function(){setFpCuadDelErr('')}} style={{background:'none',border:'none',color:'#f87171',cursor:'pointer',fontSize:16,lineHeight:1,padding:'0 4px'}} title="Cerrar">✕</button></div>}
 
       <div className="xl-wrap" style={{width:tblW}}>
 
-          <div className="xl-scroll" style={{maxHeight:'calc(100vh - 272px)'}}>
+          <div className="xl-scroll" style={SCROLL_272}>
 
             <table style={{tableLayout:'fixed',width:tblW+'px'}}>
 
@@ -1731,13 +1738,13 @@ var CuadrillasTabInner=function CuadrillasTab({data,onChange,cargosCalc,cargoMap
 
         </div>
 
-        {cuadDelErr&&<div style={{padding:'8px 10px',fontSize:12,color:'#f87171',background:'rgba(248,113,113,0.08)',border:'1px solid rgba(248,113,113,0.2)',borderRadius:4,marginBottom:8,width:650,display:'flex',alignItems:'center',justifyContent:'space-between'}}><span>{cuadDelErr}</span><button onClick={function(){setCuadDelErr('')}} style={{background:'none',border:'none',color:'#f87171',cursor:'pointer',fontSize:16,lineHeight:1,padding:'0 4px'}} title="Cerrar">{'✕'}</button></div>}
+        {cuadDelErr&&<div style={{padding:'8px 10px',fontSize:12,...ERR_BG,borderRadius:4,marginBottom:8,width:650,display:'flex',alignItems:'center',justifyContent:'space-between'}}><span>{cuadDelErr}</span><button onClick={function(){setCuadDelErr('')}} style={{background:'none',border:'none',color:'#f87171',cursor:'pointer',fontSize:16,lineHeight:1,padding:'0 4px'}} title="Cerrar">{'✕'}</button></div>}
 
         {cuadMsg&&<div style={{padding:'8px 10px',fontSize:12,color:cuadMsg.tipo==='ok'?'var(--ok)':'#f87171',background:cuadMsg.tipo==='ok'?'rgba(74,222,128,.08)':'rgba(248,113,113,0.08)',border:'1px solid '+(cuadMsg.tipo==='ok'?'var(--ok)':'rgba(248,113,113,0.2)'),borderRadius:4,marginBottom:8,width:650,display:'flex',alignItems:'center',justifyContent:'space-between'}}><span>{cuadMsg.texto}</span><button onClick={function(){setCuadMsg(null)}} style={{background:'none',border:'none',color:'inherit',cursor:'pointer',fontSize:16,lineHeight:1,padding:'0 4px'}} title="Cerrar">{'✕'}</button></div>}
 
         <div className="xl-wrap" style={{width:650}}>
 
-          <div className="xl-scroll" style={{maxHeight:'calc(100vh - 272px)'}}>
+          <div className="xl-scroll" style={SCROLL_272}>
 
             <table style={{tableLayout:'fixed',width:650}}>
 
@@ -1841,7 +1848,7 @@ var CuadrillasTabInner=function CuadrillasTab({data,onChange,cargosCalc,cargoMap
 
       <div className="xl-wrap" style={{width:830}}>
 
-          <div className="xl-scroll" style={{maxHeight:'calc(100vh - 272px)'}}>
+          <div className="xl-scroll" style={SCROLL_272}>
 
               <table>
 
@@ -2161,11 +2168,11 @@ function EquiposTabInner({data,onChange,provMap,_unidades,contextoProyecto,readO
 
       </div>
 
-      {equipoDelErr&&<div style={{padding:'8px 10px',fontSize:12,color:'#f87171',background:'rgba(248,113,113,0.08)',border:'1px solid rgba(248,113,113,0.2)',borderRadius:4,marginBottom:8,width:1161,display:'flex',alignItems:'center',justifyContent:'space-between'}}><span>{equipoDelErr}</span><button onClick={function(){setEquipoDelErr('')}} style={{background:'none',border:'none',color:'#f87171',cursor:'pointer',fontSize:16,lineHeight:1,padding:'0 4px'}} title="Cerrar">✕</button></div>}
+      {equipoDelErr&&<div style={{padding:'8px 10px',fontSize:12,...ERR_BG,borderRadius:4,marginBottom:8,width:1161,display:'flex',alignItems:'center',justifyContent:'space-between'}}><span>{equipoDelErr}</span><button onClick={function(){setEquipoDelErr('')}} style={{background:'none',border:'none',color:'#f87171',cursor:'pointer',fontSize:16,lineHeight:1,padding:'0 4px'}} title="Cerrar">✕</button></div>}
 
       <div className="xl-wrap" style={{width:1161,display:'flex',flexDirection:'column'}}>
 
-        <div className="xl-scroll" style={{maxHeight:'calc(100vh - 382px)'}}>
+        <div className="xl-scroll" style={SCROLL_382}>
 
           <table style={{tableLayout:'fixed',width:'1159px'}}>
 
@@ -2439,11 +2446,11 @@ function InsumosTabInner({data,onChange,provMap,cargosCalc,cargoMap,esHora,_unid
 
       </div>
 
-      {insDelErr&&<div style={{padding:'8px 10px',fontSize:12,color:'#f87171',background:'rgba(248,113,113,0.08)',border:'1px solid rgba(248,113,113,0.2)',borderRadius:4,marginBottom:8,width:1594,display:'flex',alignItems:'center',justifyContent:'space-between'}}><span>{insDelErr}</span><button onClick={function(){setInsDelErr('')}} style={{background:'none',border:'none',color:'#f87171',cursor:'pointer',fontSize:16,lineHeight:1,padding:'0 4px'}} title="Cerrar">✕</button></div>}
+      {insDelErr&&<div style={{padding:'8px 10px',fontSize:12,...ERR_BG,borderRadius:4,marginBottom:8,width:1594,display:'flex',alignItems:'center',justifyContent:'space-between'}}><span>{insDelErr}</span><button onClick={function(){setInsDelErr('')}} style={{background:'none',border:'none',color:'#f87171',cursor:'pointer',fontSize:16,lineHeight:1,padding:'0 4px'}} title="Cerrar">✕</button></div>}
 
       <div className="xl-wrap" style={{width:1594}}>
 
-        <div className="xl-scroll" style={{maxHeight:'calc(100vh - 382px)'}}>
+        <div className="xl-scroll" style={SCROLL_382}>
 
           <table style={{tableLayout:'fixed'}}>
 
@@ -2703,11 +2710,11 @@ function ProveedoresTabInner({data,onChange}){
 
       </div>
 
-      {provDelErr&&<div style={{padding:'8px 10px',fontSize:12,color:'#f87171',background:'rgba(248,113,113,0.08)',border:'1px solid rgba(248,113,113,0.2)',borderRadius:4,marginBottom:8,display:'flex',alignItems:'center',justifyContent:'space-between'}}><span>{provDelErr}</span><button onClick={function(){setProvDelErr('')}} style={{background:'none',border:'none',color:'#f87171',cursor:'pointer',fontSize:16,lineHeight:1,padding:'0 4px'}} title="Cerrar">✕</button></div>}
+      {provDelErr&&<div style={{padding:'8px 10px',fontSize:12,...ERR_BG,borderRadius:4,marginBottom:8,display:'flex',alignItems:'center',justifyContent:'space-between'}}><span>{provDelErr}</span><button onClick={function(){setProvDelErr('')}} style={{background:'none',border:'none',color:'#f87171',cursor:'pointer',fontSize:16,lineHeight:1,padding:'0 4px'}} title="Cerrar">✕</button></div>}
 
       <div className="xl-wrap" style={{width:'100%'}}>
 
-        <div className="xl-scroll" style={{maxHeight:'calc(100vh - 382px)'}}>
+        <div className="xl-scroll" style={SCROLL_382}>
 
           <table style={{tableLayout:'fixed',width:'100%'}}>
 
@@ -4177,7 +4184,7 @@ function ImportApuModal({repositorio,contextoCalc,onAplicar,onClose,origenProyec
                 );
               })()}
               {st.erroresParse.length>0&&(
-                <details style={{fontSize:11,color:'#f87171',background:'rgba(248,113,113,0.08)',border:'1px solid rgba(248,113,113,0.2)',borderRadius:4,padding:'6px 10px'}}>
+                <details style={{fontSize:11,...ERR_BG,borderRadius:4,padding:'6px 10px'}}>
                   <summary style={{cursor:'pointer',fontWeight:600}}>Ver detalle técnico — {st.erroresParse.length} fila(s) del Excel original rechazada(s)</summary>
                   <ul style={{margin:'6px 0 0 18px',padding:0}}>{st.erroresParse.slice(0,8).map(function(er,i){return <li key={i}>Fila {er.fila}: {er.msg}</li>})}</ul>
                   {st.erroresParse.length>8&&<div style={{marginTop:4,fontSize:10}}>...y {st.erroresParse.length-8} más.</div>}
@@ -4916,7 +4923,7 @@ function APUTab({data,onChange,cargosCalc,cargoMap,esHora,eqMap,insMap,cuadrilla
 
         </div>
 
-        {apuDelErr&&<div style={{padding:'8px 10px',fontSize:12,color:'#f87171',background:'rgba(248,113,113,0.08)',border:'1px solid rgba(248,113,113,0.2)',borderRadius:4,marginBottom:8,width:959,display:'flex',alignItems:'center',justifyContent:'space-between'}}><span>{apuDelErr}</span><button onClick={function(){setApuDelErr('')}} style={{background:'none',border:'none',color:'#f87171',cursor:'pointer',fontSize:16,lineHeight:1,padding:'0 4px'}} title="Cerrar">✕</button></div>}
+        {apuDelErr&&<div style={{padding:'8px 10px',fontSize:12,...ERR_BG,borderRadius:4,marginBottom:8,width:959,display:'flex',alignItems:'center',justifyContent:'space-between'}}><span>{apuDelErr}</span><button onClick={function(){setApuDelErr('')}} style={{background:'none',border:'none',color:'#f87171',cursor:'pointer',fontSize:16,lineHeight:1,padding:'0 4px'}} title="Cerrar">✕</button></div>}
 
         {apuMsg&&<div style={{padding:'8px 10px',fontSize:12,color:apuMsg.tipo==='ok'?'var(--ok)':'#f87171',background:apuMsg.tipo==='ok'?'rgba(74,222,128,.08)':'rgba(248,113,113,0.08)',border:'1px solid '+(apuMsg.tipo==='ok'?'var(--ok)':'rgba(248,113,113,0.2)'),borderRadius:4,marginBottom:8,width:959,display:'flex',alignItems:'center',justifyContent:'space-between'}}><span>{apuMsg.texto}</span><button onClick={function(){setApuMsg(null)}} style={{background:'none',border:'none',color:'inherit',cursor:'pointer',fontSize:16,lineHeight:1,padding:'0 4px'}} title="Cerrar">✕</button></div>}
 
@@ -5999,7 +6006,7 @@ var SUBS=[
 
       <div style={{display:'flex',flexDirection:'column',height:'calc(100vh - 242px)'}}>
 
-        {catDelErr&&<div style={{padding:'6px 10px',fontSize:11,color:'#f87171',background:'rgba(248,113,113,0.08)',border:'1px solid rgba(248,113,113,0.2)',borderRadius:4,marginBottom:8,display:'flex',alignItems:'center',justifyContent:'space-between',width:800,flex:'0 0 auto'}}><span>{catDelErr}</span><button onClick={function(){setCatDelErr('')}} style={{background:'none',border:'none',color:'#f87171',cursor:'pointer',fontSize:14,lineHeight:1,padding:'0 4px'}} title="Cerrar">✕</button></div>}
+        {catDelErr&&<div style={{padding:'6px 10px',fontSize:11,...ERR_BG,borderRadius:4,marginBottom:8,display:'flex',alignItems:'center',justifyContent:'space-between',width:800,flex:'0 0 auto'}}><span>{catDelErr}</span><button onClick={function(){setCatDelErr('')}} style={{background:'none',border:'none',color:'#f87171',cursor:'pointer',fontSize:14,lineHeight:1,padding:'0 4px'}} title="Cerrar">✕</button></div>}
 
         <div className="xl-scroll" style={{flex:'1 1 0',minHeight:0,width:800,overflowY:'auto'}}>
 
@@ -6163,7 +6170,7 @@ var SUBS=[
 
       <div style={{width:750}}>
 
-        {catDelErr&&<div style={{padding:'6px 10px',fontSize:11,color:'#f87171',background:'rgba(248,113,113,0.08)',border:'1px solid rgba(248,113,113,0.2)',borderRadius:4,marginBottom:8,display:'flex',alignItems:'center',justifyContent:'space-between',width:750}}><span>{catDelErr}</span><button onClick={function(){setCatDelErr('')}} style={{background:'none',border:'none',color:'#f87171',cursor:'pointer',fontSize:14,lineHeight:1,padding:'0 4px'}} title="Cerrar">✕</button></div>}
+        {catDelErr&&<div style={{padding:'6px 10px',fontSize:11,...ERR_BG,borderRadius:4,marginBottom:8,display:'flex',alignItems:'center',justifyContent:'space-between',width:750}}><span>{catDelErr}</span><button onClick={function(){setCatDelErr('')}} style={{background:'none',border:'none',color:'#f87171',cursor:'pointer',fontSize:14,lineHeight:1,padding:'0 4px'}} title="Cerrar">✕</button></div>}
 
         <div style={{border:'1px solid var(--bdr)',borderRadius:4,overflow:'hidden'}}>
 

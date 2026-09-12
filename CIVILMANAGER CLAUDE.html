@@ -7656,7 +7656,7 @@ function BannerEstadoProyecto({pres,estadoLabel,estadoColor,width}){
     },
     en_revision:{
       icono:'🔵',
-      texto:'Revisión de Costos — el formulario de cantidades está congelado (no se pueden crear, modificar ni eliminar ítems). Solo se pueden ajustar recursos, precios y parámetros. El resumen financiero se recalcula con esos cambios.'
+      texto:'Revisión de Costos — el formulario sigue editable (para ajutes menores antes del cierre). Solo se bloquea al Cerrar el proyecto. El resumen financiero se recalcula con los cambios.'
     },
     cerrado:{
       icono:'🟢',
@@ -7737,7 +7737,7 @@ function PresProyectosPanel({presupuestos,selPresIdx,setSelPresIdx,data,onChange
               <div style={{fontWeight:700,color:'var(--tx)',fontSize:11,marginBottom:4}}>📌 Estados del Proyecto</div>
               <div style={{display:'flex',flexDirection:'column',gap:2}}>
                 <span><span style={{color:'var(--warn)',fontWeight:700}}>🟡 Borrador</span> — construcción activa, todo editable.</span>
-                <span><span style={{color:'var(--ac)',fontWeight:700}}>🔵 Revisión de Costos</span> — formulario congelado, solo recursos y parámetros editables.</span>
+                <span><span style={{color:'var(--ac)',fontWeight:700}}>🔵 Revisión de Costos</span> — formulario editable; todo se bloquea al Cerrar el proyecto.</span>
                 <span><span style={{color:'var(--ok)',fontWeight:700}}>🟢 Cerrado</span> — versión oficial, solo lectura total.</span>
                 <span style={{color:'var(--tx3)',fontSize:9}}>(Clic en el badge de estado para cambiar)</span>
               </div>
@@ -9245,17 +9245,23 @@ function PresFormularioPanelInner({pres,presupuestos,selPresIdx,data,onChange,ap
     showToast('APU removido',{type:'ok',dur:2000});
   };
 
+  /* P1: máquina de estados unificada con toggleEstado (catálogo):
+     - borrador→en_revision: valida validarExportacionFormulario (antes solo advertía)
+     - cerrado→borrador: reabrir con doble confirmación (antes solo existía en el catálogo) */
   var siguienteEstado=async function(){
     var next=pres.estado==='borrador'?'en_revision':pres.estado==='en_revision'?'cerrado':null;
     if(!next)return;
     if(pres.estado==='borrador'){
-      var itemsSinPrecio=(pres.items||[]).filter(function(it){return!esCapituloFinal(it)&&it.tipoPrecio==='entidad'&&(!it.precioEntidad||parseFloat(it.precioEntidad)<=0)});
-      if(itemsSinPrecio.length>0){
-        if(!(await askConfirm('⚠ '+itemsSinPrecio.length+' ítem(s) con precio de entidad sin definir.\nAl cambiar a Revisión quedarán con precio $0. ¿Continuar?')))return;
+      var v=validarExportacionFormulario(pres);
+      if(!v.valido){
+        showToast('No se puede cambiar a Revisión: '+v.pendientes.length+' ítem(s) pendiente(s) (sin precio de entidad, sin APU o cantidad 0). Revise el formulario.',{type:'err',dur:8000});
+        return;
       }
       var itemsSinApu=(pres.items||[]).filter(function(it){return!esCapituloFinal(it)&&!it.tiene_apu});
       var msgAPU=itemsSinApu.length>0?'\n\n⚠ '+itemsSinApu.length+' ítem(s) sin APU asignado. El módulo de Programación no podrá funcionar con estos items.':'';
-      if(!(await askConfirm('¿Cambiar "'+pres.nombre+'" a Revisión?\n\nLos precios de entidad se bloquearán y podrá asignar APU a los ítems.'+msgAPU)))return;
+      if(itemsSinApu.length>0){
+        if(!(await askConfirm('¿Cambiar "'+pres.nombre+'" a Revisión?'+msgAPU)))return;
+      }
     }
     if(pres.estado==='en_revision'){
       if(!(await askConfirm('¿Cerrar "'+pres.nombre+'"?\n\nEsto bloqueará TODO el proyecto. No se podrán hacer más cambios.')))return;
@@ -9264,6 +9270,15 @@ function PresFormularioPanelInner({pres,presupuestos,selPresIdx,data,onChange,ap
     n[idxPres]=Object.assign({},n[idxPres],{estado:next,fecha_cierre:next==='cerrado'?new Date().toISOString().slice(0,10):null});
     onChange(Object.assign({},data,{presupuestos:n}));
     showToast('Estado cambiado a: '+estadoLabel(next),{type:'ok'});
+  };
+
+  var reabrirPresupuesto=async function(){
+    if(!(await askConfirm('¿Reabrir "'+(pres.nombre||pres.codigo)+'" en estado Borrador?\n\nTodos los campos vuelven a ser editables y la fecha de cierre se elimina.')))return;
+    if(!(await askConfirm('¿Confirma reabrir? Si hay entregables ya emitidos, no reflejarán esta versión editable.')))return;
+    var n=presupuestos.slice();
+    n[idxPres]=Object.assign({},n[idxPres],{estado:'borrador',fecha_cierre:null});
+    onChange(Object.assign({},data,{presupuestos:n}));
+    showToast('Proyecto reabierto como Borrador',{type:'ok'});
   };
 
   var convertirEntidadAapu=async function(){
@@ -9341,7 +9356,8 @@ function PresFormularioPanelInner({pres,presupuestos,selPresIdx,data,onChange,ap
       setArchivoRaw(wb);
       setB64Original(arrayBufferToBase64(ev.target.result));
       setNombreArchivo(file.name);
-      setPreviewFilas(todas.slice(0,50));
+      /* P3: 50→200 — con formularios con encabezado bajo la fila 50 el mapeo era imposible */
+  setPreviewFilas(todas.slice(0,200));
       setPreviewMerges(ws['!merges']||[]);
       var filaInicio=autoDetectarFilaInicio(todas);
       setMapeo(Object.assign(mapeoVacio(),{fila_inicio:filaInicio}));
@@ -10022,6 +10038,7 @@ function PresFormularioPanelInner({pres,presupuestos,selPresIdx,data,onChange,ap
           {!readOnly&&fo&&<button className="btn" onClick={editarMapeo} style={{fontSize:10,padding:'4px 10px',border:'1px solid #fbbf24',borderRadius:4,background:'rgba(251,191,36,.08)',color:'#fbbf24',cursor:'pointer',fontWeight:600}}>✏️ Editar Mapeo</button>}
           {pres.estado!=='cerrado'&&<button className="btn" onClick={siguienteEstado} style={{fontSize:10,padding:'4px 10px',border:'1px solid '+(pres.estado==='borrador'?'var(--ac)':'var(--ok)'),borderRadius:4,background:pres.estado==='borrador'?'rgba(77,143,247,.08)':'rgba(74,222,128,.08)',color:pres.estado==='borrador'?'var(--ac)':'var(--ok)',cursor:'pointer',fontWeight:600}}>Cambiar Estado →</button>}
           {pres.estado==='cerrado'&&<span style={{fontSize:10,color:'var(--ok)',fontWeight:700}}>🔒 Cerrado</span>}
+{pres.estado==='cerrado'&&<button className="btn" onClick={reabrirPresupuesto} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--warn)',borderRadius:4,background:'rgba(251,191,36,.08)',color:'var(--warn)',cursor:'pointer'}}>↩ Reabrir como Borrador</button>}
           <button onClick={function(){setTab(14)}} style={{fontSize:10,padding:'4px 10px',border:'1px solid var(--bdr)',borderRadius:4,background:'transparent',color:'var(--tx2)',cursor:'pointer'}}>📦 Ver recursos del proyecto</button>
           <input className="ni" placeholder="Buscar item..." value={busq} onChange={function(e){setBusq(e.target.value);setPage(0)}} style={{width:160,height:22,fontSize:10,border:'1px solid var(--ac)',borderRadius:4,marginLeft:8}}/>
         </div>
